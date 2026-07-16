@@ -1,0 +1,189 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Cairo:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-cream-50 text-rose-900 font-sans;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  [dir='rtl'] body,
+  [dir='rtl'] .font-sans {
+    font-family: 'Cairo', sans-serif;
+  }
+
+  [dir='rtl'] .font-display {
+    font-family: 'Cairo', sans-serif;
+    font-weight: 600;
+  }
+
+  ::selection {
+    @apply bg-rose-200 text-rose-900;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 font-medium rounded-xl
+           transition-all duration-300 ease-silk
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50
+           disabled:opacity-40 disabled:pointer-events-none
+           active:scale-[0.98];
+  }
+
+  .btn-primary {
+    @apply btn bg-rose-600 text-cream-50 px-6 py-3
+           hover:bg-rose-700 hover:shadow-lift;
+  }
+
+  .btn-secondary {
+    @apply btn bg-cream-100 text-rose-800 px-6 py-3 border border-cream-300
+           hover:bg-cream-200 hover:border-rose-200;
+  }
+
+  .btn-ghost {
+    @apply btn text-rose-700 px-4 py-2
+           hover:bg-rose-50 hover:text-rose-800;
+  }
+
+  .btn-whatsapp {
+    @apply btn bg-[#25D366] text-white px-6 py-3.5
+           hover:bg-[#1FB855] hover:shadow-lift;
+  }
+
+  .btn-sm {
+    @apply px-4 py-2 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-8 py-4 text-base;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-cream-200
+           transition-all duration-300 ease-silk;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-lift hover:-translate-y-0.5;
+  }
+
+  .card-interactive {
+    @apply card cursor-pointer hover:shadow-lift hover:border-rose-200
+           hover:-translate-y-0.5;
+  }
+
+  .card-selected {
+    @apply border-rose-400 shadow-glow ring-1 ring-rose-300;
+  }
+
+  .input {
+    @apply w-full bg-cream-50 border border-cream-300 rounded-xl
+           px-4 py-3 text-rose-900 placeholder:text-rose-400/60
+           transition-all duration-200 ease-silk
+           focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-200 focus:bg-white;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-rose-700 mb-1.5;
+  }
+
+  .chip {
+    @apply inline-flex items-center justify-center gap-1.5
+           rounded-xl px-4 py-2.5 text-sm font-medium
+           transition-all duration-200 ease-silk
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400;
+  }
+
+  .chip-available {
+    @apply chip bg-cream-100 text-rose-800 border border-cream-200
+           hover:bg-rose-50 hover:border-rose-300 hover:shadow-soft;
+  }
+
+  .chip-selected {
+    @apply chip bg-rose-600 text-cream-50 border border-rose-600 shadow-soft;
+  }
+
+  .chip-disabled {
+    @apply chip bg-cream-100/60 text-cream-500 border border-cream-200
+           cursor-not-allowed line-through opacity-60;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium;
+  }
+
+  .badge-confirmed {
+    @apply badge bg-sage-100 text-sage-700 border border-sage-200;
+  }
+
+  .badge-pending {
+    @apply badge bg-amber-100 text-amber-700 border border-amber-200;
+  }
+
+  .badge-available {
+    @apply badge bg-rose-50 text-rose-700 border border-rose-100;
+  }
+
+  .img-placeholder {
+    background: linear-gradient(
+      90deg,
+      theme('colors.cream.100') 0%,
+      theme('colors.cream.200') 50%,
+      theme('colors.cream.100') 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  .thread-divider {
+    position: relative;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      theme('colors.rose.300') 20%,
+      theme('colors.gold.300') 50%,
+      theme('colors.rose.300') 80%,
+      transparent 100%
+    );
+    border-radius: 999px;
+    opacity: 0.6;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-cream-100;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-cream-300 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-cream-400;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
