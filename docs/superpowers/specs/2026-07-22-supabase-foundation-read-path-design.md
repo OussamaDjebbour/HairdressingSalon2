@@ -25,11 +25,11 @@ Done when:
 2. The Services section and the Booking wizard render the same content as before, now sourced from the DB.
 3. A loading (skeleton) state shows while fetching; an error state with a working **Retry** appears when the fetch fails (e.g. bad key).
 4. The FR/AR toggle still switches service/stylist text (jsonb round-trips correctly).
-5. `pnpm build` passes; the provider unit test is green.
+5. `pnpm build` passes; the query-hook unit test is green.
 
 ## Scope
 
-**In:** Supabase client + env wiring; `services` + `stylists` tables (migration + RLS + seed); a `SalonDataProvider` read layer; refactor of `Services.tsx` and `Booking.tsx` to consume it; loading/error UI + i18n; Vitest setup + one provider test.
+**In:** Supabase client + env wiring; `services` + `stylists` tables (migration + RLS + seed); a TanStack Query read layer (`useServices`/`useStylists` under a `QueryClientProvider`); refactor of `Services.tsx` and `Booking.tsx` to consume it; loading/error UI + i18n; Vitest setup + one query-hook test.
 
 **Explicitly OUT (later sub-projects):**
 - Booking persistence — booking still opens WhatsApp only (SP2)
@@ -86,26 +86,23 @@ create policy "public read stylists" on stylists for select to anon using (true)
 - `.env` (gitignored — already covered by `.env` rule in `.gitignore`) holds the real values; `.env.example` (committed) documents the two var names.
 - `src/lib/database.types.ts` — generated via `supabase gen types typescript --linked`, used to type queries.
 
-## App architecture (sync constants → async provider)
+## App architecture (sync constants → React Query)
 
-- **`src/context/SalonDataContext.tsx`** — a provider mirroring `LanguageContext`. On mount it fetches services + stylists (ordered by `sort_order`), maps rows to the existing `Service`/`Stylist` types, and exposes:
-  ```ts
-  interface SalonData {
-    services: Service[];
-    stylists: Stylist[];
-    loading: boolean;
-    error: boolean;
-    reload: () => void;
-  }
-  ```
-  Consumed via `useSalonData()`. Fetched once per app load.
-- **Provider order** in `App.tsx`: `LanguageProvider` → `SalonDataProvider` → `BrowserRouter` → `Routes`. (Provider wraps app-wide; the small over-fetch on `/admin` is acceptable given the tiny payload.)
+Data fetching uses **TanStack Query (`@tanstack/react-query`)** — caching, request dedup, and loading/error/refetch come built in, so there's no hand-rolled fetch state.
+
+- **`src/lib/queryClient.ts`** — a `QueryClient` with content-appropriate defaults: `staleTime: 5 * 60_000`, `refetchOnWindowFocus: false`, `retry: 1` (salon content changes rarely).
+- **`App.tsx`** — wrap with `QueryClientProvider`. Provider order: `LanguageProvider` → `QueryClientProvider` → `BrowserRouter` → `Routes`.
+- **`src/data/queries.ts`** — the fetch/map layer + typed query hooks:
+  - `fetchServices()` / `fetchStylists()` — supabase `select(...).order('sort_order')`, mapping rows (jsonb → `Record<Lang,string>`) to the `Service`/`Stylist` types.
+  - `useServices()` → `useQuery({ queryKey: ['services'], queryFn: fetchServices })`
+  - `useStylists()` → `useQuery({ queryKey: ['stylists'], queryFn: fetchStylists })`
+  - Separate hooks (not one combined provider) so each screen fetches only what it needs; React Query dedupes and caches shared query keys across components.
 - **`Service` / `Stylist` interfaces** move from `src/data/services.ts` to a shared `src/data/types.ts`; `src/data/services.ts` keeps only `generateTimeSlots`/`getBookedSlots` (untouched) and re-exports the types for back-compat if any import path still points there.
-- **`Services.tsx`** and **`Booking.tsx`** replace the static imports with `useSalonData()`.
+- **`Services.tsx`** uses `useServices()`; **`Booking.tsx`** uses `useServices()` + `useStylists()` (combining their `isLoading` / `isError`).
 
-**Loading:** a `ServiceCardSkeleton` (and a booking-step skeleton) reusing the existing `.img-placeholder` shimmer + neutral blocks, shown while `loading`.
+**Loading:** while `isLoading`, show a `ServiceCardSkeleton` (and a booking-step skeleton) reusing the existing `.img-placeholder` shimmer + neutral blocks.
 
-**Error:** when `error`, show a friendly bilingual message with a **Retry** button calling `reload()` — styled as the existing empty-state pattern (centered, muted text, secondary button).
+**Error:** while `isError`, show a friendly bilingual message with a **Retry** button calling the query's `refetch()` — styled as the existing empty-state pattern (centered, muted text, secondary button).
 
 ## i18n additions
 
@@ -118,7 +115,7 @@ New keys in both `fr` and `ar` maps (`LanguageContext`):
 The repo currently has no test framework. SP1 adds:
 - Dev deps: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`.
 - Test config: a `test` block in the Vite config via `defineConfig` from `vitest/config` (env `jsdom`), plus `"test": "vitest"` in `package.json` scripts.
-- One test — `SalonDataContext.test.tsx` — mocking the `src/lib/supabase.ts` module: asserts the loading→data path (renders seeded rows) and the loading→error path (fetch rejects → `error` true, retry callable).
+- One test — `queries.test.tsx` — renders a hook (`useServices`) inside a `QueryClientProvider` (with `retry: false`) over a mocked `src/lib/supabase.ts`: asserts loading→data (seeded rows returned) and loading→error (fetch rejects → `isError` true, `refetch` callable).
 
 ## User setup steps (documented in README/spec)
 
@@ -132,18 +129,18 @@ The repo currently has no test framework. SP1 adds:
 ## Deliverables (file-level)
 
 - `supabase/config.toml` + `supabase/migrations/<ts>_create_services_stylists.sql` + `supabase/seed.sql`
-- `package.json` — `@supabase/supabase-js` dep; Vitest dev deps; `test` script
-- `src/lib/supabase.ts`, `src/lib/database.types.ts`
-- `src/context/SalonDataContext.tsx`
+- `package.json` — `@supabase/supabase-js` + `@tanstack/react-query` deps; Vitest dev deps; `test` script
+- `src/lib/supabase.ts`, `src/lib/database.types.ts`, `src/lib/queryClient.ts`
+- `src/data/queries.ts` (fetchers + `useServices`/`useStylists` hooks)
 - `src/data/types.ts` (moved `Service`/`Stylist` interfaces)
-- Edits: `src/App.tsx`, `src/components/Services.tsx`, `src/components/Booking.tsx`, `src/context/LanguageContext.tsx` (i18n keys)
+- Edits: `src/App.tsx` (`QueryClientProvider`), `src/components/Services.tsx`, `src/components/Booking.tsx`, `src/context/LanguageContext.tsx` (i18n keys)
 - `.env.example`
-- Test: `src/context/SalonDataContext.test.tsx` + Vite config `test` block
+- Test: `src/data/queries.test.tsx` + Vite config `test` block
 
 ## Resolved decisions
 
 - Bilingual storage: **jsonb `{fr,ar}`** (not per-language columns or a translations table).
 - Primary keys: **text slugs** (not uuid).
-- Read layer: **one app-wide `SalonDataProvider`** (not per-component fetching).
+- Read layer: **TanStack Query hooks** (`useServices` / `useStylists`) under a `QueryClientProvider` — caching + loading/error/refetch built in (not a hand-rolled context provider).
 - Testing: **Vitest included** in SP1.
 - Schema scope: **`services` + `stylists` only**; other tables land with SP2/SP3.
