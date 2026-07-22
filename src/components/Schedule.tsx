@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import {
   Clock,
   Check,
-  Phone,
   User,
   TrendingUp,
   CalendarDays,
@@ -58,10 +57,10 @@ function AppointmentBlock({ apt }: { apt: Appointment }) {
           </Badge>
         )}
       </div>
-      <p className="text-[11px] text-rose-500 truncate mt-0.5">
+      <p className="text-[11px] text-rose-600 truncate mt-0.5">
         {apt.serviceName[lang]}
       </p>
-      <div className="flex items-center gap-2 mt-1 text-[10px] text-rose-400">
+      <div className="flex items-center gap-2 mt-1 text-[10px] text-rose-600">
         <span className="flex items-center gap-0.5">
           <User className="w-2.5 h-2.5" strokeWidth={2} />
           {apt.stylistName}
@@ -77,25 +76,21 @@ function StatCard({
   icon: Icon,
   label,
   value,
-  color,
-  bg,
 }: {
   icon: typeof Clock;
   label: string;
   value: string;
-  color: string;
-  bg: string;
 }) {
   return (
     <div className="flex items-center gap-4 p-5 rounded-2xl bg-white border border-cream-200 shadow-soft">
-      <div className={`flex items-center justify-center w-12 h-12 rounded-xl ${bg} flex-shrink-0`}>
-        <Icon className={`w-6 h-6 ${color}`} strokeWidth={1.8} />
+      <div className="flex items-center justify-center w-11 h-11 rounded-full bg-cream-100 border border-gold-200/70 flex-shrink-0">
+        <Icon className="w-5 h-5 text-gold-600" strokeWidth={1.8} />
       </div>
       <div className="min-w-0">
-        <p className="text-2xl font-display font-semibold text-rose-800 leading-none">
+        <p className="text-2xl font-display font-semibold text-rose-900 leading-none">
           {value}
         </p>
-        <p className="text-xs text-rose-500/70 mt-1">{label}</p>
+        <p className="text-xs text-rose-600 mt-1">{label}</p>
       </div>
     </div>
   );
@@ -126,11 +121,11 @@ export function Schedule() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-10">
-          <Thread variant="accent" className="w-24 h-5 text-rose-400 mx-auto mb-4" />
-          <h2 className="font-display text-3xl sm:text-4xl font-semibold text-rose-800 mb-2">
+          <p className="eyebrow eyebrow-center justify-center mx-auto mb-4">{t('schedule.kicker')}</p>
+          <h2 className="font-display font-semibold text-rose-900 mb-2 text-[clamp(2rem,4vw,3rem)]">
             {t('schedule.title')}
           </h2>
-          <p className="text-rose-500/80 text-lg">{t('schedule.subtitle')}</p>
+          <p className="text-rose-600 text-lg">{t('schedule.subtitle')}</p>
         </div>
 
         {/* Stats row */}
@@ -139,29 +134,21 @@ export function Schedule() {
             icon={CalendarDays}
             label={t('schedule.appointments')}
             value={String(sorted.length)}
-            color="text-rose-600"
-            bg="bg-rose-100"
           />
           <StatCard
             icon={TrendingUp}
             label={t('schedule.revenue')}
             value={formatPrice(totalRevenue, lang)}
-            color="text-sage-600"
-            bg="bg-sage-100"
           />
           <StatCard
             icon={Activity}
             label={t('schedule.occupation')}
             value={`${occupationRate}%`}
-            color="text-gold-600"
-            bg="bg-gold-100"
           />
           <StatCard
             icon={Clock}
             label={t('schedule.nextAppt')}
             value={upcoming ? upcoming.time : '—'}
-            color="text-amber-600"
-            bg="bg-amber-100"
           />
         </div>
 
@@ -173,7 +160,7 @@ export function Schedule() {
                 <h3 className="font-display text-lg font-semibold text-rose-800">
                   {formatLongDate(now, lang)}
                 </h3>
-                <span className="text-sm text-rose-400">
+                <span className="text-sm text-rose-600">
                   {sorted.length} {t('schedule.appointments')}
                 </span>
               </div>
@@ -187,7 +174,7 @@ export function Schedule() {
                     className="absolute left-0 right-0 flex items-start"
                     style={{ top: `${i * HOUR_HEIGHT}px` }}
                   >
-                    <span className="text-xs text-cream-500 w-12 flex-shrink-0 -mt-1.5">
+                    <span className="text-xs text-rose-600 w-12 flex-shrink-0 -mt-1.5">
                       {String(h).padStart(2, '0')}:00
                     </span>
                     <div className="flex-1 border-t border-cream-200" />
@@ -218,8 +205,9 @@ export function Schedule() {
           {/* Sidebar — next appointment + list */}
           <div className="space-y-6">
             {/* Next appointment highlight */}
-            <div className="bg-gradient-to-br from-rose-600 to-rose-800 rounded-3xl p-6 text-cream-50 shadow-lift">
-              <p className="text-xs uppercase tracking-wider text-cream-200/70 mb-3">
+            <div className="relative bg-gradient-to-br from-rose-800 to-rose-900 rounded-3xl p-6 text-cream-50 shadow-lift overflow-hidden">
+              <div className="absolute top-0 inset-x-0 hairline opacity-50" />
+              <p className="text-[0.7rem] uppercase tracking-[0.2em] text-gold-300 mb-3">
                 {t('schedule.nextAppt')}
               </p>
               {upcoming ? (
@@ -257,7 +245,7 @@ export function Schedule() {
                   >
                     <div className="flex flex-col items-center justify-center w-12 flex-shrink-0">
                       <span className="text-sm font-semibold text-rose-700">{apt.time}</span>
-                      <span className="text-[10px] text-cream-500">
+                      <span className="text-[10px] text-rose-600">
                         {formatDuration(apt.duration, lang)}
                       </span>
                     </div>
@@ -266,7 +254,7 @@ export function Schedule() {
                       <p className="text-sm font-medium text-rose-800 truncate">
                         {apt.clientName}
                       </p>
-                      <p className="text-xs text-rose-400 truncate">
+                      <p className="text-xs text-rose-600 truncate">
                         {apt.serviceName[lang]}
                       </p>
                     </div>
@@ -285,7 +273,7 @@ export function Schedule() {
 
               {/* Book CTA */}
               <a
-                href="#booking"
+                href="/#booking"
                 className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-cream-200 text-sm font-medium text-rose-600 hover:text-rose-800 transition-colors"
               >
                 {t('nav.booking')}

@@ -1,26 +1,25 @@
+import { Link } from 'react-router-dom';
 import { Phone, MapPin, Clock, Instagram, Facebook } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { Thread } from './Thread';
 
 export function Footer() {
   const { t } = useLang();
 
   return (
     <footer id="contact" className="relative mt-24 bg-rose-900 text-cream-100">
-      <div className="absolute top-0 inset-x-0 h-px overflow-hidden">
-        <Thread variant="divider" className="w-full" />
-      </div>
+      <div className="absolute top-0 inset-x-0 hairline opacity-60" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           <div className="lg:col-span-1">
-            <h3 className="font-display text-2xl font-semibold text-cream-50 mb-3">Élégance</h3>
+            <h3 className="font-display italic text-2xl font-semibold text-cream-50 mb-1">Élégance</h3>
+            <p className="text-[0.7rem] uppercase tracking-[0.28em] text-gold-400 font-semibold mb-4">Alger</p>
             <p className="text-sm text-cream-200/80 leading-relaxed max-w-xs">{t('hero.subtitle')}</p>
           </div>
 
           <div>
             <h4 className="flex items-center gap-2 text-sm font-semibold text-cream-100 mb-4 uppercase tracking-wider">
-              <MapPin className="w-4 h-4 text-rose-300" strokeWidth={1.8} />
+              <MapPin className="w-4 h-4 text-gold-400" strokeWidth={1.8} />
               {t('contact.address')}
             </h4>
             <p className="text-sm text-cream-200/70 leading-relaxed">
@@ -32,7 +31,7 @@ export function Footer() {
 
           <div>
             <h4 className="flex items-center gap-2 text-sm font-semibold text-cream-100 mb-4 uppercase tracking-wider">
-              <Clock className="w-4 h-4 text-rose-300" strokeWidth={1.8} />
+              <Clock className="w-4 h-4 text-gold-400" strokeWidth={1.8} />
               {t('contact.hours')}
             </h4>
             <ul className="space-y-2 text-sm text-cream-200/70">
@@ -53,7 +52,7 @@ export function Footer() {
 
           <div>
             <h4 className="flex items-center gap-2 text-sm font-semibold text-cream-100 mb-4 uppercase tracking-wider">
-              <Phone className="w-4 h-4 text-rose-300" strokeWidth={1.8} />
+              <Phone className="w-4 h-4 text-gold-400" strokeWidth={1.8} />
               {t('contact.phone')}
             </h4>
             <a
@@ -85,8 +84,15 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-6 border-t border-rose-800/50">
-          <p className="text-xs text-cream-300/50 text-center">© 2026 Élégance Salon. Tous droits réservés.</p>
+        <div className="mt-12 pt-6 border-t border-rose-800/50 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+          <p className="text-xs text-cream-300/70">© 2026 Élégance Salon. Tous droits réservés.</p>
+          <span className="hidden sm:inline text-cream-300/40" aria-hidden>·</span>
+          <Link
+            to="/admin"
+            className="text-xs text-cream-300/70 hover:text-gold-300 transition-colors link-gilt"
+          >
+            {t('admin.label')}
+          </Link>
         </div>
       </div>
     </footer>

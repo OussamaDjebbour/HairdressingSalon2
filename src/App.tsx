@@ -1,26 +1,18 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
-import { Navbar } from './components/Navbar';
-import { Footer } from './components/Footer';
-import { Hero } from './components/Hero';
-import { Services } from './components/Services';
-import { TrustBadges } from './components/TrustBadges';
-import { Booking } from './components/Booking';
-import { Schedule } from './components/Schedule';
+import { HomePage } from './pages/HomePage';
+import { AdminPage } from './pages/AdminPage';
 
 function App() {
   return (
     <LanguageProvider>
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <main className="flex-1">
-          <Hero />
-          <TrustBadges />
-          <Services />
-          <Booking />
-          <Schedule />
-        </main>
-        <Footer />
-      </div>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
     </LanguageProvider>
   );
 }

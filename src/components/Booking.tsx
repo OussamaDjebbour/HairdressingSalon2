@@ -7,7 +7,6 @@ import {
 import { useLang } from '../context/LanguageContext';
 import { services, stylists, generateTimeSlots, getBookedSlots, type Service } from '../data/services';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
-import { Thread } from './Thread';
 import { TimeSlotChip } from './TimeSlotChip';
 import { SmartImage } from './SmartImage';
 
@@ -128,7 +127,7 @@ export function Booking() {
             <div className="absolute inset-0 rounded-full bg-sage-200/40 animate-ping" />
           </div>
           <h2 className="font-display text-3xl font-semibold text-rose-800 mb-3">{t('booking.successTitle')}</h2>
-          <p className="text-rose-500/80 text-lg mb-8">{t('booking.successText')}</p>
+          <p className="text-rose-600 text-lg mb-8">{t('booking.successText')}</p>
           <button onClick={resetBooking} className="btn-secondary btn-lg">{t('booking.newBooking')}</button>
         </div>
       </section>
@@ -139,8 +138,8 @@ export function Booking() {
     <section id="booking" className="relative py-20 lg:py-28 bg-cream-100/50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
-          <Thread variant="accent" className="w-24 h-5 text-rose-400 mx-auto mb-4" />
-          <h2 className="font-display text-3xl sm:text-4xl font-semibold text-rose-800 mb-2">{t('booking.title')}</h2>
+          <p className="eyebrow eyebrow-center justify-center mx-auto mb-4">{t('booking.kicker')}</p>
+          <h2 className="font-display font-semibold text-rose-900 text-[clamp(2rem,4vw,3rem)]">{t('booking.title')}</h2>
         </div>
 
         {/* Step indicator */}
@@ -154,20 +153,20 @@ export function Booking() {
                   <div
                     className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300 ease-silk ${
                       isDone
-                        ? 'bg-rose-600 border-rose-600 text-cream-50'
+                        ? 'bg-rose-800 border-rose-800 text-cream-50'
                         : isActive
-                        ? 'bg-white border-rose-400 text-rose-600 shadow-soft'
+                        ? 'bg-white border-gold-400 text-rose-800 ring-2 ring-gold-200'
                         : 'bg-cream-100 border-cream-300 text-cream-500'
                     }`}
                   >
                     {isDone ? <Check className="w-5 h-5" strokeWidth={2} /> : <s.icon className="w-5 h-5" strokeWidth={1.8} />}
                   </div>
-                  <span className={`text-xs font-medium hidden sm:block ${isActive ? 'text-rose-700' : isDone ? 'text-rose-500' : 'text-cream-500'}`}>
+                  <span className={`text-xs font-medium hidden sm:block ${isActive ? 'text-rose-700' : isDone ? 'text-rose-600' : 'text-cream-500'}`}>
                     {s.label}
                   </span>
                 </div>
                 {i < steps.length - 1 && (
-                  <div className={`w-12 sm:w-20 h-0.5 mx-2 rounded-full transition-colors duration-300 ${isDone ? 'bg-rose-400' : 'bg-cream-300'}`} />
+                  <div className={`w-12 sm:w-20 h-0.5 mx-2 rounded-full transition-colors duration-300 ${isDone ? 'bg-gold-400' : 'bg-cream-300'}`} />
                 )}
               </div>
             );
@@ -189,8 +188,8 @@ export function Booking() {
                       onClick={() => setSelectedService(service)}
                       className={`flex items-start gap-4 p-4 rounded-2xl border text-start transition-all duration-200 ease-silk ${
                         isSelected
-                          ? 'border-rose-400 bg-rose-50 shadow-glow ring-1 ring-rose-300'
-                          : 'border-cream-200 bg-cream-50 hover:border-rose-200 hover:bg-rose-50/50'
+                          ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
+                          : 'border-cream-200 bg-cream-50 hover:border-gold-200 hover:bg-rose-50/50'
                       }`}
                     >
                       <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center">
@@ -199,12 +198,12 @@ export function Booking() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <h4 className="font-medium text-rose-800 text-sm">{service.name[lang]}</h4>
-                          {isSelected && <Check className="w-4 h-4 text-rose-600 flex-shrink-0" strokeWidth={2.5} />}
+                          {isSelected && <Check className="w-4 h-4 text-gold-600 flex-shrink-0" strokeWidth={2.5} />}
                         </div>
-                        <p className="text-xs text-rose-500/70 mt-0.5 line-clamp-2">{service.description[lang]}</p>
+                        <p className="text-xs text-rose-600 mt-0.5 line-clamp-2">{service.description[lang]}</p>
                         <div className="flex items-center gap-3 mt-2">
                           <span className="text-sm font-semibold text-rose-700">{formatPrice(service.price, lang)}</span>
-                          <span className="flex items-center gap-1 text-xs text-rose-400">
+                          <span className="flex items-center gap-1 text-xs text-rose-600">
                             <Clock className="w-3.5 h-3.5" strokeWidth={1.8} />
                             {formatDuration(service.duration, lang)}
                           </span>
@@ -226,8 +225,8 @@ export function Booking() {
                   onClick={() => setSelectedStylist(null)}
                   className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
                     selectedStylist === null
-                      ? 'border-rose-400 bg-rose-50 shadow-glow ring-1 ring-rose-300'
-                      : 'border-cream-200 bg-cream-50 hover:border-rose-200'
+                      ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
+                      : 'border-cream-200 bg-cream-50 hover:border-gold-200'
                   }`}
                 >
                   <div className="w-16 h-16 rounded-full bg-cream-200 flex items-center justify-center">
@@ -244,8 +243,8 @@ export function Booking() {
                       onClick={() => setSelectedStylist(stylist.id)}
                       className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
                         isSelected
-                          ? 'border-rose-400 bg-rose-50 shadow-glow ring-1 ring-rose-300'
-                          : 'border-cream-200 bg-cream-50 hover:border-rose-200'
+                          ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
+                          : 'border-cream-200 bg-cream-50 hover:border-gold-200'
                       }`}
                     >
                       <div className="relative">
@@ -257,14 +256,14 @@ export function Booking() {
                           className="w-16 h-16"
                         />
                         {isSelected && (
-                          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-rose-600 flex items-center justify-center border-2 border-white">
+                          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center border-2 border-white">
                             <Check className="w-3.5 h-3.5 text-cream-50" strokeWidth={3} />
                           </div>
                         )}
                       </div>
                       <div className="text-center">
                         <p className="text-sm font-medium text-rose-800">{stylist.name}</p>
-                        <p className="text-xs text-rose-400">{stylist.role[lang]}</p>
+                        <p className="text-xs text-rose-600">{stylist.role[lang]}</p>
                       </div>
                     </button>
                   );
@@ -288,8 +287,8 @@ export function Booking() {
                         onClick={() => { setSelectedDate(day); setSelectedTime(null); }}
                         className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-2xl border transition-all duration-200 ease-silk ${
                           isSelected
-                            ? 'border-rose-400 bg-rose-600 text-cream-50 shadow-soft'
-                            : 'border-cream-200 bg-cream-50 text-rose-600 hover:border-rose-200'
+                            ? 'border-rose-800 bg-rose-800 text-cream-50 shadow-soft'
+                            : 'border-cream-200 bg-cream-50 text-rose-600 hover:border-gold-200'
                         }`}
                       >
                         <span className="text-[10px] uppercase tracking-wide opacity-70">
@@ -324,7 +323,7 @@ export function Booking() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-rose-400 text-sm py-8 text-center">{t('booking.noSlots')}</p>
+                    <p className="text-rose-600 text-sm py-8 text-center">{t('booking.noSlots')}</p>
                   )}
                 </div>
               )}
@@ -338,23 +337,23 @@ export function Booking() {
 
               <div className="rounded-2xl bg-cream-50 border border-cream-200 p-5 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-500">{t('booking.summary.service')}</span>
+                  <span className="text-sm text-rose-600">{t('booking.summary.service')}</span>
                   <span className="text-sm font-medium text-rose-800">{selectedService?.name[lang]}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-500">{t('booking.summary.stylist')}</span>
+                  <span className="text-sm text-rose-600">{t('booking.summary.stylist')}</span>
                   <span className="text-sm font-medium text-rose-800">{stylistName}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-500">{t('booking.summary.date')}</span>
+                  <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
                   <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-500">{t('booking.summary.time')}</span>
+                  <span className="text-sm text-rose-600">{t('booking.summary.time')}</span>
                   <span className="text-sm font-medium text-rose-800">{selectedTime ?? '—'}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-500">{t('booking.summary.duration')}</span>
+                  <span className="text-sm text-rose-600">{t('booking.summary.duration')}</span>
                   <span className="text-sm font-medium text-rose-800">{selectedService ? formatDuration(selectedService.duration, lang) : '—'}</span>
                 </div>
                 <div className="border-t border-cream-200 pt-3 flex justify-between items-center">
@@ -365,12 +364,12 @@ export function Booking() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="label">{t('booking.clientName')}</label>
-                  <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder={t('booking.clientNamePlaceholder')} className="input" />
+                  <label htmlFor="booking-name" className="label">{t('booking.clientName')}</label>
+                  <input id="booking-name" name="name" type="text" autoComplete="name" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder={t('booking.clientNamePlaceholder')} className="input" />
                 </div>
                 <div>
-                  <label className="label">{t('booking.clientPhone')}</label>
-                  <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={t('booking.clientPhonePlaceholder')} className="input" dir="ltr" />
+                  <label htmlFor="booking-phone" className="label">{t('booking.clientPhone')}</label>
+                  <input id="booking-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={t('booking.clientPhonePlaceholder')} className="input" dir="ltr" />
                 </div>
               </div>
 
@@ -382,7 +381,7 @@ export function Booking() {
                 <div className="rounded-2xl bg-[#25D366]/5 border border-[#25D366]/20 p-4">
                   <pre className="text-xs text-rose-600 whitespace-pre-wrap font-sans leading-relaxed">{buildWhatsAppMessage()}</pre>
                 </div>
-                <p className="text-xs text-rose-400 mt-2">{t('booking.whatsappHint')}</p>
+                <p className="text-xs text-rose-600 mt-2">{t('booking.whatsappHint')}</p>
               </div>
             </div>
           )}
