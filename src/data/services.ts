@@ -1,15 +1,6 @@
-import { Lang } from '../context/LanguageContext';
+import type { Service, Stylist } from './types';
 
-export interface Service {
-  id: string;
-  category: string;
-  name: Record<Lang, string>;
-  description: Record<Lang, string>;
-  price: number;
-  duration: number;
-  image: string;
-  icon: string;
-}
+export type { Service, Stylist } from './types';
 
 export const services: Service[] = [
   {
@@ -91,14 +82,6 @@ export const services: Service[] = [
     icon: 'heart',
   },
 ];
-
-export interface Stylist {
-  id: string;
-  name: string;
-  role: Record<Lang, string>;
-  specialties: Record<Lang, string>[];
-  image: string;
-}
 
 export const stylists: Stylist[] = [
   {
