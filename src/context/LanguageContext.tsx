@@ -113,6 +113,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'common.sunday': 'Dimanche',
     'common.monday': 'Lundi',
     'common.closed': 'Fermé',
+    'data.error': 'Impossible de charger le contenu.',
+    'data.retry': 'Réessayer',
   },
   ar: {
     'nav.home': 'الرئيسية',
@@ -206,6 +208,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'common.sunday': 'الأحد',
     'common.monday': 'الإثنين',
     'common.closed': 'مغلق',
+    'data.error': 'تعذّر تحميل المحتوى.',
+    'data.retry': 'إعادة المحاولة',
   },
 };
 
