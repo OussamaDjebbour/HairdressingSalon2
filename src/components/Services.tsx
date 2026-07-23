@@ -1,8 +1,11 @@
 import { Scissors, Palette, Sparkles, Hand, Brush, Heart, Clock, ArrowRight } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { services, type Service } from '../data/services';
+import type { Service } from '../data/types';
+import { useServices } from '../data/queries';
 import { formatPrice, formatDuration } from '../data/formatters';
 import { SmartImage } from './SmartImage';
+import { ServiceCardSkeleton } from './ServiceCardSkeleton';
+import { DataError } from './DataError';
 
 const iconMap: Record<string, typeof Scissors> = {
   scissors: Scissors,
@@ -69,6 +72,7 @@ function ServiceCard({ service }: { service: Service }) {
 
 export function Services() {
   const { t } = useLang();
+  const { data: services, isLoading, isError, refetch } = useServices();
 
   return (
     <section id="services" className="relative py-20 lg:py-28">
@@ -81,11 +85,21 @@ export function Services() {
           <p className="mt-4 text-lg text-rose-600 text-pretty">{t('services.subtitle')}</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {services.map((service) => (
-            <ServiceCard key={service.id} service={service} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ServiceCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : isError ? (
+          <DataError onRetry={() => refetch()} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {(services ?? []).map((service: Service) => (
+              <ServiceCard key={service.id} service={service} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
