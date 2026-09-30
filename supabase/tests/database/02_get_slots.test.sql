@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(16);
 
 -- nth open day (Tue–Sat) strictly after today, Algiers time
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
@@ -14,6 +14,11 @@ create function pg_temp.next_sunday() returns date language sql as $$
   from generate_series((now() at time zone 'Africa/Algiers')::date + 1,
                        (now() at time zone 'Africa/Algiers')::date + 7, interval '1 day') d
   where extract(isodow from d) = 7 limit 1 $$;
+create function pg_temp.next_monday() returns date language sql as $$
+  select d::date
+  from generate_series((now() at time zone 'Africa/Algiers')::date + 1,
+                       (now() at time zone 'Africa/Algiers')::date + 7, interval '1 day') d
+  where extract(isodow from d) = 1 limit 1 $$;
 create function pg_temp.book(p_stylist text, p_day date, p_time time, p_minutes int, p_status text default 'pending')
 returns void language sql as $$
   insert into private.bookings (service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status)
@@ -30,8 +35,12 @@ select is((select min(slot) from public.get_slots(pg_temp.open_day(), 'coupe-fem
 
 -- closed / out of window
 select is((select count(*)::int from public.get_slots(pg_temp.next_sunday(), 'coupe-femme')), 0, 'Sunday is closed');
+select is((select count(*)::int from public.get_slots(pg_temp.next_monday(), 'coupe-femme')), 0, 'Monday is closed');
 select is((select count(*)::int from public.get_slots((now() at time zone 'Africa/Algiers')::date - 1, 'coupe-femme')), 0, 'yesterday is out of window');
 select is((select count(*)::int from public.get_slots((now() at time zone 'Africa/Algiers')::date + 14, 'coupe-femme')), 0, 'today+14 is out of window');
+
+-- today: past slots are never available (holds regardless of current time, including when today's set is empty)
+select is((select count(*)::int from public.get_slots((now() at time zone 'Africa/Algiers')::date, 'coupe-femme') where available and private.slot_start((now() at time zone 'Africa/Algiers')::date, slot::time) <= now()), 0, 'today: no past slot is available');
 
 -- a booking blocks overlapping slots; cancellation frees them
 select pg_temp.book('amina', pg_temp.open_day(), '10:00', 60);
@@ -44,6 +53,7 @@ insert into public.stylist_services values ('leila', 'coupe-femme');
 select is((select available from public.get_slots(pg_temp.open_day(), 'coupe-femme') where slot = '10:00'), true, 'no preference: another offering stylist is free');
 
 -- validation
+select throws_ok($$ select * from public.get_slots(current_date + 1, 'nope') $$, 'P0001', 'unknown_service', 'unknown service');
 select throws_ok($$ select * from public.get_slots(current_date + 1, 'coupe-femme', 'sara') $$, 'P0001', 'unknown_service', 'stylist not offering service');
 
 -- anon may call it
