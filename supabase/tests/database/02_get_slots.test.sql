@@ -39,8 +39,19 @@ select is((select count(*)::int from public.get_slots(pg_temp.next_monday(), 'co
 select is((select count(*)::int from public.get_slots((now() at time zone 'Africa/Algiers')::date - 1, 'coupe-femme')), 0, 'yesterday is out of window');
 select is((select count(*)::int from public.get_slots((now() at time zone 'Africa/Algiers')::date + 14, 'coupe-femme')), 0, 'today+14 is out of window');
 
--- today: past slots are never available (holds regardless of current time, including when today's set is empty)
-select is((select count(*)::int from public.get_slots((now() at time zone 'Africa/Algiers')::date, 'coupe-femme') where available and private.slot_start((now() at time zone 'Africa/Algiers')::date, slot::time) <= now()), 0, 'today: no past slot is available');
+-- today: past slots are never available (holds regardless of current time, including when today's set is empty);
+-- skip visibly instead of passing vacuously when no elapsed in-window slot exists today (closed day / before opening)
+select case
+  when exists (
+    select 1 from public.get_slots((now() at time zone 'Africa/Algiers')::date, 'coupe-femme')
+    where private.slot_start((now() at time zone 'Africa/Algiers')::date, slot::time) <= now()
+  )
+  then is(
+    (select count(*)::int from public.get_slots((now() at time zone 'Africa/Algiers')::date, 'coupe-femme')
+     where available and private.slot_start((now() at time zone 'Africa/Algiers')::date, slot::time) <= now()),
+    0, 'today: no past slot is available')
+  else skip('no elapsed slot today (closed day or before opening) — past-slot filter not exercised on this run', 1)
+end;
 
 -- a booking blocks overlapping slots; cancellation frees them
 select pg_temp.book('amina', pg_temp.open_day(), '10:00', 60);
