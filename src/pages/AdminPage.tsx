@@ -1,10 +1,19 @@
 import { Link } from 'react-router-dom';
-import { Scissors, Globe, ArrowLeft } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Scissors, Globe, ArrowLeft, LogOut } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import { Schedule } from '../components/Schedule';
+import { useSession, signOut } from '../lib/auth';
+import { LoginForm } from '../components/LoginForm';
 
 export function AdminPage() {
   const { lang, toggleLang, t } = useLang();
+  const { session, loading } = useSession();
+  const queryClient = useQueryClient();
+  const handleLogout = async () => {
+    await signOut();
+    queryClient.removeQueries({ queryKey: ['admin'] });
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-cream-50">
@@ -36,6 +45,16 @@ export function AdminPage() {
               <span className={lang === 'ar' ? 'font-semibold text-cream-50' : 'text-cream-300'}>AR</span>
             </button>
 
+            {session && (
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
+              >
+                <LogOut className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
+                <span className="hidden sm:inline">{t('admin.logout')}</span>
+              </button>
+            )}
+
             <Link
               to="/"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-cream-100 hover:text-gold-300 transition-colors"
@@ -48,7 +67,15 @@ export function AdminPage() {
       </header>
 
       <main className="flex-1">
-        <Schedule />
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-8 h-8 rounded-full border-2 border-rose-300 border-t-rose-700 animate-spin" />
+          </div>
+        ) : session ? (
+          <Schedule />
+        ) : (
+          <LoginForm />
+        )}
       </main>
     </div>
   );
