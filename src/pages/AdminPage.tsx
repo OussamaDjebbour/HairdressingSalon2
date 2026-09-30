@@ -11,8 +11,13 @@ export function AdminPage() {
   const { session, loading } = useSession();
   const queryClient = useQueryClient();
   const handleLogout = async () => {
-    await signOut();
-    queryClient.removeQueries({ queryKey: ['admin'] });
+    try {
+      await signOut();
+    } catch {
+      // Session may still be active (e.g. offline); the header stays in its logged-in state so staff can retry.
+    } finally {
+      queryClient.removeQueries({ queryKey: ['admin'] });
+    }
   };
 
   return (
