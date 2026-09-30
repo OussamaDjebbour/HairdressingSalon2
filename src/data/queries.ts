@@ -21,6 +21,7 @@ interface StylistRow {
   specialties: Stylist['specialties'];
   image: string;
   sort_order: number;
+  stylist_services: { service_id: string }[] | null;
 }
 
 export async function fetchServices(): Promise<Service[]> {
@@ -44,7 +45,7 @@ export async function fetchServices(): Promise<Service[]> {
 export async function fetchStylists(): Promise<Stylist[]> {
   const { data, error } = await supabase
     .from('stylists')
-    .select('id, name, role, specialties, image, sort_order')
+    .select('id, name, role, specialties, image, sort_order, stylist_services(service_id)')
     .order('sort_order');
   if (error) throw error;
   return (data as StylistRow[]).map((r) => ({
@@ -53,6 +54,7 @@ export async function fetchStylists(): Promise<Stylist[]> {
     role: r.role,
     specialties: r.specialties,
     image: r.image,
+    serviceIds: (r.stylist_services ?? []).map((s) => s.service_id),
   }));
 }
 

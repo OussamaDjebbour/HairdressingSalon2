@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn() } }));
 
 import { supabase } from '../lib/supabase';
-import { useServices } from './queries';
+import { useServices, useStylists } from './queries';
 
 const SEEDED = [
   {
@@ -54,5 +54,34 @@ describe('useServices', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(typeof result.current.refetch).toBe('function');
+  });
+});
+
+describe('useStylists', () => {
+  it('maps offered services to serviceIds', async () => {
+    (supabase.from as ReturnType<typeof vi.fn>).mockReturnValue({
+      select: () => ({
+        order: () =>
+          Promise.resolve({
+            data: [
+              {
+                id: 'amina',
+                name: 'Amina',
+                role: { fr: 'Coiffeuse', ar: 'خبيرة' },
+                specialties: [],
+                image: 'img',
+                sort_order: 0,
+                stylist_services: [{ service_id: 'coupe-femme' }, { service_id: 'coloration' }],
+              },
+            ],
+            error: null,
+          }),
+      }),
+    });
+
+    const { result } = renderHook(() => useStylists(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data![0].serviceIds).toEqual(['coupe-femme', 'coloration']);
   });
 });
