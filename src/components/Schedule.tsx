@@ -7,7 +7,7 @@ import { useLang } from '../context/LanguageContext';
 import { OPENING_HOUR, CLOSING_HOUR } from '../data/hours';
 import { toYmd } from '../data/bookings';
 import {
-  formatAlgiersTime, isNotAuthorized, useAdminBookings, useSetBookingStatus,
+  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings, useSetBookingStatus,
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
@@ -28,12 +28,6 @@ function startMinutes(b: AdminBooking): number {
 
 function durationMinutes(b: AdminBooking): number {
   return Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000);
-}
-
-function startOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
 }
 
 function StatusBadge({ status, compact = false }: { status: BookingStatus; compact?: boolean }) {
@@ -107,13 +101,13 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof Clock; label: str
 
 export function Schedule() {
   const { lang, t } = useLang();
-  const [day, setDay] = useState(() => startOfDay(new Date()));
+  const [day, setDay] = useState(() => algiersToday());
   const bookingsQuery = useAdminBookings(day);
   const setStatus = useSetBookingStatus();
   const [actionError, setActionError] = useState<string | null>(null);
 
   const now = new Date();
-  const isToday = toYmd(day) === toYmd(now);
+  const isToday = toYmd(day) === toYmd(algiersToday());
 
   const all = useMemo(
     () => [...(bookingsQuery.data ?? [])].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
@@ -181,7 +175,7 @@ export function Schedule() {
             <ChevronRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
           </button>
           {!isToday && (
-            <button onClick={() => setDay(startOfDay(new Date()))} className="btn-secondary btn-sm">
+            <button onClick={() => setDay(algiersToday())} className="btn-secondary btn-sm">
               {t('schedule.today')}
             </button>
           )}

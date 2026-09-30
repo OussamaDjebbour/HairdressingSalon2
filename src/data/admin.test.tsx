@@ -6,7 +6,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 vi.mock('../lib/supabase', () => ({ supabase: { rpc: vi.fn() } }));
 
 import { supabase } from '../lib/supabase';
-import { formatAlgiersTime, isNotAuthorized, useAdminBookings, useSetBookingStatus } from './admin';
+import { algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings, useSetBookingStatus } from './admin';
+import { toYmd } from './bookings';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
 
@@ -57,5 +58,14 @@ describe('isNotAuthorized', () => {
   it('detects the not_authorized RPC error', () => {
     expect(isNotAuthorized({ message: 'not_authorized' })).toBe(true);
     expect(isNotAuthorized(new Error('boom'))).toBe(false);
+  });
+});
+
+describe('algiersToday', () => {
+  it('uses the salon calendar day, not UTC', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-07T23:30:00Z'));
+    expect(toYmd(algiersToday())).toBe('2030-01-08');
+    vi.useRealTimers();
   });
 });
