@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(12);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -18,6 +18,7 @@ create function pg_temp.act_as(p_uid text) returns void language sql as $$
 -- anon: no execute at all
 set local role anon;
 select throws_ok($$ select * from public.admin_list_bookings('2030-01-08', '2030-01-08') $$, '42501', null, 'anon cannot call admin_list_bookings');
+select throws_ok($$ select public.admin_set_booking_status('aaaaaaaa-0000-0000-0000-000000000001', 'cancelled') $$, '42501', null, 'anon cannot call admin_set_booking_status');
 reset role;
 
 -- authenticated but not staff
@@ -33,6 +34,7 @@ set local role authenticated;
 select is((select client_name from public.admin_list_bookings('2030-01-08', '2030-01-08')), 'Yasmine', 'staff sees bookings with client data');
 select is((select stylist_name from public.admin_list_bookings('2030-01-08', '2030-01-08')), 'Amina', 'joined stylist name');
 select throws_ok($$ select * from public.admin_list_bookings('2030-01-01', '2030-03-01') $$, 'P0001', 'invalid_range', 'range capped at 31 days');
+select lives_ok($$ select * from public.admin_list_bookings('2030-01-01', '2030-01-31') $$, '31-day range allowed');
 select lives_ok($$ select public.admin_set_booking_status('aaaaaaaa-0000-0000-0000-000000000001', 'cancelled') $$, 'staff can cancel');
 select throws_ok($$ select public.admin_set_booking_status('aaaaaaaa-0000-0000-0000-000000000001', 'pending') $$, 'P0001', 'invalid_status', 'only confirmed/cancelled');
 select throws_ok($$ select public.admin_set_booking_status('aaaaaaaa-0000-0000-0000-00000000ffff', 'confirmed') $$, 'P0001', 'not_found', 'unknown id');
