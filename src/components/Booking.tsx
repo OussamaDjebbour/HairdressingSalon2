@@ -5,7 +5,10 @@ import {
   MessageCircle, Sparkle,
 } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { services, stylists, generateTimeSlots, getBookedSlots, type Service } from '../data/services';
+import { generateTimeSlots, getBookedSlots } from '../data/services';
+import type { Service } from '../data/types';
+import { useServices, useStylists } from '../data/queries';
+import { DataError } from './DataError';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
 import { TimeSlotChip } from './TimeSlotChip';
 import { SmartImage } from './SmartImage';
@@ -20,6 +23,16 @@ const WHATSAPP_NUMBER = '213561234567';
 
 export function Booking() {
   const { lang, t } = useLang();
+  const servicesQuery = useServices();
+  const stylistsQuery = useStylists();
+  const services = servicesQuery.data ?? [];
+  const stylists = stylistsQuery.data ?? [];
+  const dataLoading = servicesQuery.isLoading || stylistsQuery.isLoading;
+  const dataError = servicesQuery.isError || stylistsQuery.isError;
+  const retryData = () => {
+    servicesQuery.refetch();
+    stylistsQuery.refetch();
+  };
   const [step, setStep] = useState<Step>(0);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedStylist, setSelectedStylist] = useState<string | null>(null);
@@ -173,6 +186,15 @@ export function Booking() {
           })}
         </div>
 
+        {dataLoading ? (
+          <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-10 min-h-[400px] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full border-2 border-rose-300 border-t-rose-700 animate-spin" />
+          </div>
+        ) : dataError ? (
+          <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-10 min-h-[400px] flex items-center justify-center">
+            <DataError onRetry={retryData} />
+          </div>
+        ) : (
         <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-6 sm:p-8 lg:p-10 min-h-[400px] flex flex-col">
           {/* Step 0 — Service */}
           {step === 0 && (
@@ -405,6 +427,7 @@ export function Booking() {
             )}
           </div>
         </div>
+        )}
       </div>
     </section>
   );
