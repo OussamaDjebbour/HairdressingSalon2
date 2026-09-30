@@ -16,7 +16,6 @@ export function Navbar() {
   const navLinks = [
     { key: 'nav.home', href: '#home' },
     { key: 'nav.services', href: '#services' },
-    { key: 'nav.schedule', href: '#schedule' },
     { key: 'nav.contact', href: '#contact' },
   ];
 
@@ -30,26 +29,26 @@ export function Navbar() {
     >
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
-          <a href="#home" className="flex items-center gap-2.5 group">
-            <span className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-rose-600 text-cream-50 shadow-soft transition-transform duration-300 ease-silk group-hover:scale-105">
-              <Scissors className="w-5 h-5" strokeWidth={1.8} />
+          <a href="#home" className="flex items-center gap-3 group">
+            <span className="relative flex items-center justify-center w-10 h-10 rounded-full bg-rose-900 text-cream-50 shadow-soft ring-1 ring-gold-400/40 transition-transform duration-300 ease-silk group-hover:scale-105">
+              <Scissors className="w-5 h-5" strokeWidth={1.6} />
             </span>
             <span className="flex flex-col leading-none">
-              <span className="font-display text-lg font-semibold text-rose-800 tracking-tight">
+              <span className="font-display italic text-xl font-semibold text-rose-900 tracking-tight">
                 Élégance
               </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-rose-400 font-medium">
-                Salon de beauté
+              <span className="text-[10px] uppercase tracking-[0.28em] text-gold-700 font-semibold mt-0.5">
+                Alger
               </span>
             </span>
           </a>
 
-          <div className="hidden lg:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
               <a
                 key={link.key}
                 href={link.href}
-                className="px-4 py-2 text-sm font-medium text-rose-700 rounded-lg transition-all duration-200 ease-silk hover:bg-rose-50 hover:text-rose-900"
+                className="link-gilt py-1 text-sm font-medium text-rose-700 transition-colors duration-200 hover:text-rose-900"
               >
                 {t(link.key)}
               </a>

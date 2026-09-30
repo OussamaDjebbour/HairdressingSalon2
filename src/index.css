@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Cairo:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500;1,9..144,600&family=Cairo:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -26,46 +26,99 @@
     font-weight: 600;
   }
 
+  /* Fraunces italic only makes sense for Latin; RTL falls back to Cairo above */
+  .font-display {
+    font-optical-sizing: auto;
+  }
+
   ::selection {
-    @apply bg-rose-200 text-rose-900;
+    @apply bg-gold-200 text-rose-900;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(1.25rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
 @layer components {
+  /* ---- Buttons: couture pills + gilt-outlined secondary ---- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 font-medium rounded-xl
+    @apply inline-flex items-center justify-center gap-2 font-medium rounded-full
            transition-all duration-300 ease-silk
-           focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50
            disabled:opacity-40 disabled:pointer-events-none
            active:scale-[0.98];
   }
 
   .btn-primary {
-    @apply btn bg-rose-600 text-cream-50 px-6 py-3
-           hover:bg-rose-700 hover:shadow-lift;
+    @apply btn bg-rose-800 text-cream-50 px-7 py-3.5
+           hover:bg-rose-900 hover:shadow-lift;
   }
 
   .btn-secondary {
-    @apply btn bg-cream-100 text-rose-800 px-6 py-3 border border-cream-300
-           hover:bg-cream-200 hover:border-rose-200;
+    @apply btn bg-transparent text-rose-900 px-7 py-3.5 border border-gold-300
+           hover:border-gold-500 hover:bg-cream-100;
   }
 
   .btn-ghost {
     @apply btn text-rose-700 px-4 py-2
-           hover:bg-rose-50 hover:text-rose-800;
+           hover:bg-rose-50 hover:text-rose-900;
   }
 
   .btn-whatsapp {
-    @apply btn bg-[#25D366] text-white px-6 py-3.5
+    @apply btn bg-[#25D366] text-white px-7 py-3.5
            hover:bg-[#1FB855] hover:shadow-lift;
   }
 
   .btn-sm {
-    @apply px-4 py-2 text-sm;
+    @apply px-5 py-2 text-sm;
   }
 
   .btn-lg {
-    @apply px-8 py-4 text-base;
+    @apply px-9 py-4 text-base;
+  }
+
+  /* ---- Editorial eyebrow: tracked caps with a gilt tick ---- */
+  .eyebrow {
+    @apply inline-flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase
+           tracking-[0.28em] text-gold-700;
+  }
+
+  .eyebrow::before {
+    content: '';
+    @apply block w-8 h-px bg-gold-500;
+  }
+
+  .eyebrow-center::before,
+  .eyebrow-center::after {
+    content: '';
+    @apply block w-8 h-px bg-gold-500;
+  }
+
+  /* ---- The signature: arched portal frame ---- */
+  .arch {
+    border-radius: 50% 50% 0.875rem 0.875rem / 42% 42% 0.875rem 0.875rem;
+  }
+
+  /* ---- Threading gilt hairline ---- */
+  .hairline {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      theme('colors.gold.400') 15%,
+      theme('colors.gold.500') 50%,
+      theme('colors.gold.400') 85%,
+      transparent 100%
+    );
+    opacity: 0.75;
   }
 
   .card {
@@ -78,19 +131,19 @@
   }
 
   .card-interactive {
-    @apply card cursor-pointer hover:shadow-lift hover:border-rose-200
+    @apply card cursor-pointer hover:shadow-lift hover:border-gold-200
            hover:-translate-y-0.5;
   }
 
   .card-selected {
-    @apply border-rose-400 shadow-glow ring-1 ring-rose-300;
+    @apply border-gold-400 shadow-glow ring-1 ring-gold-300;
   }
 
   .input {
     @apply w-full bg-cream-50 border border-cream-300 rounded-xl
            px-4 py-3 text-rose-900 placeholder:text-rose-400/60
            transition-all duration-200 ease-silk
-           focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-200 focus:bg-white;
+           focus:outline-none focus:border-gold-400 focus:ring-2 focus:ring-gold-200 focus:bg-white;
   }
 
   .label {
@@ -99,18 +152,18 @@
 
   .chip {
     @apply inline-flex items-center justify-center gap-1.5
-           rounded-xl px-4 py-2.5 text-sm font-medium
+           rounded-full px-4 py-2.5 text-sm font-medium
            transition-all duration-200 ease-silk
-           focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400;
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400;
   }
 
   .chip-available {
     @apply chip bg-cream-100 text-rose-800 border border-cream-200
-           hover:bg-rose-50 hover:border-rose-300 hover:shadow-soft;
+           hover:bg-white hover:border-gold-300 hover:shadow-soft;
   }
 
   .chip-selected {
-    @apply chip bg-rose-600 text-cream-50 border border-rose-600 shadow-soft;
+    @apply chip bg-rose-800 text-cream-50 border border-rose-800 shadow-soft;
   }
 
   .chip-disabled {
@@ -145,21 +198,6 @@
     @apply animate-shimmer;
   }
 
-  .thread-divider {
-    position: relative;
-    height: 2px;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      theme('colors.rose.300') 20%,
-      theme('colors.gold.300') 50%,
-      theme('colors.rose.300') 80%,
-      transparent 100%
-    );
-    border-radius: 999px;
-    opacity: 0.6;
-  }
-
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -171,7 +209,7 @@
     @apply bg-cream-300 rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-cream-400;
+    @apply bg-gold-400;
   }
 }
 
@@ -179,11 +217,63 @@
   .text-balance {
     text-wrap: balance;
   }
+  .text-pretty {
+    text-wrap: pretty;
+  }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* gilt underline that slides in on hover, for inline links */
+  .link-gilt {
+    @apply relative;
+  }
+  .link-gilt::after {
+    content: '';
+    @apply absolute left-0 -bottom-0.5 h-px w-full origin-right scale-x-0
+           bg-gold-500 transition-transform duration-300 ease-silk;
+  }
+  .link-gilt:hover::after {
+    @apply origin-left scale-x-100;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    opacity: 0;
+    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .rise-1 {
+    animation-delay: 0.08s;
+  }
+  .rise-2 {
+    animation-delay: 0.16s;
+  }
+  .rise-3 {
+    animation-delay: 0.24s;
+  }
+  .rise-4 {
+    animation-delay: 0.32s;
+  }
+  .rise-5 {
+    animation-delay: 0.4s;
+  }
+  .rise-6 {
+    animation-delay: 0.48s;
   }
 }

@@ -1,9 +1,11 @@
 import { Scissors, Palette, Sparkles, Hand, Brush, Heart, Clock, ArrowRight } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { services, type Service } from '../data/services';
+import type { Service } from '../data/types';
+import { useServices } from '../data/queries';
 import { formatPrice, formatDuration } from '../data/formatters';
 import { SmartImage } from './SmartImage';
-import { Thread } from './Thread';
+import { ServiceCardSkeleton } from './ServiceCardSkeleton';
+import { DataError } from './DataError';
 
 const iconMap: Record<string, typeof Scissors> = {
   scissors: Scissors,
@@ -19,61 +21,85 @@ function ServiceCard({ service }: { service: Service }) {
   const Icon = iconMap[service.icon] ?? Scissors;
 
   return (
-    <div className="card-hover group overflow-hidden flex flex-col">
+    <article className="group flex flex-col bg-white rounded-2xl border border-cream-200 overflow-hidden transition-all duration-300 ease-silk hover:shadow-lift hover:-translate-y-0.5 hover:border-gold-200">
       <div className="relative overflow-hidden">
         <SmartImage
           src={service.image}
           alt={service.name[lang]}
-          aspect="aspect-[16/10]"
+          aspect="aspect-[16/11]"
           rounded="rounded-none"
-          className="group-hover:scale-105 transition-transform duration-500 ease-silk"
+          className="group-hover:scale-[1.04] transition-transform duration-700 ease-silk"
         />
-        <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm text-sm font-semibold text-rose-700 shadow-soft">
-          {formatPrice(service.price, lang)}
-        </div>
-        <div className="absolute bottom-3 left-3 flex items-center justify-center w-10 h-10 rounded-xl bg-rose-600 text-cream-50 shadow-soft">
-          <Icon className="w-5 h-5" strokeWidth={1.8} />
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-rose-900/15 to-transparent" />
       </div>
 
-      <div className="p-5 flex flex-col flex-1">
-        <h3 className="font-display text-lg font-semibold text-rose-800 mb-1.5">{service.name[lang]}</h3>
-        <p className="text-sm text-rose-500/80 leading-relaxed mb-4 flex-1">{service.description[lang]}</p>
-        <div className="flex items-center justify-between pt-3 border-t border-cream-200">
-          <div className="flex items-center gap-1.5 text-sm text-rose-400">
-            <Clock className="w-4 h-4" strokeWidth={1.8} />
-            {formatDuration(service.duration, lang)}
+      <div className="p-6 flex flex-col flex-1">
+        <div className="flex items-center gap-2.5 mb-2">
+          <Icon className="w-4 h-4 text-gold-600 flex-shrink-0" strokeWidth={1.8} />
+          <h3 className="font-display text-xl font-semibold text-rose-900">{service.name[lang]}</h3>
+        </div>
+        <p className="text-sm text-rose-600 leading-relaxed mb-6 flex-1 text-pretty">
+          {service.description[lang]}
+        </p>
+
+        <div className="flex items-end justify-between pt-4 border-t border-cream-200">
+          <div>
+            <span className="block text-[0.65rem] uppercase tracking-[0.18em] text-rose-600 mb-1.5">
+              {t('services.from')}
+            </span>
+            <span className="font-display text-lg font-semibold text-rose-900 inline-block border-b-2 border-gold-300 pb-0.5">
+              {formatPrice(service.price, lang)}
+            </span>
           </div>
-          <a
-            href="#booking"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-rose-600 hover:text-rose-800 transition-colors group/link"
-          >
-            {t('services.book')}
-            <ArrowRight className="w-4 h-4 group-hover/link:translate-x-0.5 transition-transform" strokeWidth={1.8} />
-          </a>
+          <div className="flex flex-col items-end gap-2.5">
+            <span className="flex items-center gap-1.5 text-xs text-rose-600">
+              <Clock className="w-3.5 h-3.5" strokeWidth={1.8} />
+              {formatDuration(service.duration, lang)}
+            </span>
+            <a
+              href="#booking"
+              className="link-gilt inline-flex items-center gap-1.5 text-sm font-medium text-rose-700 hover:text-rose-900 transition-colors"
+            >
+              {t('services.book')}
+              <ArrowRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
+            </a>
+          </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
 export function Services() {
   const { t } = useLang();
+  const { data: services, isLoading, isError, refetch } = useServices();
 
   return (
     <section id="services" className="relative py-20 lg:py-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-14">
-          <Thread variant="accent" className="w-24 h-5 text-rose-400 mx-auto mb-4" />
-          <h2 className="font-display text-3xl sm:text-4xl font-semibold text-rose-800 mb-3">{t('services.title')}</h2>
-          <p className="text-rose-500/80 text-lg">{t('services.subtitle')}</p>
+        <div className="max-w-2xl mb-14">
+          <p className="eyebrow mb-4">{t('services.kicker')}</p>
+          <h2 className="font-display font-semibold text-rose-900 text-[clamp(2rem,4vw,3rem)] leading-tight">
+            {t('services.title')}
+          </h2>
+          <p className="mt-4 text-lg text-rose-600 text-pretty">{t('services.subtitle')}</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {services.map((service) => (
-            <ServiceCard key={service.id} service={service} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ServiceCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : isError ? (
+          <DataError onRetry={() => refetch()} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {(services ?? []).map((service: Service) => (
+              <ServiceCard key={service.id} service={service} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
