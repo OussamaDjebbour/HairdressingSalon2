@@ -5,7 +5,7 @@ import {
   MessageCircle, Sparkle,
 } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { generateTimeSlots, getBookedSlots } from '../data/services';
+import { useSlots } from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
@@ -54,13 +54,25 @@ export function Booking() {
     return days;
   }, []);
 
-  const allSlots = useMemo(() => generateTimeSlots(selectedDate ?? new Date()), [selectedDate]);
-  const bookedSlots = useMemo(
-    () => getBookedSlots(selectedDate ?? new Date(), selectedStylist),
-    [selectedDate, selectedStylist]
+  const slotsQuery = useSlots(selectedDate, selectedService?.id ?? null, selectedStylist);
+  const slots = slotsQuery.data ?? [];
+
+  const offeringStylists = useMemo(
+    () => (selectedService ? stylists.filter((s) => s.serviceIds.includes(selectedService.id)) : stylists),
+    [stylists, selectedService]
   );
 
-  const isAvailable = (slot: string) => !bookedSlots.includes(slot);
+  const selectService = (service: Service) => {
+    setSelectedService(service);
+    setSelectedTime(null);
+    const current = stylists.find((s) => s.id === selectedStylist);
+    if (current && !current.serviceIds.includes(service.id)) setSelectedStylist(null);
+  };
+
+  const selectStylist = (id: string | null) => {
+    setSelectedStylist(id);
+    setSelectedTime(null);
+  };
 
   const steps = [
     { label: t('booking.step.service'), icon: Sparkle },
@@ -207,7 +219,7 @@ export function Booking() {
                   return (
                     <button
                       key={service.id}
-                      onClick={() => setSelectedService(service)}
+                      onClick={() => selectService(service)}
                       className={`flex items-start gap-4 p-4 rounded-2xl border text-start transition-all duration-200 ease-silk ${
                         isSelected
                           ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
@@ -244,7 +256,7 @@ export function Booking() {
               <h3 className="font-display text-xl font-semibold text-rose-800 mb-5">{t('booking.selectStylist')}</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <button
-                  onClick={() => setSelectedStylist(null)}
+                  onClick={() => selectStylist(null)}
                   className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
                     selectedStylist === null
                       ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
@@ -257,12 +269,12 @@ export function Booking() {
                   <span className="text-xs font-medium text-rose-600 text-center">{t('booking.noPreference')}</span>
                 </button>
 
-                {stylists.map((stylist) => {
+                {offeringStylists.map((stylist) => {
                   const isSelected = selectedStylist === stylist.id;
                   return (
                     <button
                       key={stylist.id}
-                      onClick={() => setSelectedStylist(stylist.id)}
+                      onClick={() => selectStylist(stylist.id)}
                       className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
                         isSelected
                           ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
@@ -327,22 +339,26 @@ export function Booking() {
               {selectedDate && (
                 <div>
                   <h3 className="font-display text-xl font-semibold text-rose-800 mb-4">{t('booking.selectTime')}</h3>
-                  {allSlots.some(isAvailable) ? (
+                  {slotsQuery.isLoading ? (
                     <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2.5">
-                      {allSlots.map((slot) => {
-                        const available = isAvailable(slot);
-                        const isSelected = selectedTime === slot;
-                        return (
-                          <TimeSlotChip
-                            key={slot}
-                            state={isSelected ? 'selected' : available ? 'available' : 'disabled'}
-                            disabled={!available}
-                            onClick={() => available && setSelectedTime(slot)}
-                          >
-                            {slot}
-                          </TimeSlotChip>
-                        );
-                      })}
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <div key={i} className="img-placeholder h-11 rounded-xl" />
+                      ))}
+                    </div>
+                  ) : slotsQuery.isError ? (
+                    <DataError onRetry={() => slotsQuery.refetch()} />
+                  ) : slots.some((s) => s.available) ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2.5">
+                      {slots.map(({ slot, available }) => (
+                        <TimeSlotChip
+                          key={slot}
+                          state={selectedTime === slot ? 'selected' : available ? 'available' : 'disabled'}
+                          disabled={!available}
+                          onClick={() => available && setSelectedTime(slot)}
+                        >
+                          {slot}
+                        </TimeSlotChip>
+                      ))}
                     </div>
                   ) : (
                     <p className="text-rose-600 text-sm py-8 text-center">{t('booking.noSlots')}</p>
