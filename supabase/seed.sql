@@ -22,7 +22,8 @@ insert into services (id, category, name, description, price, duration, image, i
 ('soin-visage','beaute',
  '{"fr":"Soin du Visage","ar":"عناية بالوجه"}',
  '{"fr":"Nettoyage profond, gommage et masque pour une peau éclatante.","ar":"تنظيف عميق، تقشير وقناع لبشرة مشرقة."}',
- 3500, 75, 'https://images.pexels.com/photos/3997390/pexels-photo-3997390.jpeg?auto=compress&cs=tinysrgb&w=600', 'heart', 5);
+ 3500, 75, 'https://images.pexels.com/photos/3997390/pexels-photo-3997390.jpeg?auto=compress&cs=tinysrgb&w=600', 'heart', 5)
+on conflict (id) do nothing;
 
 insert into stylists (id, name, role, specialties, image, sort_order) values
 ('amina','Amina',
@@ -36,4 +37,14 @@ insert into stylists (id, name, role, specialties, image, sort_order) values
 ('sara','Sara',
  '{"fr":"Prothésiste Ongles","ar":"خبيرة أظافر"}',
  '[{"fr":"Manucure","ar":"مانيكير"},{"fr":"Vernis","ar":"طلاء"}]',
- 'https://images.pexels.com/photos/3997391/pexels-photo-3997391.jpeg?auto=compress&cs=tinysrgb&w=400', 2);
+ 'https://images.pexels.com/photos/3997391/pexels-photo-3997391.jpeg?auto=compress&cs=tinysrgb&w=400', 2)
+on conflict (id) do nothing;
+
+insert into stylist_services (stylist_id, service_id) values
+  ('amina', 'coupe-femme'),
+  ('amina', 'coloration'),
+  ('amina', 'soin-keratine'),
+  ('leila', 'maquillage'),
+  ('leila', 'soin-visage'),
+  ('sara',  'manucure')
+on conflict do nothing;
