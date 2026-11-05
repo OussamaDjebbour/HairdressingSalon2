@@ -199,6 +199,7 @@ All functions: `language plpgsql`, `security definer`, `set search_path = ''`, e
 ## Testing
 
 - **Spike (first plan step):** determine which header carries the client IP in Supabase RPC requests (`request.headers` → e.g. `x-forwarded-for` / `cf-connecting-ip`) and whether a client can forge it. If it cannot be trusted, drop the per-IP limit and the `client_ip` column, and update this spec.
+  **Result (2026-11-05):** IP_SOURCE = `cf-connecting-ip` — on the live project it always equalled the caller's real IP (also in `sb-forwarded-for`); a forged `X-Forwarded-For` is only prepended (`1.2.3.4,<real>`) and leaves `cf-connecting-ip` unchanged, a forged `True-Client-IP` passes through but is ignored, and a request that sets `CF-Connecting-IP` itself is rejected by Cloudflare (error 1000).
 - **pgTAP** (`supabase/tests/*.sql`, `supabase test db`, local Docker stack):
   - `get_slots`: duration-dependent last slot; closed days and out-of-window dates empty; past slots unavailable; only offering stylists considered; booking makes slot unavailable; cancellation frees it; "no preference" available while any offering stylist is free.
   - `create_booking`: happy path; phone normalisation (`0555 12 34 56`, `+213 555 12 34 56`, `00213…`); invalid name/phone; `outside_hours` cases; `slot_taken`; auto-assign skips busy and non-offering stylists; price/duration from DB; per-phone limit; circuit breaker; per-IP limit (if kept).
