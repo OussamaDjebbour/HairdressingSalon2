@@ -4,23 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single-page marketing + booking site for a women's hairdressing/beauty salon ("Élégance") in Algiers. Vite + React 18 + TypeScript + Tailwind, originally scaffolded by Bolt (see `.bolt/`). There is **no backend and no database** — all data is mock/static, and the booking flow terminates in a WhatsApp deep link.
+A single-page marketing + booking site for a women's hairdressing/beauty salon ("Élégance") in Algiers. Vite + React 18 + TypeScript + Tailwind, originally scaffolded by Bolt (see `.bolt/`). Backend is Supabase (Postgres + Auth), managed by CLI migrations in `supabase/`. Customers book through RPCs (`get_slots`, `create_booking`); bookings live in the non-exposed `private` schema. Staff log in at `/admin` (sign-ups disabled; access requires a row in `private.staff`). Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (in `.env`).
 
 ## Commands
 
 ```bash
-npm run dev        # Vite dev server
-npm run build      # tsc typecheck, then vite build
-npm run preview    # serve the production build
+pnpm dev           # Vite dev server (talks to the Supabase project in .env)
+pnpm build         # tsc typecheck, then vite build
+pnpm preview       # serve the production build
+pnpm test          # Vitest (supabase client is mocked)
+
+supabase start -x logflare,vector,studio   # local stack (Docker)
+supabase db reset                           # re-apply migrations + seed.sql locally
+supabase test db                            # pgTAP tests in supabase/tests/database
+supabase db lint --level warning            # security/schema lint
 ```
 
-- **No test framework** is configured — there are no tests to run.
+- To run the app against the local stack without editing `.env`: `VITE_SUPABASE_URL=<API_URL> VITE_SUPABASE_PUBLISHABLE_KEY=<ANON_KEY> pnpm dev` (values from `supabase status -o env`).
+- Changes to the live database go through new migration files + `supabase db push`; never edit an already-pushed migration.
 - **No `lint` script.** `eslint.config.js` exists, but the ESLint packages it imports are *not* in `package.json` and are *not* installed. To lint you must first install them (`@eslint/js`, `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `globals`, `eslint`), then `npx eslint .`.
 - Typecheck alone: `npx tsc -b` (the `build` runs `tsc` first, so a broken build usually means a type error).
 
 ## Architecture
 
-The app is a fixed vertical stack of sections rendered by `src/App.tsx`, all wrapped in a single `LanguageProvider`: `Navbar → Hero → TrustBadges → Services → Booking → Schedule → Footer`. Sections are linked by anchor `id`s (e.g. `#booking`, `#services`) — navigation is in-page scrolling, not routing.
+`src/App.tsx` wraps everything in `LanguageProvider` + React Query's `QueryClientProvider` and has two routes: `/` → `HomePage` (a vertical stack of sections: `Navbar → Hero → TrustBadges → Services → Philosophy → Booking → Footer`, linked by anchor `id`s like `#booking` — in-page scrolling) and `/admin` → `AdminPage` (staff login + schedule).
 
 Two cross-cutting systems drive almost everything:
 
@@ -30,7 +37,7 @@ Two cross-cutting systems drive almost everything:
 
 Conventions that must be respected when touching UI or copy:
 - **Every user-facing string goes through `t()`** — add the key to *both* `fr` and `ar` maps. `t()` falls back to French, then the raw key.
-- **Domain data carries its own translations** inline as `Record<Lang, string>` (see `Service.name`, `Stylist.role` in `src/data/services.ts`), read as `service.name[lang]` — these are *not* in the `translations` dict.
+- **Domain data carries its own translations** inline as `Record<Lang, string>` (see `Service.name`, `Stylist.role` in `src/data/types.ts`), read as `service.name[lang]` — these are *not* in the `translations` dict.
 - **Use logical CSS properties** for RTL correctness: `text-start`/`text-end`, `ms-`/`me-`, `ps-`/`pe-`, and `gap-` — not `text-left` / `ml-` / `pl-`. Default direction is LTR (French).
 - Default language is `'fr'`; there is no persistence (resets on reload).
 
@@ -42,13 +49,17 @@ Component styling is centralized as `@layer components` classes in `src/index.cs
 
 ### Booking flow (the core interaction) — `src/components/Booking.tsx`
 
-A 4-step wizard (`Service → Stylist → Date & time → Confirm`) driven by local `useState` (`step: 0|1|2|3`). It does **not** submit to any server: the final step builds a localized plain-text message and opens `https://wa.me/<WHATSAPP_NUMBER>?text=...`. The salon's number is the module constant `WHATSAPP_NUMBER` in that file.
+A 4-step wizard (`Service → Stylist → Date & time → Confirm`) driven by local `useState` (`step: 0|1|2|3`). The Stylist step lists only stylists who offer the chosen service (`stylist_services`) plus "no preference". Time slots come from the `get_slots` RPC (`useSlots`). Confirming calls `create_booking` (`useCreateBooking`), which validates, enforces abuse limits and the per-stylist no-overlap constraint, and auto-assigns a stylist for "no preference". Errors map to codes via `toBookingError` (`slot_taken` sends the user back to the time step). On success a summary screen shows a WhatsApp button that opens `https://wa.me/<WHATSAPP_NUMBER>?text=...` (module constant in that file).
 
-Availability is faked: `generateTimeSlots()` / `getBookedSlots()` in `src/data/services.ts` are **stubs** (booked slots are hardcoded, date/stylist args are ignored). `Schedule.tsx` likewise renders the static `todayAppointments` from `src/data/appointments.ts`. Wiring a real backend means replacing these data-layer functions and the mock arrays.
+The SQL functions own the business rules (Algiers time, 09:00–18:00, closed Sunday/Monday, 30-min grid, 14-day window, Algerian mobile numbers, per-phone / per-IP (`cf-connecting-ip`) / site-wide limits). The date strip in `Booking.tsx` duplicates the 14-day / closed-days rule deliberately.
+
+### Staff admin — `/admin`
+
+`AdminPage` uses `useSession()` from `src/lib/auth.ts` (Supabase Auth, email + password). Logged in, `Schedule.tsx` lists a day's bookings via `admin_list_bookings` (`useAdminBookings`, `src/data/admin.ts`) and confirms/cancels via `admin_set_booking_status`. Both RPCs raise for non-staff. Staff accounts are created in the Supabase dashboard, then `insert into private.staff (user_id) …`.
 
 ### Data & formatting
 
-`src/data/` holds all content and pure helpers: `services.ts` (services, stylists, slot stubs), `appointments.ts` (mock day + `OPENING_HOUR`/`CLOSING_HOUR`), `formatters.ts`. Money is Algerian Dinar formatted via `formatPrice()` (`fr-FR` grouping + ` DA` suffix) — always format prices/durations/dates through these helpers so the AR/FR output stays consistent.
+`src/data/` holds the data layer: `types.ts`, `queries.ts` (services/stylists), `bookings.ts` (slots, create, phone rules, error codes), `admin.ts` (staff hooks, Algiers-time helpers), `hours.ts` (`OPENING_HOUR`/`CLOSING_HOUR` for the schedule grid), `formatters.ts`. Money is Algerian Dinar formatted via `formatPrice()` (`fr-FR` grouping + ` DA` suffix) — always format prices/durations/dates through these helpers so the AR/FR output stays consistent.
 
 ### Icons & images
 
