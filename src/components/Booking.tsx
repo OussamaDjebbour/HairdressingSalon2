@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react';
 import {
   Scissors, Palette, Sparkles, Hand, Brush, Heart,
   Clock, Check, ChevronLeft, ChevronRight, Calendar, User,
-  MessageCircle, Sparkle,
+  MessageCircle, Sparkle, AlertCircle,
 } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { useSlots } from '../data/bookings';
+import { useSlots, useCreateBooking, toBookingError, isValidPhone, type BookingErrorCode } from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
@@ -41,6 +41,14 @@ export function Booking() {
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const createBookingMutation = useCreateBooking();
+  const [assignedStylistId, setAssignedStylistId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<Exclude<BookingErrorCode, 'slot_taken'> | null>(null);
+  const [slotNotice, setSlotNotice] = useState(false);
+
+  const trimmedName = clientName.trim();
+  const nameValid = trimmedName.length >= 2 && trimmedName.length <= 80;
+  const phoneValid = isValidPhone(clientPhone);
 
   const upcomingDays = useMemo(() => {
     const days: Date[] = [];
@@ -85,15 +93,16 @@ export function Booking() {
     if (step === 0) return selectedService !== null;
     if (step === 1) return true;
     if (step === 2) return selectedDate !== null && selectedTime !== null;
-    if (step === 3) return clientName.trim() !== '' && clientPhone.trim() !== '';
+    if (step === 3) return nameValid && phoneValid;
     return false;
   };
 
   const handleNext = () => { if (step < 3) setStep((s) => (s + 1) as Step); };
   const handleBack = () => { if (step > 0) setStep((s) => (s - 1) as Step); };
 
-  const stylistName = selectedStylist
-    ? stylists.find((s) => s.id === selectedStylist)?.name ?? ''
+  const effectiveStylistId = assignedStylistId ?? selectedStylist;
+  const stylistName = effectiveStylistId
+    ? stylists.find((s) => s.id === effectiveStylistId)?.name ?? ''
     : t('booking.noPreference');
 
   const buildWhatsAppMessage = () => {
@@ -129,7 +138,48 @@ export function Booking() {
   const handleWhatsAppSend = () => {
     const msg = encodeURIComponent(buildWhatsAppMessage());
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`, '_blank');
-    setSubmitted(true);
+  };
+
+  const handleConfirm = () => {
+    if (!selectedService || !selectedDate || !selectedTime) return;
+    setSubmitError(null);
+    createBookingMutation.mutate(
+      {
+        serviceId: selectedService.id,
+        stylistId: selectedStylist,
+        date: selectedDate,
+        time: selectedTime,
+        clientName: trimmedName,
+        clientPhone,
+        lang,
+      },
+      {
+        onSuccess: (created) => {
+          setAssignedStylistId(created.stylistId);
+          setSubmitted(true);
+        },
+        onError: (err) => {
+          const code = toBookingError(err);
+          if (code === 'slot_taken') {
+            setSelectedTime(null);
+            setSlotNotice(true);
+            setStep(2);
+            return;
+          }
+          setSubmitError(code);
+        },
+      }
+    );
+  };
+
+  const errorMessages: Record<Exclude<BookingErrorCode, 'slot_taken'>, string> = {
+    invalid_phone: t('booking.error.invalidPhone'),
+    invalid_name: t('booking.error.invalidName'),
+    too_many_bookings: t('booking.error.tooMany'),
+    rate_limited: t('booking.error.rateLimited'),
+    outside_hours: t('booking.error.generic'),
+    unknown_service: t('booking.error.generic'),
+    unknown: t('booking.error.generic'),
   };
 
   const resetBooking = () => {
@@ -140,6 +190,10 @@ export function Booking() {
     setSelectedTime(null);
     setClientName('');
     setClientPhone('');
+    setAssignedStylistId(null);
+    setSubmitError(null);
+    setSlotNotice(false);
+    createBookingMutation.reset();
     setSubmitted(false);
   };
 
@@ -152,8 +206,39 @@ export function Booking() {
             <div className="absolute inset-0 rounded-full bg-sage-200/40 animate-ping" />
           </div>
           <h2 className="font-display text-3xl font-semibold text-rose-800 mb-3">{t('booking.successTitle')}</h2>
-          <p className="text-rose-600 text-lg mb-8">{t('booking.successText')}</p>
-          <button onClick={resetBooking} className="btn-secondary btn-lg">{t('booking.newBooking')}</button>
+          <p className="text-rose-600 text-lg mb-6">{t('booking.successText')}</p>
+
+          <div className="rounded-2xl bg-white border border-cream-200 p-5 space-y-3 text-start mb-6">
+            <div className="flex justify-between items-center gap-4">
+              <span className="text-sm text-rose-600">{t('booking.summary.service')}</span>
+              <span className="text-sm font-medium text-rose-800">{selectedService?.name[lang]}</span>
+            </div>
+            <div className="flex justify-between items-center gap-4">
+              <span className="text-sm text-rose-600">{t('booking.summary.stylist')}</span>
+              <span className="text-sm font-medium text-rose-800">{stylistName}</span>
+            </div>
+            <div className="flex justify-between items-center gap-4">
+              <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
+              <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
+            </div>
+            <div className="flex justify-between items-center gap-4">
+              <span className="text-sm text-rose-600">{t('booking.summary.time')}</span>
+              <span className="text-sm font-medium text-rose-800">{selectedTime ?? '—'}</span>
+            </div>
+            <div className="border-t border-cream-200 pt-3 flex justify-between items-center gap-4">
+              <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
+              <span className="text-lg font-display font-semibold text-rose-800">
+                {selectedService ? formatPrice(selectedService.price, lang) : '—'}
+              </span>
+            </div>
+          </div>
+
+          <button onClick={handleWhatsAppSend} className="btn-whatsapp btn-lg w-full mb-3">
+            <MessageCircle className="w-5 h-5" strokeWidth={1.8} />
+            {t('booking.whatsappSend')}
+          </button>
+          <p className="text-xs text-rose-600 mb-6">{t('booking.whatsappHint')}</p>
+          <button onClick={resetBooking} className="btn-ghost">{t('booking.newBooking')}</button>
         </div>
       </section>
     );
@@ -339,6 +424,12 @@ export function Booking() {
               {selectedDate && (
                 <div>
                   <h3 className="font-display text-xl font-semibold text-rose-800 mb-4">{t('booking.selectTime')}</h3>
+                  {slotNotice && (
+                    <p role="alert" className="flex items-center gap-2 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
+                      {t('booking.slotTaken')}
+                    </p>
+                  )}
                   {slotsQuery.isLoading ? (
                     <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2.5">
                       {Array.from({ length: 12 }, (_, i) => (
@@ -354,7 +445,11 @@ export function Booking() {
                           key={slot}
                           state={selectedTime === slot ? 'selected' : available ? 'available' : 'disabled'}
                           disabled={!available}
-                          onClick={() => available && setSelectedTime(slot)}
+                          onClick={() => {
+                            if (!available) return;
+                            setSelectedTime(slot);
+                            setSlotNotice(false);
+                          }}
                         >
                           {slot}
                         </TimeSlotChip>
@@ -404,23 +499,38 @@ export function Booking() {
                 <div>
                   <label htmlFor="booking-name" className="label">{t('booking.clientName')}</label>
                   <input id="booking-name" name="name" type="text" autoComplete="name" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder={t('booking.clientNamePlaceholder')} className="input" />
+                  {clientName !== '' && !nameValid && (
+                    <p className="text-xs text-rust-700 mt-1">{t('booking.error.invalidName')}</p>
+                  )}
                 </div>
                 <div>
                   <label htmlFor="booking-phone" className="label">{t('booking.clientPhone')}</label>
                   <input id="booking-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={t('booking.clientPhonePlaceholder')} className="input" dir="ltr" />
+                  {clientPhone !== '' && !phoneValid && (
+                    <p className="text-xs text-rust-700 mt-1">{t('booking.error.invalidPhone')}</p>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <p className="text-sm font-medium text-rose-700 mb-2 flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-[#25D366]" strokeWidth={1.8} />
-                  {t('booking.whatsappPreview')}
-                </p>
-                <div className="rounded-2xl bg-[#25D366]/5 border border-[#25D366]/20 p-4">
-                  <pre className="text-xs text-rose-600 whitespace-pre-wrap font-sans leading-relaxed">{buildWhatsAppMessage()}</pre>
+              {submitError && (
+                <div role="alert" className="rounded-2xl border border-rust-200 bg-rust-50 p-4 text-sm text-rust-700">
+                  <p className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
+                    {errorMessages[submitError]}
+                  </p>
+                  {(submitError === 'rate_limited' || submitError === 'too_many_bookings') && (
+                    <a
+                      href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-whatsapp btn-sm mt-3"
+                    >
+                      <MessageCircle className="w-4 h-4" strokeWidth={1.8} />
+                      {t('booking.contactWhatsapp')}
+                    </a>
+                  )}
                 </div>
-                <p className="text-xs text-rose-600 mt-2">{t('booking.whatsappHint')}</p>
-              </div>
+              )}
             </div>
           )}
 
@@ -436,9 +546,17 @@ export function Booking() {
                 <ChevronRight className="w-4 h-4" strokeWidth={1.8} />
               </button>
             ) : (
-              <button onClick={handleWhatsAppSend} disabled={!canProceed()} className="btn-whatsapp">
-                <MessageCircle className="w-5 h-5" strokeWidth={1.8} />
-                {t('booking.whatsappSend')}
+              <button
+                onClick={handleConfirm}
+                disabled={!canProceed() || createBookingMutation.isPending}
+                className="btn-primary"
+              >
+                {createBookingMutation.isPending ? (
+                  <span className="w-4 h-4 rounded-full border-2 border-cream-200 border-t-cream-50 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" strokeWidth={2} />
+                )}
+                {createBookingMutation.isPending ? t('booking.submitting') : t('booking.confirm')}
               </button>
             )}
           </div>
