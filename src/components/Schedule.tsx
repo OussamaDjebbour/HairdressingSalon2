@@ -302,18 +302,20 @@ export function Schedule() {
                             </div>
                             <StatusBadge status={b.status} compact />
                           </div>
-                          {b.status !== 'cancelled' && (
-                            <div className="flex justify-end gap-2 mt-2">
-                              {b.status === 'pending' && (
-                                <button
-                                  onClick={() => changeStatus(b, 'confirmed')}
-                                  disabled={setStatus.isPending}
-                                  className="btn-secondary btn-sm"
-                                >
-                                  <Check className="w-3.5 h-3.5" strokeWidth={2} />
-                                  {t('admin.confirm')}
-                                </button>
-                              )}
+                          {/* Cancelled rows can be re-confirmed, so an accidental cancel is recoverable
+                              (the RPC answers slot_taken if the time was rebooked meanwhile). */}
+                          <div className="flex justify-end gap-2 mt-2">
+                            {b.status !== 'confirmed' && (
+                              <button
+                                onClick={() => changeStatus(b, 'confirmed')}
+                                disabled={setStatus.isPending}
+                                className="btn-secondary btn-sm"
+                              >
+                                <Check className="w-3.5 h-3.5" strokeWidth={2} />
+                                {t('admin.confirm')}
+                              </button>
+                            )}
+                            {b.status !== 'cancelled' && (
                               <button
                                 onClick={() => changeStatus(b, 'cancelled')}
                                 disabled={setStatus.isPending}
@@ -322,8 +324,8 @@ export function Schedule() {
                                 <X className="w-3.5 h-3.5" strokeWidth={2} />
                                 {t('admin.cancel')}
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

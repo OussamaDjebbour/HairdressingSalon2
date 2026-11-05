@@ -44,7 +44,7 @@ export function Booking() {
   const createBookingMutation = useCreateBooking();
   const [assignedStylistId, setAssignedStylistId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<Exclude<BookingErrorCode, 'slot_taken'> | null>(null);
-  const [slotNotice, setSlotNotice] = useState(false);
+  const [slotNotice, setSlotNotice] = useState<'booking.slotTaken' | 'booking.slotPassed' | null>(null);
 
   const trimmedName = clientName.trim();
   const nameValid = trimmedName.length >= 2 && trimmedName.length <= 80;
@@ -160,9 +160,11 @@ export function Booking() {
         },
         onError: (err) => {
           const code = toBookingError(err);
-          if (code === 'slot_taken') {
+          // The chosen time is no longer bookable (taken, or it passed while
+          // the customer was on this step): send them back to pick another.
+          if (code === 'slot_taken' || code === 'outside_hours') {
             setSelectedTime(null);
-            setSlotNotice(true);
+            setSlotNotice(code === 'slot_taken' ? 'booking.slotTaken' : 'booking.slotPassed');
             setStep(2);
             return;
           }
@@ -192,7 +194,7 @@ export function Booking() {
     setClientPhone('');
     setAssignedStylistId(null);
     setSubmitError(null);
-    setSlotNotice(false);
+    setSlotNotice(null);
     createBookingMutation.reset();
     setSubmitted(false);
   };
@@ -427,7 +429,7 @@ export function Booking() {
                   {slotNotice && (
                     <p role="alert" className="flex items-center gap-2 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                       <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
-                      {t('booking.slotTaken')}
+                      {t(slotNotice)}
                     </p>
                   )}
                   {slotsQuery.isLoading ? (
@@ -448,7 +450,7 @@ export function Booking() {
                           onClick={() => {
                             if (!available) return;
                             setSelectedTime(slot);
-                            setSlotNotice(false);
+                            setSlotNotice(null);
                           }}
                         >
                           {slot}
