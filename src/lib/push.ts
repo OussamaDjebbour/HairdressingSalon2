@@ -57,6 +57,11 @@ export async function enablePush(lang: Lang): Promise<PushState> {
   const subscription =
     (await registration.pushManager.getSubscription()) ??
     (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToBytes(vapidKey()) }));
+  await saveSubscription(subscription, lang);
+  return 'on';
+}
+
+async function saveSubscription(subscription: PushSubscription, lang: Lang): Promise<void> {
   const { endpoint, keys } = subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
   const { error } = await supabase.rpc('admin_save_push_subscription', {
     p_endpoint: endpoint,
@@ -65,7 +70,16 @@ export async function enablePush(lang: Lang): Promise<PushState> {
     p_lang: lang,
   });
   if (error) throw error;
-  return 'on';
+}
+
+/**
+ * Re-saves this device's subscription (an idempotent upsert). Called whenever the admin opens, so if the
+ * server dropped it (e.g. after a push service rejection) while the browser still holds it, it comes back
+ * instead of the card showing "on" for a device that no longer gets notifications.
+ */
+export async function syncPushSubscription(lang: Lang): Promise<void> {
+  const subscription = await currentSubscription();
+  if (subscription) await saveSubscription(subscription, lang);
 }
 
 /** Forgets this device on the server, then unsubscribes it. */
@@ -84,7 +98,7 @@ export async function sendTestPush(): Promise<void> {
   if (error) throw error;
 }
 
-export function usePushState() {
+export function usePushState(lang: Lang) {
   const [state, setState] = useState<PushState>('unsupported');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -92,11 +106,17 @@ export function usePushState() {
   useEffect(() => {
     let alive = true;
     getPushState()
-      .then((s) => alive && setState(s))
+      .then((s) => {
+        if (!alive) return;
+        setState(s);
+        if (s === 'on') syncPushSubscription(lang).catch(() => undefined);
+      })
       .catch(() => alive && setState('unsupported'));
     return () => {
       alive = false;
     };
+    // Sync once per mount, in the language the admin was opened in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const run = useCallback(async <T,>(action: () => Promise<T>, onDone?: (result: T) => void) => {
@@ -117,7 +137,7 @@ export function usePushState() {
     state,
     busy,
     error,
-    enable: (lang: Lang) => run(() => enablePush(lang), setState).catch(() => undefined),
+    enable: (l: Lang) => run(() => enablePush(l), setState).catch(() => undefined),
     disable: () => run(disablePush, setState).catch(() => undefined),
     /** Rejects if the server refused, so the caller can skip its "sent" message. */
     test: () => run(sendTestPush),

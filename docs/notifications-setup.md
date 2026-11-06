@@ -85,6 +85,11 @@ Run the commands from the repo root.
   - No rows: the Vault secrets are missing, or no device is subscribed.
 - **Function logs:** Supabase dashboard → Edge Functions → `notify-booking` → Logs.
 - **Notifications blocked on the phone:** the card says so. Re-allow them in the browser or iOS settings for the site.
+- **Card says "Activées" but nothing arrives:**
+  - Check the device's own notification settings: on a Mac, System Settings → Notifications → Google Chrome, plus Focus / Do Not Disturb. When the OS blocks the browser, pushes can't be shown, and the browser may drop the subscription; the push service then answers 410 and it's deleted.
+  - Fix the setting, then on the card tap **Désactiver** → **Activer** → **Envoyer un test**.
+  - Opening `/admin` also re-saves a still-valid subscription automatically, so one the server deleted comes back by itself.
+- **Find out whether a push reached the browser:** in Chrome, `chrome://gcm-internals` → Start Recording shows registrations and received messages.
 
 ## Rotating the secret
 

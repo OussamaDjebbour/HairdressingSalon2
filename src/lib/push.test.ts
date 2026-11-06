@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('./supabase', () => ({ supabase: { rpc: vi.fn() } }));
 
 import { supabase } from './supabase';
-import { disablePush, enablePush, getPushState } from './push';
+import { disablePush, enablePush, getPushState, syncPushSubscription } from './push';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
 const VAPID = 'BCNkBvAINq_qVYDVsX4rFPBmoPhrt-HhmE31x-kpy8C22yZ_WfUjqHBL6tpLhaOWYSD-RMCaxyIiCiu_Jb4j8oI';
@@ -105,5 +105,21 @@ describe('disablePush', () => {
     expect(await disablePush()).toBe('off');
     expect(current.unsubscribe).toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith('admin_delete_push_subscription', { p_endpoint: 'https://push.example/abc' });
+  });
+});
+
+describe('syncPushSubscription', () => {
+  it("re-saves this device's subscription so a server-side cleanup heals itself", async () => {
+    await enablePush('fr');
+    rpc.mockClear();
+    await syncPushSubscription('ar');
+    expect(rpc).toHaveBeenCalledWith('admin_save_push_subscription', {
+      p_endpoint: 'https://push.example/abc', p_p256dh: 'p256-b64url', p_auth: 'auth-b64url', p_lang: 'ar',
+    });
+  });
+
+  it('does nothing when this device is not subscribed', async () => {
+    await syncPushSubscription('fr');
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

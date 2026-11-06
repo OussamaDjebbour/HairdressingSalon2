@@ -42,6 +42,7 @@ async function send(sub: PushSubscriptionRow, msg: PushMessage): Promise<number>
   } catch (err) {
     // web-push throws WebPushError for non-2xx answers; 404/410 mean the subscription is gone.
     const status = (err as { statusCode?: number }).statusCode;
+    console.warn('push rejected', status, new URL(sub.endpoint).host);
     if (typeof status === 'number') return status;
     throw err;
   }

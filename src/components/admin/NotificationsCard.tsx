@@ -6,7 +6,7 @@ import { usePushState } from '../../lib/push';
 /** Lets the owner turn on booking notifications for this device (with iPhone guidance). */
 export function NotificationsCard() {
   const { lang, t } = useLang();
-  const { state, enable, disable, test, busy, error } = usePushState();
+  const { state, enable, disable, test, busy, error } = usePushState(lang);
   const [testSent, setTestSent] = useState(false);
 
   const sendTest = async () => {
