@@ -11,6 +11,7 @@ import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
 import { TimeSlotChip } from './TimeSlotChip';
+import { SALON_WHATSAPP_NUMBER, waLink } from '../data/whatsapp';
 import { SmartImage } from './SmartImage';
 
 const iconMap: Record<string, typeof Scissors> = {
@@ -19,7 +20,6 @@ const iconMap: Record<string, typeof Scissors> = {
 };
 
 type Step = 0 | 1 | 2 | 3;
-const WHATSAPP_NUMBER = '213561234567';
 
 export function Booking() {
   const { lang, t } = useLang();
@@ -136,8 +136,7 @@ export function Booking() {
   };
 
   const handleWhatsAppSend = () => {
-    const msg = encodeURIComponent(buildWhatsAppMessage());
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`, '_blank');
+    window.open(waLink(SALON_WHATSAPP_NUMBER, buildWhatsAppMessage()), '_blank');
   };
 
   const handleConfirm = () => {
@@ -522,7 +521,7 @@ export function Booking() {
                   </p>
                   {(submitError === 'rate_limited' || submitError === 'too_many_bookings') && (
                     <a
-                      href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                      href={waLink(SALON_WHATSAPP_NUMBER)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-whatsapp btn-sm mt-3"
