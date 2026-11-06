@@ -120,11 +120,11 @@ export function Schedule() {
         </div>
 
         {/* Day picker */}
-        <div className="flex items-center justify-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
           <button onClick={() => shiftDay(-1)} className="btn-ghost btn-sm" aria-label={t('admin.prevDay')}>
             <ChevronLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
           </button>
-          <span className="font-display text-lg font-semibold text-rose-800 min-w-[11rem] text-center">
+          <span className="font-display text-lg font-semibold text-rose-800 sm:min-w-[11rem] text-center">
             {formatLongDate(day, lang)}
           </span>
           <button onClick={() => shiftDay(1)} className="btn-ghost btn-sm" aria-label={t('admin.nextDay')}>
