@@ -19,6 +19,7 @@ import { Badge } from './Badge';
 import { WeekStrip } from './admin/WeekStrip';
 import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
+import { NotificationsCard } from './admin/NotificationsCard';
 
 const PENDING_WINDOW_DAYS = 13; // online bookings are at most today + 13 days
 
@@ -149,6 +150,8 @@ export function Schedule() {
             </button>
           </div>
         )}
+
+        <NotificationsCard />
 
         <div className="max-w-3xl mx-auto mb-6">
           <WeekStrip day={day} bookings={weekQuery.data ?? []} stylistCount={stylists.length} onSelect={setDay} />
