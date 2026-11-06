@@ -187,6 +187,10 @@
     @apply badge bg-rose-50 text-rose-700 border border-rose-100;
   }
 
+  .badge-cancelled {
+    @apply badge bg-cream-100 text-cream-500 border border-cream-200;
+  }
+
   .img-placeholder {
     background: linear-gradient(
       90deg,

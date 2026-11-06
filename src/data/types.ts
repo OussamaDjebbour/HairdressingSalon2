@@ -17,4 +17,5 @@ export interface Stylist {
   role: Record<Lang, string>;
   specialties: Record<Lang, string>[];
   image: string;
+  serviceIds: string[];
 }
