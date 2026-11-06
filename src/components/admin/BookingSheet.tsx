@@ -66,6 +66,13 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   }, [onClose]);
 
   const busy = create.isPending || update.isPending || setStatus.isPending;
+  // Confirm/cancel act on the saved booking: block them while the form has unsaved edits,
+  // so the client is never sent a message with the old time.
+  const initial = initialForm(state, lang);
+  const dirty =
+    form.clientName !== initial.clientName || form.clientPhone !== initial.clientPhone || form.lang !== initial.lang ||
+    form.stylistId !== initial.stylistId || form.time !== initial.time || toYmd(form.date) !== toYmd(initial.date) ||
+    (form.serviceId !== '' && form.serviceId !== initial.serviceId);
   const set = <K extends keyof StaffBookingInput>(key: K, value: StaffBookingInput[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
   const onError = (err: unknown) => setError(t(`admin.error.${toAdminError(err)}`));
@@ -237,13 +244,13 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
             {editing && (
               <div className="flex gap-2">
                 {editing.status !== 'confirmed' && (
-                  <button type="button" disabled={busy} onClick={() => changeStatus('confirmed')} className="btn-secondary flex-1">
+                  <button type="button" disabled={busy || dirty} onClick={() => changeStatus('confirmed')} className="btn-secondary flex-1">
                     <Check className="w-4 h-4" strokeWidth={2} />
                     {t('admin.confirm')}
                   </button>
                 )}
                 {editing.status !== 'cancelled' && (
-                  <button type="button" disabled={busy} onClick={() => changeStatus('cancelled')} className="btn-ghost flex-1">
+                  <button type="button" disabled={busy || dirty} onClick={() => changeStatus('cancelled')} className="btn-ghost flex-1">
                     <X className="w-4 h-4" strokeWidth={2} />
                     {t('admin.cancel')}
                   </button>

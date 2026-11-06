@@ -143,6 +143,15 @@ describe('BookingSheet — edit', () => {
     expect(whatsappText()).toContain('a été déplacé au Mardi 8 janvier à 11:00');
   });
 
+  it('confirm and cancel are disabled while there are unsaved changes', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'pending' }) });
+    fireEvent.change(screen.getByLabelText('Heure'), { target: { value: '11:00' } });
+    expect(screen.getByRole('button', { name: /Confirmer/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Annuler/ })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Heure'), { target: { value: '10:00' } });
+    expect(screen.getByRole('button', { name: /Confirmer/ })).toBeEnabled();
+  });
+
   it('a name-only edit just closes', () => {
     update.mockImplementation((_input, opts) => opts.onSuccess());
     const onClose = renderSheet({ mode: 'edit', booking: adminBooking() });

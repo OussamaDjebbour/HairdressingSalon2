@@ -11,6 +11,11 @@ describe('toWaNumber', () => {
   it('turns a local Algerian mobile into the international form wa.me expects', () => {
     expect(toWaNumber('0555123456')).toBe('213555123456');
   });
+
+  it('normalises phones typed with spaces or the +213 prefix', () => {
+    expect(toWaNumber('0555 12 34 56')).toBe('213555123456');
+    expect(toWaNumber('+213 555 12 34 56')).toBe('213555123456');
+  });
 });
 
 describe('waLink', () => {

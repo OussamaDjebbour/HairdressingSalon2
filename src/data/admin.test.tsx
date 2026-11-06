@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -20,6 +20,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 beforeEach(() => vi.clearAllMocks());
+afterEach(() => vi.useRealTimers());
 
 describe('useAdminBookings', () => {
   it('requests one day and maps rows', async () => {
@@ -43,6 +44,22 @@ describe('useAdminBookings', () => {
     expect(b.clientName).toBe('Yasmine');
     expect(b.startsAt).toBeInstanceOf(Date);
     expect(formatAlgiersTime(b.startsAt)).toBe('09:00');
+  });
+});
+
+describe('useAdminBookings refresh', () => {
+  it('refetches every minute while the schedule stays open', async () => {
+    vi.useFakeTimers();
+    rpc.mockResolvedValue({ data: [], error: null });
+    renderHook(() => useAdminBookings(new Date(2030, 0, 6), new Date(2030, 0, 12)), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(rpc).toHaveBeenCalledTimes(2);
   });
 });
 

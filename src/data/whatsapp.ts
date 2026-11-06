@@ -1,5 +1,6 @@
 import type { Lang } from '../context/LanguageContext';
 import { formatAlgiersTime, type AdminBooking } from './admin';
+import { normalizePhone } from './bookings';
 import { formatLongDate } from './formatters';
 import { salonDate } from './week';
 
@@ -9,9 +10,9 @@ import { salonDate } from './week';
  */
 export const SALON_WHATSAPP_NUMBER = '213561234567';
 
-/** "0555123456" → "213555123456", the form wa.me links expect. */
+/** "0555 12 34 56" / "+213 555…" / "0555123456" → "213555123456", the form wa.me links expect. */
 export function toWaNumber(phone: string): string {
-  return `213${phone.replace(/^0/, '')}`;
+  return `213${normalizePhone(phone).replace(/^0/, '')}`;
 }
 
 export function waLink(number: string, text?: string): string {

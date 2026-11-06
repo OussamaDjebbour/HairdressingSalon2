@@ -88,12 +88,17 @@ export async function fetchAdminBookings(from: Date, to: Date): Promise<AdminBoo
   }));
 }
 
+export const ADMIN_REFRESH_MS = 60_000;
+
 /** Bookings between two salon dates, inclusive (the RPC caps the range at 31 days). */
 export function useAdminBookings(from: Date, to: Date) {
   return useQuery({
     queryKey: ['admin', 'bookings', toYmd(from), toYmd(to)],
     queryFn: () => fetchAdminBookings(from, to),
     staleTime: 0,
+    // Keep the owner's schedule and pending count current while /admin stays open on her phone.
+    refetchInterval: ADMIN_REFRESH_MS,
+    refetchOnWindowFocus: true,
     retry: false,
   });
 }
