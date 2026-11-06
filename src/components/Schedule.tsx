@@ -11,6 +11,7 @@ import {
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
+import { layoutLanes, type LanePlacement } from '../data/timeline';
 import { DataError } from './DataError';
 import { Thread } from './Thread';
 import { Badge } from './Badge';
@@ -56,21 +57,28 @@ function StatusBadge({ status, compact = false }: { status: BookingStatus; compa
   );
 }
 
-function AppointmentBlock({ booking }: { booking: AdminBooking }) {
+function AppointmentBlock({ booking, placement }: { booking: AdminBooking; placement: LanePlacement }) {
   const { lang } = useLang();
   const top = ((startMinutes(booking) - OPENING_HOUR * 60) / 60) * HOUR_HEIGHT;
   const height = (durationMinutes(booking) / 60) * HOUR_HEIGHT - 4;
+  // Overlapping bookings (same time, different stylists) share the row in equal columns.
+  const laneWidth = 100 / placement.lanes;
 
   return (
     <div
-      className={`absolute left-2 right-2 rounded-xl border p-2.5 overflow-hidden transition-all duration-200 ease-silk hover:shadow-soft hover:z-10 ${
+      className={`absolute rounded-xl border p-2.5 overflow-hidden transition-all duration-200 ease-silk hover:shadow-soft hover:z-10 ${
         booking.status === 'confirmed' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'
       }`}
-      style={{ top: `${top}px`, height: `${height}px` }}
+      style={{
+        top: `${top}px`,
+        height: `${height}px`,
+        insetInlineStart: `calc(${placement.lane * laneWidth}% + 0.25rem)`,
+        width: `calc(${laneWidth}% - 0.5rem)`,
+      }}
     >
       <div className="flex items-start justify-between gap-1">
         <span className="text-xs font-semibold text-rose-800 truncate">{booking.clientName}</span>
-        <StatusBadge status={booking.status} />
+        <StatusBadge status={booking.status} compact={placement.lanes > 1} />
       </div>
       <p className="text-[11px] text-rose-600 truncate mt-0.5">{booking.serviceName[lang]}</p>
       <div className="flex items-center gap-2 mt-1 text-[10px] text-rose-600">
@@ -114,6 +122,9 @@ export function Schedule() {
     [bookingsQuery.data]
   );
   const active = all.filter((b) => b.status !== 'cancelled');
+  const lanes = layoutLanes(
+    active.map((b) => ({ id: b.id, start: b.startsAt.getTime(), end: b.endsAt.getTime() }))
+  );
 
   const totalRevenue = active.reduce((sum, b) => sum + b.price, 0);
   const totalMinutes = active.reduce((sum, b) => sum + durationMinutes(b), 0);
@@ -230,17 +241,17 @@ export function Schedule() {
 
                     {isToday && nowMinutes >= OPENING_HOUR * 60 && nowMinutes < CLOSING_HOUR * 60 && (
                       <div
-                        className="absolute left-12 right-0 flex items-center z-20 pointer-events-none"
+                        className="absolute start-12 end-0 flex items-center z-20 pointer-events-none"
                         style={{ top: `${((nowMinutes - OPENING_HOUR * 60) / 60) * HOUR_HEIGHT}px` }}
                       >
-                        <div className="w-2 h-2 rounded-full bg-rose-500 -ml-1" />
+                        <div className="w-2 h-2 rounded-full bg-rose-500 -ms-1" />
                         <div className="flex-1 border-t-2 border-rose-500/60" />
                       </div>
                     )}
 
-                    <div className="absolute left-12 right-0 top-0 bottom-0">
+                    <div className="absolute start-12 end-0 top-0 bottom-0">
                       {active.map((b) => (
-                        <AppointmentBlock key={b.id} booking={b} />
+                        <AppointmentBlock key={b.id} booking={b} placement={lanes.get(b.id) ?? { lane: 0, lanes: 1 }} />
                       ))}
                     </div>
                   </div>
