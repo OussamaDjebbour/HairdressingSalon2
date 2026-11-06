@@ -1,3 +1,4 @@
+import { Globe, PenLine } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { algiersToday, type AdminBooking } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
@@ -7,6 +8,7 @@ import { isClosedDay, minutesToTime, salonDate, salonMinutes } from '../../data/
 
 const HOUR_HEIGHT = 64; // px per hour
 const CELL_MINUTES = 30;
+const QUARTER = 15;
 const OPEN = OPENING_HOUR * 60;
 const CLOSE = CLOSING_HOUR * 60;
 
@@ -59,18 +61,28 @@ export function DayColumns({ day, stylists, bookings, onSlotTap, onBookingTap }:
 
           {stylists.map((stylist) => {
             const own = visible.filter((b) => b.stylistId === stylist.id);
-            const covered = (min: number) =>
+            const busy = (from: number, to: number) =>
               own.some((b) => {
                 const start = salonMinutes(b.startsAt);
                 const end = start + (b.endsAt.getTime() - b.startsAt.getTime()) / 60000;
-                return start < min + CELL_MINUTES && end > min;
+                return start < to && end > from;
               });
+            // Each half-hour offers its free part: the whole half-hour, or just the free quarter next to a
+            // booking that starts or ends at :15/:45.
+            const freeSlots = cells.flatMap((min) => {
+              const firstFree = !busy(min, min + QUARTER);
+              const secondFree = !busy(min + QUARTER, min + CELL_MINUTES);
+              if (firstFree && secondFree) return [{ min, length: CELL_MINUTES }];
+              if (firstFree) return [{ min, length: QUARTER }];
+              if (secondFree) return [{ min: min + QUARTER, length: QUARTER }];
+              return [];
+            });
             return (
               <div key={stylist.id} className="relative rounded-lg bg-cream-50">
                 {hours.slice(1, -1).map((h) => (
                   <div key={h} className="absolute inset-x-0 border-t border-cream-200" style={{ top: topPx(h * 60) }} />
                 ))}
-                {cells.filter((min) => !covered(min)).map((min) => {
+                {freeSlots.map(({ min, length }) => {
                   const time = minutesToTime(min);
                   return (
                     <button
@@ -79,12 +91,13 @@ export function DayColumns({ day, stylists, bookings, onSlotTap, onBookingTap }:
                       aria-label={`${stylist.name} ${time}`}
                       onClick={() => onSlotTap(stylist.id, time)}
                       className="absolute inset-x-0 rounded-md transition-colors hover:bg-rose-50 focus-visible:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
-                      style={{ top: topPx(min), height: `${(CELL_MINUTES / 60) * HOUR_HEIGHT}px` }}
+                      style={{ top: topPx(min), height: `${(length / 60) * HOUR_HEIGHT}px` }}
                     />
                   );
                 })}
 
                 {own.map((b) => {
+                  const SourceIcon = b.source === 'staff' ? PenLine : Globe;
                   const start = salonMinutes(b.startsAt);
                   const minutes = (b.endsAt.getTime() - b.startsAt.getTime()) / 60000;
                   return (
@@ -97,11 +110,13 @@ export function DayColumns({ day, stylists, bookings, onSlotTap, onBookingTap }:
                       }`}
                       style={{ top: topPx(start), height: `${(minutes / 60) * HOUR_HEIGHT - 2}px` }}
                     >
-                      <span className="block text-[11px] font-semibold text-rose-800 truncate">{b.clientName}</span>
-                      <span className="block text-[10px] text-rose-600 truncate">{b.serviceName[lang]}</span>
-                      <span className="block text-[9px] text-rose-500 truncate">
-                        {t(b.source === 'staff' ? 'schedule.source.staff' : 'schedule.source.online')}
+                      {/* Two lines only, so a 45-minute booking shows everything; the source is an icon. */}
+                      <span className="flex items-center gap-1">
+                        <span className="flex-1 min-w-0 text-[11px] font-semibold text-rose-800 truncate">{b.clientName}</span>
+                        <SourceIcon className="w-2.5 h-2.5 flex-shrink-0 text-rose-500" strokeWidth={2} aria-hidden="true" />
+                        <span className="sr-only">{t(b.source === 'staff' ? 'schedule.source.staff' : 'schedule.source.online')}</span>
                       </span>
+                      <span className="block text-[10px] text-rose-600 truncate">{b.serviceName[lang]}</span>
                     </button>
                   );
                 })}

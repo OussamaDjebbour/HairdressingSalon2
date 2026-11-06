@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { services, stylists, adminBooking } from './fixtures';
 
+let servicesOverride: typeof services | undefined;
 vi.mock('../../data/queries', async () => {
   const f = await import('./fixtures');
   return {
-    useServices: () => ({ data: f.services, isLoading: false, isError: false }),
+    useServices: () => ({ data: servicesOverride ?? f.services, isLoading: false, isError: false }),
     useStylists: () => ({ data: f.stylists, isLoading: false, isError: false }),
   };
 });
@@ -49,6 +50,7 @@ function whatsappText(): string {
 beforeEach(() => {
   vi.clearAllMocks();
   pending = false;
+  servicesOverride = undefined;
 });
 
 describe('BookingSheet — add', () => {
@@ -159,5 +161,53 @@ describe('BookingSheet — edit', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     expect(onClose).toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: /Envoyer sur WhatsApp/ })).toBeNull();
+  });
+});
+
+describe('BookingSheet — polish', () => {
+  it('asks before discarding a half-typed booking on a backdrop tap or Escape', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const onClose = renderSheet(addState);
+    fillClient('Rania', '');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(confirm).toHaveBeenCalledWith('Abandonner ce rendez-vous non enregistré ?');
+    expect(onClose).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('dialog').parentElement!);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('closes without asking when nothing was typed', () => {
+    const confirm = vi.spyOn(window, 'confirm');
+    const onClose = renderSheet(addState);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('keeps an off-grid booking time in order and flags it if the service no longer fits', () => {
+    servicesOverride = [{ ...services[0], duration: 120 }, ...services.slice(1)];
+    renderSheet({ mode: 'edit', booking: adminBooking({ startIso: '2030-01-08T16:30:00Z' }) }); // 17:30 in Algiers
+    const options = within(screen.getByLabelText('Heure')).getAllByRole('option').map((o) => o.textContent);
+    expect(options).toEqual([...options].sort());
+    expect(screen.getByLabelText('Heure')).toHaveValue('17:30');
+    expect(screen.getByText('En dehors des horaires (9h–18h, fermé dimanche et lundi).')).toBeInTheDocument();
+  });
+
+  it('moves focus into the sheet and keeps Tab inside it', () => {
+    renderSheet(addState);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    const focusables = dialog.querySelectorAll<HTMLElement>('button, input, select');
+    focusables[focusables.length - 1].focus();
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(document.activeElement).toBe(focusables[0]);
+  });
+
+  it('says it is loading instead of silently ignoring Save before services arrive', () => {
+    servicesOverride = [];
+    renderSheet(addState);
+    expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+    expect(screen.getByText('Chargement des prestations…')).toBeInTheDocument();
   });
 });
