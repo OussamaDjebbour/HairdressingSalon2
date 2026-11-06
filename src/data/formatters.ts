@@ -1,11 +1,15 @@
 import { Lang } from '../context/LanguageContext';
 
-export function formatPrice(price: number, _lang: Lang = 'fr'): string {
+export function formatPrice(price: number, lang: Lang = 'fr'): string {
   const formatted = price
     .toLocaleString('fr-FR')
     .replace(/\u202f/g, ' ')
     .replace(/\u00a0/g, ' ');
-  return `${formatted} DA`;
+  const text = `${formatted} DA`;
+  // In RTL text the digit groups and "DA" are laid out right-to-left ("DA 500 2").
+  // Wrap the price in LEFT-TO-RIGHT ISOLATE \u2026 POP DIRECTIONAL ISOLATE so it stays one
+  // LTR run \u2014 works in the page and in the plain-text WhatsApp message alike.
+  return lang === 'ar' ? `\u2066${text}\u2069` : text;
 }
 
 export function formatDuration(minutes: number, lang: Lang = 'fr'): string {
