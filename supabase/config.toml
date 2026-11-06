@@ -355,3 +355,7 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+# Called by the database (pg_net) with x-notify-secret, not by logged-in users.
+[functions.notify-booking]
+verify_jwt = false
