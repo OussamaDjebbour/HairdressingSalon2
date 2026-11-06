@@ -57,3 +57,8 @@ export function staffTimeOptions(durationMin: number): string[] {
   }
   return options;
 }
+
+/** The instant of a salon wall-clock date + "HH:MM". Algiers is UTC+1 all year (no DST). */
+export function salonInstant(date: Date, time: string): Date {
+  return new Date(`${toYmd(date)}T${time}:00+01:00`);
+}
