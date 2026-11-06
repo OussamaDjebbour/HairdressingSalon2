@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import type { AdminBooking } from '../data/admin';
 import { adminBooking } from './admin/fixtures';
 
@@ -31,11 +32,13 @@ vi.mock('../data/admin', async (importOriginal) => ({
 import { LanguageProvider } from '../context/LanguageContext';
 import { Schedule } from './Schedule';
 
-function renderSchedule() {
+function renderSchedule(url = '/admin') {
   render(
-    <LanguageProvider>
-      <Schedule />
-    </LanguageProvider>
+    <MemoryRouter initialEntries={[url]}>
+      <LanguageProvider>
+        <Schedule />
+      </LanguageProvider>
+    </MemoryRouter>
   );
 }
 
@@ -92,5 +95,21 @@ describe('Schedule', () => {
   it('hides the pending badge when nothing is waiting', () => {
     renderSchedule();
     expect(screen.queryByRole('button', { name: /en attente/ })).toBeNull();
+  });
+});
+
+describe('Schedule deep link (from a notification)', () => {
+  it('deep link to another week opens that booking', () => {
+    weekBookings = [adminBooking({ id: 'p9', clientName: 'Nour', startIso: '2030-01-17T09:00:00Z' })];
+    renderSchedule('/admin?day=2030-01-17&booking=p9');
+    expect(screen.getAllByText('Jeudi 17 janvier').length).toBeGreaterThan(0);
+    expect(screen.getByRole('dialog', { name: 'Rendez-vous' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Nour');
+  });
+
+  it('unknown booking id just opens the day', () => {
+    renderSchedule('/admin?day=2030-01-17&booking=nope');
+    expect(screen.getAllByText('Jeudi 17 janvier').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

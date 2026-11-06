@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Clock, Check, X, User, Phone, TrendingUp, CalendarDays, Activity, ArrowRight,
   ChevronLeft, ChevronRight, Plus, BellRing,
@@ -25,6 +26,12 @@ const PENDING_WINDOW_DAYS = 13; // online bookings are at most today + 13 days
 
 function durationMinutes(b: AdminBooking): number {
   return Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000);
+}
+
+/** "YYYY-MM-DD" → local-midnight Date, or null when absent or malformed. */
+function parseYmd(value: string | null): Date | null {
+  const m = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
 }
 
 function addDays(d: Date, n: number): Date {
@@ -71,7 +78,9 @@ function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boo
 
 export function Schedule() {
   const { lang, t } = useLang();
-  const [day, setDay] = useState(() => algiersToday());
+  // A notification opens /admin?day=YYYY-MM-DD&booking=<id>: start on that day, then open the booking.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [day, setDay] = useState(() => parseYmd(searchParams.get('day')) ?? algiersToday());
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const stylists = useStylists().data ?? [];
 
@@ -98,6 +107,15 @@ export function Schedule() {
   const waiting = (pendingQuery.data ?? [])
     .filter((b) => b.status === 'pending' && b.startsAt > now)
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+
+  const linkedBookingId = searchParams.get('booking');
+  const hasLink = searchParams.has('day') || searchParams.has('booking');
+  useEffect(() => {
+    if (!hasLink || !weekQuery.data) return;
+    const linked = linkedBookingId ? weekQuery.data.find((b) => b.id === linkedBookingId) : undefined;
+    if (linked) setSheet({ mode: 'edit', booking: linked });
+    setSearchParams({}, { replace: true }); // a refresh shouldn't reopen it
+  }, [hasLink, linkedBookingId, weekQuery.data, setSearchParams]);
 
   const shiftDay = (delta: number) => setDay((d) => addDays(d, delta));
 
