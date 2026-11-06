@@ -110,7 +110,7 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof Clock; label: str
 export function Schedule() {
   const { lang, t } = useLang();
   const [day, setDay] = useState(() => algiersToday());
-  const bookingsQuery = useAdminBookings(day);
+  const bookingsQuery = useAdminBookings(day, day);
   const setStatus = useSetBookingStatus();
   const [actionError, setActionError] = useState<string | null>(null);
 

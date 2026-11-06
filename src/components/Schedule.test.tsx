@@ -20,7 +20,7 @@ function booking(status: AdminBooking['status'], overrides: Partial<AdminBooking
   return {
     id: 'b1', startsAt, endsAt: new Date(startsAt.getTime() + 60 * 60000), status, price: 2500,
     clientName: 'Yasmine', clientPhone: '0555123456', lang: 'fr', serviceId: 'coupe-femme',
-    serviceName: { fr: 'Coupe & Brushing', ar: 'قص' }, stylistId: 'amina', stylistName: 'Amina',
+    serviceName: { fr: 'Coupe & Brushing', ar: 'قص' }, stylistId: 'amina', stylistName: 'Amina', source: 'online',
     ...overrides,
   };
 }
