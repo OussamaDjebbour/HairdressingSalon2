@@ -1,95 +1,41 @@
 import { useMemo, useState } from 'react';
 import {
   Clock, Check, X, User, Phone, TrendingUp, CalendarDays, Activity, ArrowRight,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Plus, BellRing,
 } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { OPENING_HOUR, CLOSING_HOUR } from '../data/hours';
 import { toYmd } from '../data/bookings';
 import {
-  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings, useSetBookingStatus,
+  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings,
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
+import { useStylists } from '../data/queries';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
-import { layoutLanes, type LanePlacement } from '../data/timeline';
+import { CLOSING_HOUR, OPENING_HOUR } from '../data/hours';
+import { dayOccupancy, minutesToTime, salonDate, salonMinutes, weekDays } from '../data/week';
 import { DataError } from './DataError';
 import { Thread } from './Thread';
 import { Badge } from './Badge';
+import { WeekStrip } from './admin/WeekStrip';
+import { DayColumns } from './admin/DayColumns';
+import { BookingSheet, type SheetState } from './admin/BookingSheet';
 
-const HOUR_HEIGHT = 64; // px per hour in timeline
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function startMinutes(b: AdminBooking): number {
-  return timeToMinutes(formatAlgiersTime(b.startsAt));
-}
+const PENDING_WINDOW_DAYS = 13; // online bookings are at most today + 13 days
 
 function durationMinutes(b: AdminBooking): number {
   return Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000);
 }
 
-function StatusBadge({ status, compact = false }: { status: BookingStatus; compact?: boolean }) {
-  const { t } = useLang();
-  if (status === 'confirmed') {
-    return (
-      <Badge variant="confirmed" className="flex-shrink-0">
-        <Check className="w-3 h-3" strokeWidth={2.5} />
-        {!compact && t('schedule.confirmed')}
-      </Badge>
-    );
-  }
-  if (status === 'cancelled') {
-    return (
-      <Badge variant="cancelled" className="flex-shrink-0">
-        <X className="w-3 h-3" strokeWidth={2.5} />
-        {!compact && t('schedule.cancelled')}
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="pending" className="flex-shrink-0">
-      <Clock className="w-3 h-3" strokeWidth={2} />
-      {!compact && t('schedule.pending')}
-    </Badge>
-  );
+function addDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 }
 
-function AppointmentBlock({ booking, placement }: { booking: AdminBooking; placement: LanePlacement }) {
-  const { lang } = useLang();
-  const top = ((startMinutes(booking) - OPENING_HOUR * 60) / 60) * HOUR_HEIGHT;
-  const height = (durationMinutes(booking) / 60) * HOUR_HEIGHT - 4;
-  // Overlapping bookings (same time, different stylists) share the row in equal columns.
-  const laneWidth = 100 / placement.lanes;
-
+function StatusBadge({ status }: { status: BookingStatus }) {
+  const Icon = status === 'confirmed' ? Check : status === 'cancelled' ? X : Clock;
   return (
-    <div
-      className={`absolute rounded-xl border p-2.5 overflow-hidden transition-all duration-200 ease-silk hover:shadow-soft hover:z-10 ${
-        booking.status === 'confirmed' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'
-      }`}
-      style={{
-        top: `${top}px`,
-        height: `${height}px`,
-        insetInlineStart: `calc(${placement.lane * laneWidth}% + 0.25rem)`,
-        width: `calc(${laneWidth}% - 0.5rem)`,
-      }}
-    >
-      <div className="flex items-start justify-between gap-1">
-        <span className="text-xs font-semibold text-rose-800 truncate">{booking.clientName}</span>
-        <StatusBadge status={booking.status} compact={placement.lanes > 1} />
-      </div>
-      <p className="text-[11px] text-rose-600 truncate mt-0.5">{booking.serviceName[lang]}</p>
-      <div className="flex items-center gap-2 mt-1 text-[10px] text-rose-600">
-        <span className="flex items-center gap-0.5">
-          <User className="w-2.5 h-2.5" strokeWidth={2} />
-          {booking.stylistName}
-        </span>
-        <span>·</span>
-        <span>{formatPrice(booking.price, lang)}</span>
-      </div>
-    </div>
+    <Badge variant={status} className="flex-shrink-0">
+      <Icon className="w-3 h-3" strokeWidth={2.5} />
+    </Badge>
   );
 }
 
@@ -107,79 +53,78 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof Clock; label: str
   );
 }
 
+/** First free half-hour for a stylist on a day (from now if it's today), else opening time. */
+function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boolean): string {
+  const now = isToday ? salonMinutes(new Date()) : 0;
+  for (let min = OPENING_HOUR * 60; min + 30 <= CLOSING_HOUR * 60; min += 30) {
+    if (min < now) continue;
+    const busy = bookings.some((b) => {
+      if (b.stylistId !== stylistId || b.status === 'cancelled') return false;
+      const start = salonMinutes(b.startsAt);
+      return start < min + 30 && start + durationMinutes(b) > min;
+    });
+    if (!busy) return minutesToTime(min);
+  }
+  return minutesToTime(OPENING_HOUR * 60);
+}
+
 export function Schedule() {
   const { lang, t } = useLang();
   const [day, setDay] = useState(() => algiersToday());
-  const bookingsQuery = useAdminBookings(day, day);
-  const setStatus = useSetBookingStatus();
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const stylists = useStylists().data ?? [];
 
+  const today = algiersToday();
+  const week = weekDays(day);
+  const weekQuery = useAdminBookings(week[0], week[6]);
+  const pendingQuery = useAdminBookings(today, addDays(today, PENDING_WINDOW_DAYS));
+
+  const isToday = toYmd(day) === toYmd(today);
   const now = new Date();
-  const isToday = toYmd(day) === toYmd(algiersToday());
 
   const all = useMemo(
-    () => [...(bookingsQuery.data ?? [])].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
-    [bookingsQuery.data]
+    () =>
+      (weekQuery.data ?? [])
+        .filter((b) => toYmd(salonDate(b.startsAt)) === toYmd(day))
+        .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
+    [weekQuery.data, day]
   );
   const active = all.filter((b) => b.status !== 'cancelled');
-  const lanes = layoutLanes(
-    active.map((b) => ({ id: b.id, start: b.startsAt.getTime(), end: b.endsAt.getTime() }))
-  );
-
   const totalRevenue = active.reduce((sum, b) => sum + b.price, 0);
-  const totalMinutes = active.reduce((sum, b) => sum + durationMinutes(b), 0);
-  const operatingMinutes = (CLOSING_HOUR - OPENING_HOUR) * 60;
-  const occupationRate = Math.round((totalMinutes / operatingMinutes) * 100);
+  const occupationRate = Math.round(dayOccupancy(all, day, stylists.length) * 100);
+  const upcoming = isToday ? active.find((b) => b.startsAt > now) : active[0];
 
-  const nowMinutes = timeToMinutes(formatAlgiersTime(now));
-  const upcoming = isToday ? active.find((b) => startMinutes(b) >= nowMinutes) : active[0];
+  const waiting = (pendingQuery.data ?? [])
+    .filter((b) => b.status === 'pending' && b.startsAt > now)
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
-  const hours = Array.from({ length: CLOSING_HOUR - OPENING_HOUR + 1 }, (_, i) => OPENING_HOUR + i);
+  const shiftDay = (delta: number) => setDay((d) => addDays(d, delta));
 
-  const shiftDay = (delta: number) => {
-    setDay((d) => {
-      const next = new Date(d);
-      next.setDate(d.getDate() + delta);
-      return next;
-    });
+  const openAdd = () => {
+    const stylistId = stylists[0]?.id;
+    if (!stylistId) return;
+    setSheet({ mode: 'add', stylistId, date: day, time: firstFreeTime(all, stylistId, isToday) });
   };
 
-  const changeStatus = (booking: AdminBooking, status: 'confirmed' | 'cancelled') => {
-    if (status === 'cancelled' && !window.confirm(t('admin.cancelConfirm'))) return;
-    setActionError(null);
-    setStatus.mutate(
-      { id: booking.id, status },
-      {
-        onError: (err) => {
-          const message = (err as { message?: unknown })?.message;
-          setActionError(message === 'slot_taken' ? t('admin.slotTaken') : t('admin.actionError'));
-        },
-      }
-    );
-  };
-
-  if (bookingsQuery.isError && isNotAuthorized(bookingsQuery.error)) {
+  if (weekQuery.isError && isNotAuthorized(weekQuery.error)) {
     return <p className="text-center text-rose-600 py-20 px-4">{t('admin.notAuthorized')}</p>;
   }
 
   return (
-    <section id="schedule" className="relative py-20 lg:py-28">
+    <section id="schedule" className="relative py-10 lg:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-10">
-          <p className="eyebrow eyebrow-center justify-center mx-auto mb-4">{t('schedule.kicker')}</p>
-          <h2 className="font-display font-semibold text-rose-900 mb-2 text-[clamp(2rem,4vw,3rem)]">
-            {t('schedule.title')}
-          </h2>
-          <p className="text-rose-600 text-lg">{t('schedule.subtitle')}</p>
+        <div className="text-center mb-6">
+          <p className="eyebrow eyebrow-center justify-center mx-auto mb-3">{t('schedule.kicker')}</p>
+          <h2 className="font-display font-semibold text-rose-900 text-[clamp(1.75rem,4vw,3rem)]">{t('schedule.title')}</h2>
         </div>
 
         {/* Day picker */}
-        <div className="flex items-center justify-center gap-3 mb-8">
+        <div className="flex items-center justify-center gap-2 mb-4">
           <button onClick={() => shiftDay(-1)} className="btn-ghost btn-sm" aria-label={t('admin.prevDay')}>
             <ChevronLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
           </button>
-          <span className="font-display text-lg font-semibold text-rose-800 min-w-[12rem] text-center">
+          <span className="font-display text-lg font-semibold text-rose-800 min-w-[11rem] text-center">
             {formatLongDate(day, lang)}
           </span>
           <button onClick={() => shiftDay(1)} className="btn-ghost btn-sm" aria-label={t('admin.nextDay')}>
@@ -192,22 +137,33 @@ export function Schedule() {
           )}
         </div>
 
-        {actionError && (
-          <p role="alert" className="max-w-xl mx-auto mb-6 rounded-xl border border-rust-200 bg-rust-50 px-4 py-3 text-sm text-rust-700 text-center">
-            {actionError}
-          </p>
+        {waiting.length > 0 && (
+          <div className="flex justify-center mb-4">
+            <button
+              type="button"
+              onClick={() => setDay(salonDate(waiting[0].startsAt))}
+              className="inline-flex items-center gap-2 rounded-full bg-amber-100 border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition-colors"
+            >
+              <BellRing className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
+              {t('schedule.pendingCount').replace('{n}', String(waiting.length))}
+            </button>
+          </div>
         )}
 
-        {bookingsQuery.isLoading ? (
+        <div className="max-w-3xl mx-auto mb-6">
+          <WeekStrip day={day} bookings={weekQuery.data ?? []} stylistCount={stylists.length} onSelect={setDay} />
+        </div>
+
+        {weekQuery.isLoading ? (
           <div className="flex justify-center py-20">
             <div className="w-8 h-8 rounded-full border-2 border-rose-300 border-t-rose-700 animate-spin" />
           </div>
-        ) : bookingsQuery.isError ? (
-          <DataError onRetry={() => bookingsQuery.refetch()} />
+        ) : weekQuery.isError ? (
+          <DataError onRetry={() => weekQuery.refetch()} />
         ) : (
           <>
             {/* Stats row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
               <StatCard icon={CalendarDays} label={t('schedule.appointments')} value={String(active.length)} />
               <StatCard icon={TrendingUp} label={t('schedule.revenue')} value={formatPrice(totalRevenue, lang)} />
               <StatCard icon={Activity} label={t('schedule.occupation')} value={`${occupationRate}%`} />
@@ -219,46 +175,18 @@ export function Schedule() {
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
-              {/* Timeline */}
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-4 sm:p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-display text-lg font-semibold text-rose-800">{formatLongDate(day, lang)}</h3>
-                    <span className="text-sm text-rose-600">
-                      {active.length} {t('schedule.appointments')}
-                    </span>
-                  </div>
-
-                  <div className="relative" style={{ height: `${(CLOSING_HOUR - OPENING_HOUR) * HOUR_HEIGHT}px` }}>
-                    {hours.map((h, i) => (
-                      <div key={h} className="absolute left-0 right-0 flex items-start" style={{ top: `${i * HOUR_HEIGHT}px` }}>
-                        <span className="text-xs text-rose-600 w-12 flex-shrink-0 -mt-1.5">
-                          {String(h).padStart(2, '0')}:00
-                        </span>
-                        <div className="flex-1 border-t border-cream-200" />
-                      </div>
-                    ))}
-
-                    {isToday && nowMinutes >= OPENING_HOUR * 60 && nowMinutes < CLOSING_HOUR * 60 && (
-                      <div
-                        className="absolute start-12 end-0 flex items-center z-20 pointer-events-none"
-                        style={{ top: `${((nowMinutes - OPENING_HOUR * 60) / 60) * HOUR_HEIGHT}px` }}
-                      >
-                        <div className="w-2 h-2 rounded-full bg-rose-500 -ms-1" />
-                        <div className="flex-1 border-t-2 border-rose-500/60" />
-                      </div>
-                    )}
-
-                    <div className="absolute start-12 end-0 top-0 bottom-0">
-                      {active.map((b) => (
-                        <AppointmentBlock key={b.id} booking={b} placement={lanes.get(b.id) ?? { lane: 0, lanes: 1 }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              {/* Day: one column per stylist */}
+              <div className="lg:col-span-2 bg-white rounded-3xl shadow-card border border-cream-200 p-3 sm:p-6">
+                <DayColumns
+                  day={day}
+                  stylists={stylists}
+                  bookings={all}
+                  onSlotTap={(stylistId, time) => setSheet({ mode: 'add', stylistId, date: day, time })}
+                  onBookingTap={(booking) => setSheet({ mode: 'edit', booking })}
+                />
               </div>
 
-              {/* Sidebar — next appointment + list with actions */}
+              {/* Side list (includes cancelled bookings, which can be restored from the sheet) */}
               <div className="space-y-6">
                 <div className="relative bg-gradient-to-br from-rose-800 to-rose-900 rounded-3xl p-6 text-cream-50 shadow-lift overflow-hidden">
                   <div className="absolute top-0 inset-x-0 hairline opacity-50" />
@@ -290,54 +218,33 @@ export function Schedule() {
                   {all.length === 0 ? (
                     <p className="text-sm text-rose-600 py-6 text-center">{t('schedule.empty')}</p>
                   ) : (
-                    <div className="space-y-2.5">
+                    <div className="space-y-1.5">
                       {all.map((b) => (
-                        <div key={b.id} className="p-2.5 rounded-xl hover:bg-cream-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="flex flex-col items-center justify-center w-12 flex-shrink-0">
-                              <span className="text-sm font-semibold text-rose-700">{formatAlgiersTime(b.startsAt)}</span>
-                              <span className="text-[10px] text-rose-600">{formatDuration(durationMinutes(b), lang)}</span>
-                            </div>
-                            <Thread variant="connector" className="h-10 text-rose-300" />
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium truncate ${b.status === 'cancelled' ? 'text-cream-500 line-through' : 'text-rose-800'}`}>
-                                {b.clientName}
-                              </p>
-                              <p className="text-xs text-rose-600 truncate">
-                                {b.serviceName[lang]} · {b.stylistName}
-                              </p>
-                              <a href={`tel:${b.clientPhone}`} dir="ltr" className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800">
-                                <Phone className="w-3 h-3" strokeWidth={1.8} />
-                                {b.clientPhone}
-                              </a>
-                            </div>
-                            <StatusBadge status={b.status} compact />
-                          </div>
-                          {/* Cancelled rows can be re-confirmed, so an accidental cancel is recoverable
-                              (the RPC answers slot_taken if the time was rebooked meanwhile). */}
-                          <div className="flex justify-end gap-2 mt-2">
-                            {b.status !== 'confirmed' && (
-                              <button
-                                onClick={() => changeStatus(b, 'confirmed')}
-                                disabled={setStatus.isPending}
-                                className="btn-secondary btn-sm"
-                              >
-                                <Check className="w-3.5 h-3.5" strokeWidth={2} />
-                                {t('admin.confirm')}
-                              </button>
-                            )}
-                            {b.status !== 'cancelled' && (
-                              <button
-                                onClick={() => changeStatus(b, 'cancelled')}
-                                disabled={setStatus.isPending}
-                                className="btn-ghost btn-sm"
-                              >
-                                <X className="w-3.5 h-3.5" strokeWidth={2} />
-                                {t('admin.cancel')}
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => setSheet({ mode: 'edit', booking: b })}
+                          className="w-full flex items-center gap-3 p-2.5 rounded-xl text-start hover:bg-cream-50 transition-colors"
+                        >
+                          <span className="flex flex-col items-center justify-center w-12 flex-shrink-0">
+                            <span className="text-sm font-semibold text-rose-700">{formatAlgiersTime(b.startsAt)}</span>
+                            <span className="text-[10px] text-rose-600">{formatDuration(durationMinutes(b), lang)}</span>
+                          </span>
+                          <Thread variant="connector" className="h-10 text-rose-300" />
+                          <span className="flex-1 min-w-0">
+                            <span className={`block text-sm font-medium truncate ${b.status === 'cancelled' ? 'text-cream-500 line-through' : 'text-rose-800'}`}>
+                              {b.clientName}
+                            </span>
+                            <span className="block text-xs text-rose-600 truncate">
+                              {b.serviceName[lang]} · {b.stylistName}
+                            </span>
+                            <span dir="ltr" className="inline-flex items-center gap-1 text-xs text-rose-600">
+                              <Phone className="w-3 h-3" strokeWidth={1.8} />
+                              {b.clientPhone}
+                            </span>
+                          </span>
+                          <StatusBadge status={b.status} />
+                        </button>
                       ))}
                     </div>
                   )}
@@ -355,6 +262,18 @@ export function Schedule() {
           </>
         )}
       </div>
+
+      {/* Add a booking (WhatsApp, phone, walk-in) */}
+      <button
+        type="button"
+        onClick={openAdd}
+        aria-label={t('admin.sheet.addTitle')}
+        className="fixed bottom-6 end-6 z-40 flex items-center justify-center w-14 h-14 rounded-full bg-rose-800 text-cream-50 shadow-lift hover:bg-rose-900 transition-colors"
+      >
+        <Plus className="w-6 h-6" strokeWidth={2} />
+      </button>
+
+      {sheet && <BookingSheet key={JSON.stringify(sheet)} state={sheet} onClose={() => setSheet(null)} />}
     </section>
   );
 }
