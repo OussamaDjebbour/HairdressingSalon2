@@ -49,37 +49,47 @@ export async function getPushState(): Promise<PushState> {
 /** Asks permission, subscribes this device and saves the subscription for the current staff user. */
 export async function enablePush(lang: Lang): Promise<PushState> {
   if (!isSupported()) return 'unsupported';
-  await navigator.serviceWorker.register(SW_URL);
-  const registration = await navigator.serviceWorker.ready;
+  // Ask first: Safari (iPhone) only shows the prompt while the tap still counts as a user gesture,
+  // so nothing slow (installing the service worker) may run before it.
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return permission === 'denied' ? 'denied' : 'off';
 
-  const subscription =
-    (await registration.pushManager.getSubscription()) ??
-    (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToBytes(vapidKey()) }));
+  await navigator.serviceWorker.register(SW_URL);
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = (await registration.pushManager.getSubscription()) ?? (await subscribe(registration));
   await saveSubscription(subscription, lang);
   return 'on';
 }
 
-async function saveSubscription(subscription: PushSubscription, lang: Lang): Promise<void> {
+function subscribe(registration: ServiceWorkerRegistration): Promise<PushSubscription> {
+  return registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToBytes(vapidKey()) });
+}
+
+/** Saves the subscription; resolves to whether the server already knew it. `lang: null` keeps the stored language. */
+async function saveSubscription(subscription: PushSubscription, lang: Lang | null): Promise<boolean> {
   const { endpoint, keys } = subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
-  const { error } = await supabase.rpc('admin_save_push_subscription', {
+  const { data, error } = await supabase.rpc('admin_save_push_subscription', {
     p_endpoint: endpoint,
     p_p256dh: keys.p256dh,
     p_auth: keys.auth,
     p_lang: lang,
   });
   if (error) throw error;
+  return data === true;
 }
 
 /**
- * Re-saves this device's subscription (an idempotent upsert). Called whenever the admin opens, so if the
- * server dropped it (e.g. after a push service rejection) while the browser still holds it, it comes back
- * instead of the card showing "on" for a device that no longer gets notifications.
+ * Runs whenever the admin opens. Re-saves this device's subscription without changing its language. The server
+ * only forgets a device when the push service declared it dead (404/410), so if it was missing, this device's
+ * subscription is replaced by a fresh one instead of the card showing "on" for a device that gets nothing.
  */
-export async function syncPushSubscription(lang: Lang): Promise<void> {
+export async function syncPushSubscription(): Promise<void> {
   const subscription = await currentSubscription();
-  if (subscription) await saveSubscription(subscription, lang);
+  if (!subscription) return;
+  if (await saveSubscription(subscription, null)) return;
+  await subscription.unsubscribe();
+  const registration = await navigator.serviceWorker.ready;
+  await saveSubscription(await subscribe(registration), null);
 }
 
 /** Forgets this device on the server, then unsubscribes it. */
@@ -98,7 +108,7 @@ export async function sendTestPush(): Promise<void> {
   if (error) throw error;
 }
 
-export function usePushState(lang: Lang) {
+export function usePushState() {
   const [state, setState] = useState<PushState>('unsupported');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -109,14 +119,12 @@ export function usePushState(lang: Lang) {
       .then((s) => {
         if (!alive) return;
         setState(s);
-        if (s === 'on') syncPushSubscription(lang).catch(() => undefined);
+        if (s === 'on') syncPushSubscription().catch(() => undefined);
       })
       .catch(() => alive && setState('unsupported'));
     return () => {
       alive = false;
     };
-    // Sync once per mount, in the language the admin was opened in.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const run = useCallback(async <T,>(action: () => Promise<T>, onDone?: (result: T) => void) => {

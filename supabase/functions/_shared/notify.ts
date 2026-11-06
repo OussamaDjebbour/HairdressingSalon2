@@ -83,6 +83,14 @@ export function buildPushMessage(kind: NotifyRequest['kind'], booking: BookingPa
   };
 }
 
+/**
+ * Push-service delivery options. Booking alerts wait up to a day at high urgency, so a phone that is asleep
+ * (Android Doze), offline or out of signal still gets them when it wakes; a test push may expire quickly.
+ */
+export function pushOptions(msg: PushMessage): { TTL: number; urgency: 'high' | 'normal' } {
+  return msg.tag === 'test' ? { TTL: 60, urgency: 'normal' } : { TTL: 86400, urgency: 'high' };
+}
+
 export interface NotifyDeps {
   /** Sends one push; resolves to the push service's HTTP status. */
   send(sub: PushSubscriptionRow, msg: PushMessage): Promise<number>;

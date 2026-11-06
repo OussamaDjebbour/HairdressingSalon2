@@ -32,10 +32,12 @@ beforeEach(() => {
     permission = 'granted';
     return permission;
   });
+  let created = 0;
   subscribe.mockImplementation(async () => {
+    const endpoint = created++ === 0 ? 'https://push.example/abc' : `https://push.example/new${created}`;
     subscription = {
-      endpoint: 'https://push.example/abc',
-      toJSON: () => ({ endpoint: 'https://push.example/abc', keys: { p256dh: 'p256-b64url', auth: 'auth-b64url' } }),
+      endpoint,
+      toJSON: () => ({ endpoint, keys: { p256dh: 'p256-b64url', auth: 'auth-b64url' } }),
       unsubscribe: vi.fn(async () => true),
     };
     return subscription;
@@ -76,6 +78,12 @@ describe('getPushState', () => {
 });
 
 describe('enablePush', () => {
+  it('asks permission first, while the tap still counts as a user gesture (iPhone)', async () => {
+    await enablePush('fr');
+    const register = navigator.serviceWorker.register as ReturnType<typeof vi.fn>;
+    expect(requestPermission.mock.invocationCallOrder[0]).toBeLessThan(register.mock.invocationCallOrder[0]);
+  });
+
   it('enablePush saves the subscription', async () => {
     expect(await enablePush('ar')).toBe('on');
     expect(subscribe).toHaveBeenCalledWith(expect.objectContaining({ userVisibleOnly: true }));
@@ -109,17 +117,32 @@ describe('disablePush', () => {
 });
 
 describe('syncPushSubscription', () => {
-  it("re-saves this device's subscription so a server-side cleanup heals itself", async () => {
-    await enablePush('fr');
+  it('re-saves this device without touching the language she chose', async () => {
+    await enablePush('ar');
     rpc.mockClear();
-    await syncPushSubscription('ar');
+    rpc.mockResolvedValue({ data: true, error: null }); // the server still knows this device
+    await syncPushSubscription();
+    expect(rpc).toHaveBeenCalledTimes(1);
     expect(rpc).toHaveBeenCalledWith('admin_save_push_subscription', {
-      p_endpoint: 'https://push.example/abc', p_p256dh: 'p256-b64url', p_auth: 'auth-b64url', p_lang: 'ar',
+      p_endpoint: 'https://push.example/abc', p_p256dh: 'p256-b64url', p_auth: 'auth-b64url', p_lang: null,
     });
   });
 
+  it('re-subscribes when the server had dropped this device as dead', async () => {
+    await enablePush('fr');
+    const dead = subscription!;
+    rpc.mockClear();
+    rpc.mockResolvedValueOnce({ data: false, error: null }).mockResolvedValue({ data: false, error: null });
+    await syncPushSubscription();
+    expect(dead.unsubscribe).toHaveBeenCalled();
+    expect(subscribe).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenLastCalledWith('admin_save_push_subscription', expect.objectContaining({
+      p_endpoint: 'https://push.example/new2', p_lang: null,
+    }));
+  });
+
   it('does nothing when this device is not subscribed', async () => {
-    await syncPushSubscription('fr');
+    await syncPushSubscription();
     expect(rpc).not.toHaveBeenCalled();
   });
 });

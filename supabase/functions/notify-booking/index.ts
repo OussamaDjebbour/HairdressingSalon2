@@ -3,7 +3,7 @@
 // Stateless: the request carries the booking and the subscriptions; dead subscriptions are pruned via RPC.
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { handleNotify, type NotifyRequest, type PushMessage, type PushSubscriptionRow } from '../_shared/notify.ts';
+import { handleNotify, pushOptions, type NotifyRequest, type PushMessage, type PushSubscriptionRow } from '../_shared/notify.ts';
 
 const env = (name: string) => Deno.env.get(name) ?? '';
 
@@ -36,7 +36,7 @@ async function send(sub: PushSubscriptionRow, msg: PushMessage): Promise<number>
     const res = await webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       JSON.stringify(msg),
-      { TTL: 30 }
+      pushOptions(msg)
     );
     return res.statusCode;
   } catch (err) {

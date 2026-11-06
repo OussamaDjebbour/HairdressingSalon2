@@ -88,7 +88,7 @@ Run the commands from the repo root.
 - **Card says "Activées" but nothing arrives:**
   - Check the device's own notification settings: on a Mac, System Settings → Notifications → Google Chrome, plus Focus / Do Not Disturb. When the OS blocks the browser, pushes can't be shown, and the browser may drop the subscription; the push service then answers 410 and it's deleted.
   - Fix the setting, then on the card tap **Désactiver** → **Activer** → **Envoyer un test**.
-  - Opening `/admin` also re-saves a still-valid subscription automatically, so one the server deleted comes back by itself.
+  - Opening `/admin` also checks the device: if the server had dropped it as dead, the app replaces it with a fresh subscription automatically (it keeps the language when the device is still known; a replaced one starts in French, so re-enable in Arabic if needed).
 - **Find out whether a push reached the browser:** in Chrome, `chrome://gcm-internals` → Start Recording shows registrations and received messages.
 
 ## Rotating the secret

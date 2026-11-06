@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildPushMessage, handleNotify, type BookingPayload, type PushSubscriptionRow } from './notify';
+import { buildPushMessage, handleNotify, pushOptions, type BookingPayload, type PushSubscriptionRow } from './notify';
 
 const booking: BookingPayload = {
   id: 'b1',
@@ -64,5 +64,15 @@ describe('handleNotify', () => {
     const result = await handleNotify({ kind: 'test', booking: null, subscriptions: [sub(1), sub(2)] }, { send, prune });
     expect(result).toEqual({ sent: 1, failed: 1, pruned: [] });
     expect(prune).not.toHaveBeenCalled();
+  });
+});
+
+describe('pushOptions', () => {
+  it('keeps booking alerts for a day at high urgency, so a sleeping or offline phone still gets them', () => {
+    expect(pushOptions(buildPushMessage('new_booking', booking, 'fr'))).toEqual({ TTL: 86400, urgency: 'high' });
+  });
+
+  it('lets a test push expire quickly', () => {
+    expect(pushOptions(buildPushMessage('test', null, 'fr'))).toEqual({ TTL: 60, urgency: 'normal' });
   });
 });

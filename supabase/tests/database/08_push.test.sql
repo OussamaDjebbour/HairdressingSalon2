@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(29);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -39,8 +39,8 @@ reset role;
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select throws_ok($$ select public.push_prune_subscriptions(array['e']) $$, '42501', null, 'only service_role can prune');
-select public.admin_save_push_subscription('https://push.example/e1', 'key-old', 'auth1', 'fr');
-select public.admin_save_push_subscription('https://push.example/e1', 'key-new', 'auth1', 'ar');
+select is(public.admin_save_push_subscription('https://push.example/e1', 'key-old', 'auth1', 'fr'), false, 'first save reports a new device');
+select is(public.admin_save_push_subscription('https://push.example/e1', 'key-new', 'auth1', 'ar'), true, 'second save reports it already existed');
 reset role;
 select is((select count(*)::int from private.push_subscriptions where endpoint = 'https://push.example/e1'), 1, 'same endpoint upserts');
 select is((select p256dh || ' ' || lang from private.push_subscriptions where endpoint = 'https://push.example/e1'), 'key-new ar', 'upsert keeps the latest keys and language');
@@ -56,11 +56,19 @@ set local role authenticated;
 select throws_ok($$ select public.admin_save_push_subscription('https://push.example/e9', 'key', '', 'fr') $$, 'P0001', 'invalid_subscription', 'empty key refused');
 reset role;
 
+-- a re-save without a language (the app's background sync) keeps the stored one
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select public.admin_save_push_subscription('https://push.example/e1', 'key-new', 'auth1', null);
+reset role;
+select is((select lang from private.push_subscriptions where endpoint = 'https://push.example/e1'), 'ar', 'null language keeps the stored one');
+
 -- delete only removes the caller's own row
 select pg_temp.act_as('33333333-3333-3333-3333-333333333333');
 set local role authenticated;
-select public.admin_save_push_subscription('https://push.example/e3', 'key3', 'auth3', 'fr');
+select public.admin_save_push_subscription('https://push.example/e3', 'key3', 'auth3', null);
 reset role;
+select is((select lang from private.push_subscriptions where endpoint = 'https://push.example/e3'), 'fr', 'new device without a language defaults to fr');
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select public.admin_delete_push_subscription('https://push.example/e2');
@@ -84,8 +92,13 @@ select is(jsonb_array_length(pg_temp.last_body() -> 'subscriptions'), (select co
           'every subscription is included');
 select is((select headers ->> 'x-notify-secret' from net.http_request_queue order by id desc limit 1), 's3cret', 'secret header from vault');
 
+-- removed from staff: no more notifications for their devices
+delete from private.staff where user_id = '33333333-3333-3333-3333-333333333333';
+select pg_temp.online_booking('Lina', '13:00');
+select is(jsonb_array_length(pg_temp.last_body() -> 'subscriptions'), 1, 'removed staff no longer notified');
+
 select pg_temp.online_booking('Rania', '14:00', 'staff');
-select is(pg_temp.queued(), 1, 'staff booking does not notify');
+select is(pg_temp.queued(), 2, 'staff booking does not notify');
 
 -- test push: only the caller's own devices
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
