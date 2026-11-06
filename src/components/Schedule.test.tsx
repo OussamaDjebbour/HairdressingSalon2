@@ -15,12 +15,13 @@ vi.mock('../data/queries', async () => {
 const setStatus = vi.fn();
 let weekBookings: AdminBooking[] = [];
 let pendingBookings: AdminBooking[] = [];
+const rangeCalls: Array<[string, string]> = [];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 vi.mock('../data/admin', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/admin')>()),
   // The week query spans 6 days; the pending query spans 14 days from today.
-  useAdminBookings: (from: Date, to: Date) => ({
+  useAdminBookings: (from: Date, to: Date) => (rangeCalls.push([from.toDateString(), to.toDateString()]), {
     data: Math.round((to.getTime() - from.getTime()) / DAY_MS) === 6 ? weekBookings : pendingBookings,
     isLoading: false, isError: false, error: null, refetch: vi.fn(),
   }),
@@ -111,5 +112,20 @@ describe('Schedule deep link (from a notification)', () => {
     renderSchedule('/admin?day=2030-01-17&booking=nope');
     expect(screen.getAllByText('Jeudi 17 janvier').length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('Schedule — polish', () => {
+  it('+ on a closed day opens the next open day', () => {
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: 'Jour précédent' })); // Monday 7 Jan: closed
+    fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
+    expect(screen.getByLabelText('Date')).toHaveValue('2030-01-08');
+  });
+
+  it('counts waiting bookings for the next 30 days (the owner can move them past 14)', () => {
+    rangeCalls.length = 0;
+    renderSchedule();
+    expect(rangeCalls).toContainEqual([new Date(2030, 0, 8).toDateString(), new Date(2030, 1, 7).toDateString()]);
   });
 });

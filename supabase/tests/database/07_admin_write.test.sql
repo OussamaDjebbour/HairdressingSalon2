@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(26);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -83,6 +83,17 @@ select throws_ok($$ select public.admin_update_booking('aaaaaaaa-0000-0000-0000-
 reset role;
 select is((select stylist_id || ' ' || starts_at::text from private.bookings where id = 'aaaaaaaa-0000-0000-0000-000000000001'),
           'sara ' || '2030-01-08 15:00+01'::timestamptz::text, 'row unchanged after refused move');
+
+-- changing to a longer service: past closing, or into the next booking, is refused and nothing changes
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select throws_ok($$ select public.admin_update_booking('aaaaaaaa-0000-0000-0000-000000000001', 'coloration', 'sara', '2030-01-08', '17:00', 'Nour', '0661000000', 'fr') $$,
+                 'P0001', 'outside_hours', 'longer service past closing (update)');
+select throws_ok($$ select public.admin_update_booking((select id from public.admin_list_bookings('2030-01-08', '2030-01-08') where client_name = 'Rania B'), 'coloration', 'sara', '2030-01-08', '14:00', 'Rania B', '0555123456', 'ar') $$,
+                 'P0001', 'slot_taken', 'longer service into the next booking (update)'); -- Nour is with Sara at 15:00
+reset role;
+select is((select service_id || ' ' || starts_at::text from private.bookings where client_name = 'Rania B'),
+          'soin-visage ' || '2030-01-08 10:15+01'::timestamptz::text, 'row unchanged after refused service change');
 
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;

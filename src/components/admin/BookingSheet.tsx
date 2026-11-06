@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, MessageCircle, Phone, X } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
@@ -8,6 +8,7 @@ import {
 import { isValidPhone, toYmd } from '../../data/bookings';
 import { useServices, useStylists } from '../../data/queries';
 import { salonDate, salonInstant, staffTimeOptions } from '../../data/week';
+import { CLOSING_HOUR } from '../../data/hours';
 import { clientMessage, toWaNumber, waLink, type ClientMessageKind } from '../../data/whatsapp';
 import { Badge } from '../Badge';
 
@@ -57,13 +58,47 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const serviceId = form.serviceId || (stylists.find((s) => s.id === form.stylistId)?.serviceIds[0] ?? services[0]?.id ?? '');
   const service = services.find((s) => s.id === serviceId);
   const timeOptions = staffTimeOptions(service?.duration ?? 30);
-  if (!timeOptions.includes(form.time)) timeOptions.unshift(form.time);
+  // Keep a booking's current time selectable (and in order) even if it is off the new service's grid.
+  if (!timeOptions.includes(form.time)) timeOptions.push(form.time);
+  timeOptions.sort();
+  const [h, m] = form.time.split(':').map(Number);
+  const pastClosing = !!service && h * 60 + m + service.duration > CLOSING_HOUR * 60;
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const requestCloseRef = useRef<() => void>(onClose);
+
+  // Focus moves into the sheet on open and returns where it was on close.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    return () => previous?.focus?.();
+  }, []);
+
+  // Escape closes (asking first if something was typed); Tab stays inside the sheet.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        requestCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const focusables = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input, select, a[href]')
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
 
   const busy = create.isPending || update.isPending || setStatus.isPending;
   // Confirm/cancel act on the saved booking: block them while the form has unsaved edits,
@@ -76,6 +111,14 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const set = <K extends keyof StaffBookingInput>(key: K, value: StaffBookingInput[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
   const onError = (err: unknown) => setError(t(`admin.error.${toAdminError(err)}`));
+
+  /** Backdrop, Escape and ✕ go through here: a half-typed booking or unsaved edit isn't thrown away silently. */
+  const requestClose = () => {
+    const message = state.mode === 'add' ? t('admin.sheet.discardNew') : t('admin.sheet.discardChanges');
+    if (!notice && dirty && !window.confirm(message)) return;
+    onClose();
+  };
+  requestCloseRef.current = requestClose;
 
   const save = () => {
     const name = form.clientName.trim();
@@ -125,8 +168,10 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const editing = state.mode === 'edit' ? state.booking : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-rose-950/40 animate-fadeIn" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-rose-950/40 animate-fadeIn" onClick={requestClose}>
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -135,7 +180,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
       >
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 id={titleId} className="font-display text-xl font-semibold text-rose-900">{title}</h2>
-          <button type="button" onClick={onClose} className="btn-ghost btn-sm" aria-label={t('admin.sheet.close')}>
+          <button type="button" onClick={requestClose} className="btn-ghost btn-sm" aria-label={t('admin.sheet.close')}>
             <X className="w-4 h-4" strokeWidth={2} />
           </button>
         </div>
@@ -217,6 +262,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
                   ))}
                 </select>
               </Field>
+              {pastClosing && <p className="col-span-2 -mt-1 text-xs text-rust-700">{t('admin.error.outside_hours')}</p>}
             </div>
             <div role="group" aria-label={t('admin.sheet.lang')}>
               <span className="label">{t('admin.sheet.lang')}</span>
@@ -239,7 +285,8 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
               <p role="alert" className="rounded-xl border border-rust-200 bg-rust-50 px-3 py-2 text-sm text-rust-700">{error}</p>
             )}
 
-            <button type="submit" disabled={busy} className="btn-primary w-full">{t('admin.sheet.save')}</button>
+            {services.length === 0 && <p className="text-xs text-rose-600" role="status">{t('admin.sheet.loadingServices')}</p>}
+            <button type="submit" disabled={busy || services.length === 0} className="btn-primary w-full">{t('admin.sheet.save')}</button>
 
             {editing && (
               <div className="flex gap-2">

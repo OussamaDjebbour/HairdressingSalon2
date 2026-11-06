@@ -13,7 +13,7 @@ import {
 import { useStylists } from '../data/queries';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
 import { CLOSING_HOUR, OPENING_HOUR } from '../data/hours';
-import { dayOccupancy, minutesToTime, salonDate, salonMinutes, weekDays } from '../data/week';
+import { dayOccupancy, isClosedDay, minutesToTime, salonDate, salonMinutes, weekDays } from '../data/week';
 import { DataError } from './DataError';
 import { Thread } from './Thread';
 import { Badge } from './Badge';
@@ -22,7 +22,9 @@ import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
 import { NotificationsCard } from './admin/NotificationsCard';
 
-const PENDING_WINDOW_DAYS = 13; // online bookings are at most today + 13 days
+// Online bookings are at most today + 13 days, but the owner can move a waiting one further out;
+// 30 days stays within admin_list_bookings' 31-day range cap.
+const PENDING_WINDOW_DAYS = 30;
 
 function durationMinutes(b: AdminBooking): number {
   return Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000);
@@ -122,7 +124,11 @@ export function Schedule() {
   const openAdd = () => {
     const stylistId = stylists[0]?.id;
     if (!stylistId) return;
-    setSheet({ mode: 'add', stylistId, date: day, time: firstFreeTime(all, stylistId, isToday) });
+    // A closed day (Sunday/Monday) can only fail: start on the next open day instead.
+    let date = day;
+    while (isClosedDay(date)) date = addDays(date, 1);
+    const onDate = (weekQuery.data ?? []).filter((b) => toYmd(salonDate(b.startsAt)) === toYmd(date));
+    setSheet({ mode: 'add', stylistId, date, time: firstFreeTime(onDate, stylistId, toYmd(date) === toYmd(today)) });
   };
 
   if (weekQuery.isError && isNotAuthorized(weekQuery.error)) {
@@ -182,9 +188,9 @@ export function Schedule() {
         ) : weekQuery.isError ? (
           <DataError onRetry={() => weekQuery.refetch()} />
         ) : (
-          <>
-            {/* Stats row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+          <div className="flex flex-col">
+            {/* Stats row: under the day on phones (the columns come first), above it on large screens */}
+            <div className="order-2 lg:order-1 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6 lg:mt-0 lg:mb-6">
               <StatCard icon={CalendarDays} label={t('schedule.appointments')} value={String(active.length)} />
               <StatCard icon={TrendingUp} label={t('schedule.revenue')} value={formatPrice(totalRevenue, lang)} />
               <StatCard icon={Activity} label={t('schedule.occupation')} value={`${occupationRate}%`} />
@@ -195,7 +201,7 @@ export function Schedule() {
               />
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-6">
+            <div className="order-1 lg:order-2 grid lg:grid-cols-3 gap-6">
               {/* Day: one column per stylist */}
               <div className="lg:col-span-2 bg-white rounded-3xl shadow-card border border-cream-200 p-3 sm:p-6">
                 <DayColumns
@@ -280,7 +286,7 @@ export function Schedule() {
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
 
