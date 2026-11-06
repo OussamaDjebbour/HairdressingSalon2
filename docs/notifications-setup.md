@@ -84,6 +84,9 @@ Run the commands from the repo root.
   - `401`: `NOTIFY_SECRET` and the Vault secret don't match.
   - No rows: the Vault secrets are missing, or no device is subscribed.
 - **Function logs:** Supabase dashboard → Edge Functions → `notify-booking` → Logs.
+- **Card says "pas encore configurées sur ce site":** `VITE_VAPID_PUBLIC_KEY` is missing from the deployed build. Set it on Vercel and redeploy.
+- **"Envoyer un test" answers "Aucun envoi":** the server sent nothing. Either the two Vault secrets are missing (step 5), or this device isn't registered (tap **Désactiver** → **Activer**).
+- **Logging out** also turns notifications off on that device, so client names don't reach a logged-out phone. After logging back in, tap **Activer** again.
 - **Notifications blocked on the phone:** the card says so. Re-allow them in the browser or iOS settings for the site.
 - **Card says "Activées" but nothing arrives:**
   - Check the device's own notification settings: on a Mac, System Settings → Notifications → Google Chrome, plus Focus / Do Not Disturb. When the OS blocks the browser, pushes can't be shown, and the browser may drop the subscription; the push service then answers 410 and it's deleted.

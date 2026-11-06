@@ -25,7 +25,7 @@ function renderCard() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  test.mockResolvedValue(undefined);
+  test.mockResolvedValue(1);
 });
 
 describe('NotificationsCard', () => {
@@ -57,5 +57,29 @@ describe('NotificationsCard', () => {
     state = 'denied';
     renderCard();
     expect(screen.getByText(/Les notifications sont bloquées/)).toBeInTheDocument();
+  });
+});
+
+describe('NotificationsCard edge states', () => {
+  it('renders nothing while the state is loading', () => {
+    state = 'loading';
+    renderCard();
+    expect(screen.queryByRole('region')).toBeNull();
+    expect(screen.queryByText('Ce navigateur ne permet pas les notifications.')).toBeNull();
+  });
+
+  it('says when the site is not configured yet', () => {
+    state = 'not-configured';
+    renderCard();
+    expect(screen.getByText('Les notifications ne sont pas encore configurées sur ce site.')).toBeInTheDocument();
+  });
+
+  it('says when a test could not be sent anywhere', async () => {
+    state = 'on';
+    test.mockResolvedValue(0);
+    renderCard();
+    fireEvent.click(screen.getByRole('button', { name: 'Envoyer un test' }));
+    expect(await screen.findByText(/Aucun envoi/)).toBeInTheDocument();
+    expect(screen.queryByText(/Test envoyé/)).toBeNull();
   });
 });

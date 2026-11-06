@@ -3,7 +3,7 @@ import type { Lang } from '../context/LanguageContext';
 import { supabase } from './supabase';
 
 /** Where this device stands with booking notifications. */
-export type PushState = 'unsupported' | 'needs-install' | 'denied' | 'off' | 'on';
+export type PushState = 'loading' | 'unsupported' | 'not-configured' | 'needs-install' | 'denied' | 'off' | 'on';
 
 const SW_URL = '/sw.js';
 
@@ -22,8 +22,12 @@ function isStandalone(): boolean {
   );
 }
 
+function hasPushApis(): boolean {
+  return !!navigator.serviceWorker && 'PushManager' in window && 'Notification' in window;
+}
+
 function isSupported(): boolean {
-  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && vapidKey() !== '';
+  return hasPushApis() && vapidKey() !== '';
 }
 
 function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
@@ -34,6 +38,7 @@ function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
 }
 
 async function currentSubscription(): Promise<PushSubscription | null> {
+  if (!navigator.serviceWorker) return null;
   const registration = await navigator.serviceWorker.getRegistration('/');
   return registration ? registration.pushManager.getSubscription() : null;
 }
@@ -41,7 +46,8 @@ async function currentSubscription(): Promise<PushSubscription | null> {
 export async function getPushState(): Promise<PushState> {
   // iPhones only allow web push for a site opened from the home screen (iOS 16.4+).
   if (isIos() && !isStandalone()) return 'needs-install';
-  if (!isSupported()) return 'unsupported';
+  if (!hasPushApis()) return 'unsupported';
+  if (vapidKey() === '') return 'not-configured';
   if (Notification.permission === 'denied') return 'denied';
   return (await currentSubscription()) ? 'on' : 'off';
 }
@@ -103,13 +109,15 @@ export async function disablePush(): Promise<PushState> {
   return 'off';
 }
 
-export async function sendTestPush(): Promise<void> {
-  const { error } = await supabase.rpc('admin_send_test_push');
+/** Resolves to how many of this user's devices the test went to (0: nothing could be sent). */
+export async function sendTestPush(): Promise<number> {
+  const { data, error } = await supabase.rpc('admin_send_test_push');
   if (error) throw error;
+  return typeof data === 'number' ? data : 0;
 }
 
 export function usePushState() {
-  const [state, setState] = useState<PushState>('unsupported');
+  const [state, setState] = useState<PushState>('loading');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
 
@@ -127,12 +135,13 @@ export function usePushState() {
     };
   }, []);
 
-  const run = useCallback(async <T,>(action: () => Promise<T>, onDone?: (result: T) => void) => {
+  const run = useCallback(async <T,>(action: () => Promise<T>, onDone?: (result: T) => void): Promise<T> => {
     setBusy(true);
     setError(false);
     try {
       const result = await action();
       onDone?.(result);
+      return result;
     } catch {
       setError(true);
       throw new Error('push_action_failed');
@@ -147,7 +156,7 @@ export function usePushState() {
     error,
     enable: (l: Lang) => run(() => enablePush(l), setState).catch(() => undefined),
     disable: () => run(disablePush, setState).catch(() => undefined),
-    /** Rejects if the server refused, so the caller can skip its "sent" message. */
+    /** Resolves to the number of devices reached; rejects if the server refused. */
     test: () => run(sendTestPush),
   };
 }

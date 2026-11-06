@@ -51,6 +51,14 @@ describe('service worker', () => {
     expect(openWindow).not.toHaveBeenCalled();
   });
 
+  it('opens a new window if the open admin tab cannot be navigated', async () => {
+    const client = { url: 'https://salon.example/admin', focus: vi.fn(), navigate: vi.fn(() => Promise.reject(new TypeError('not controlled'))) };
+    client.focus.mockResolvedValue(client);
+    const { handlers, openWindow } = loadSw([client]);
+    await dispatch(handlers.notificationclick, { notification: { close: vi.fn(), data: { url: message.url } } });
+    expect(openWindow).toHaveBeenCalledWith(message.url);
+  });
+
   it('notificationclick opens a window when none is open', async () => {
     const { handlers, openWindow } = loadSw([{ url: 'https://salon.example/', focus: vi.fn(), navigate: vi.fn() }]);
     await dispatch(handlers.notificationclick, { notification: { close: vi.fn(), data: { url: message.url } } });

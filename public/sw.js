@@ -35,7 +35,11 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       const admin = windows.find((w) => new URL(w.url, self.location.origin).pathname.startsWith('/admin'));
       if (admin) {
-        return admin.focus().then((w) => (w || admin).navigate(url));
+        // navigate() rejects for a tab this worker doesn't control yet: open a new window instead.
+        return admin
+          .focus()
+          .then((w) => (w || admin).navigate(url))
+          .catch(() => self.clients.openWindow(url));
       }
       return self.clients.openWindow(url);
     })

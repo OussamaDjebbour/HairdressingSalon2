@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(31);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -77,6 +77,12 @@ reset role;
 select is((select count(*)::int from private.push_subscriptions where endpoint = 'https://push.example/e2'), 0, 'delete removes own subscription');
 select is((select count(*)::int from private.push_subscriptions where endpoint = 'https://push.example/e3'), 1, 'delete leaves other users alone');
 
+-- the test button reports 0 when nothing can be sent (no vault secrets yet)
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select is(public.admin_send_test_push(), 0, 'test push reports 0 when notifications are not configured');
+reset role;
+
 -- no vault secrets: bookings still work, nothing is sent
 select lives_ok($$ select pg_temp.online_booking('Nour', '10:00') $$, 'online insert works with no vault secrets');
 select is(pg_temp.queued(), 0, 'nothing queued without vault secrets');
@@ -103,7 +109,7 @@ select is(pg_temp.queued(), 2, 'staff booking does not notify');
 -- test push: only the caller's own devices
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
-select public.admin_send_test_push();
+select is(public.admin_send_test_push(), 1, 'test push reports how many devices it was sent to');
 reset role;
 select is(jsonb_array_length(pg_temp.last_body() -> 'subscriptions'), 1, 'test push targets only the caller');
 select is(pg_temp.last_body() ->> 'kind', 'test', 'kind is test');

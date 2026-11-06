@@ -18,9 +18,9 @@ revoke all on private.push_subscriptions from public, anon, authenticated;
 -- Sends one notification request (fire-and-forget). Needs two Vault secrets, set once per environment:
 --   notify_booking_url    → https://<ref>.supabase.co/functions/v1/notify-booking
 --   notify_booking_secret → the Edge Function's NOTIFY_SECRET
--- Missing secrets or no subscriptions → does nothing.
+-- Missing secrets or no subscriptions → does nothing. Returns how many devices the request targets (0 if none).
 create or replace function private.post_push(p_kind text, p_booking jsonb, p_user uuid default null)
-returns void language plpgsql security definer set search_path = ''
+returns integer language plpgsql security definer set search_path = ''
 as $$
 declare
   v_url    text;
@@ -30,7 +30,7 @@ begin
   select ds.decrypted_secret into v_url from vault.decrypted_secrets ds where ds.name = 'notify_booking_url';
   select ds.decrypted_secret into v_secret from vault.decrypted_secrets ds where ds.name = 'notify_booking_secret';
   if v_url is null or v_secret is null then
-    return;
+    return 0;
   end if;
 
   select jsonb_agg(jsonb_build_object('endpoint', s.endpoint, 'p256dh', s.p256dh, 'auth', s.auth, 'lang', s.lang))
@@ -39,7 +39,7 @@ begin
   join private.staff st on st.user_id = s.user_id -- removed staff stop receiving client details
   where p_user is null or s.user_id = p_user;
   if v_subs is null then
-    return;
+    return 0;
   end if;
 
   perform net.http_post(
@@ -48,8 +48,10 @@ begin
     headers := jsonb_build_object('Content-Type', 'application/json', 'x-notify-secret', v_secret),
     timeout_milliseconds := 10000
   );
+  return jsonb_array_length(v_subs);
 exception when others then
   raise warning 'post_push failed: %', sqlerrm;
+  return 0;
 end;
 $$;
 
@@ -112,14 +114,15 @@ begin
 end;
 $$;
 
+-- Returns how many of the caller's devices the test went to (0: device unknown or notifications not configured).
 create or replace function public.admin_send_test_push()
-returns void language plpgsql volatile security definer set search_path = ''
+returns integer language plpgsql volatile security definer set search_path = ''
 as $$
 begin
   if not private.is_staff() then
     raise exception 'not_authorized' using errcode = 'P0001';
   end if;
-  perform private.post_push('test', null, auth.uid());
+  return private.post_push('test', null, auth.uid());
 end;
 $$;
 

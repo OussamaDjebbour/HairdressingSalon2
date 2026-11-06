@@ -7,17 +7,18 @@ import { usePushState } from '../../lib/push';
 export function NotificationsCard() {
   const { lang, t } = useLang();
   const { state, enable, disable, test, busy, error } = usePushState();
-  const [testSent, setTestSent] = useState(false);
+  const [testResult, setTestResult] = useState<'sent' | 'nothing' | null>(null);
 
   const sendTest = async () => {
-    setTestSent(false);
+    setTestResult(null);
     try {
-      await test();
-      setTestSent(true);
+      setTestResult((await test()) > 0 ? 'sent' : 'nothing');
     } catch {
       // the hook already flags the error
     }
   };
+
+  if (state === 'loading') return null;
 
   const Icon = state === 'on' ? BellRing : state === 'needs-install' ? Smartphone : BellOff;
 
@@ -63,7 +64,12 @@ export function NotificationsCard() {
 
           {state === 'denied' && <p className="mt-1 text-rose-700">{t('admin.push.denied')}</p>}
           {state === 'unsupported' && <p className="mt-1 text-rose-700">{t('admin.push.unsupported')}</p>}
-          {testSent && state === 'on' && <p className="mt-1 text-xs text-rose-600" role="status">{t('admin.push.testSent')}</p>}
+          {state === 'not-configured' && <p className="mt-1 text-rose-700">{t('admin.push.notConfigured')}</p>}
+          {testResult && state === 'on' && (
+            <p className="mt-1 text-xs text-rose-600" role="status">
+              {t(testResult === 'sent' ? 'admin.push.testSent' : 'admin.push.testNothing')}
+            </p>
+          )}
           {error && <p className="mt-1 text-xs text-rust-700" role="alert">{t('admin.error.unknown')}</p>}
         </div>
       </div>

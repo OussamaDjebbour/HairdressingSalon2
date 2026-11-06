@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('./supabase', () => ({ supabase: { rpc: vi.fn() } }));
 
 import { supabase } from './supabase';
-import { disablePush, enablePush, getPushState, syncPushSubscription } from './push';
+import { disablePush, enablePush, getPushState, sendTestPush, syncPushSubscription } from './push';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
 const VAPID = 'BCNkBvAINq_qVYDVsX4rFPBmoPhrt-HhmE31x-kpy8C22yZ_WfUjqHBL6tpLhaOWYSD-RMCaxyIiCiu_Jb4j8oI';
@@ -71,9 +71,9 @@ describe('getPushState', () => {
     expect(await getPushState()).toBe('off');
   });
 
-  it('is unsupported without a VAPID key', async () => {
+  it('reports missing site configuration separately from an unsupported browser', async () => {
     vi.stubEnv('VITE_VAPID_PUBLIC_KEY', '');
-    expect(await getPushState()).toBe('unsupported');
+    expect(await getPushState()).toBe('not-configured');
   });
 });
 
@@ -143,6 +143,21 @@ describe('syncPushSubscription', () => {
 
   it('does nothing when this device is not subscribed', async () => {
     await syncPushSubscription();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('sendTestPush', () => {
+  it('resolves to how many devices the test went to', async () => {
+    rpc.mockResolvedValue({ data: 2, error: null });
+    expect(await sendTestPush()).toBe(2);
+  });
+});
+
+describe('disablePush without service workers', () => {
+  it('is a no-op on browsers without service worker support', async () => {
+    Object.defineProperty(navigator, 'serviceWorker', { value: undefined, configurable: true });
+    expect(await disablePush()).toBe('off');
     expect(rpc).not.toHaveBeenCalled();
   });
 });
