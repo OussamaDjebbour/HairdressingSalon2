@@ -11,6 +11,7 @@ import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
 import { TimeSlotChip } from './TimeSlotChip';
+import { SALON_WHATSAPP_NUMBER, waLink } from '../data/whatsapp';
 import { SmartImage } from './SmartImage';
 
 const iconMap: Record<string, typeof Scissors> = {
@@ -19,7 +20,6 @@ const iconMap: Record<string, typeof Scissors> = {
 };
 
 type Step = 0 | 1 | 2 | 3;
-const WHATSAPP_NUMBER = '213561234567';
 
 export function Booking() {
   const { lang, t } = useLang();
@@ -104,41 +104,6 @@ export function Booking() {
   const stylistName = effectiveStylistId
     ? stylists.find((s) => s.id === effectiveStylistId)?.name ?? ''
     : t('booking.noPreference');
-
-  const buildWhatsAppMessage = () => {
-    const lines: string[] = [];
-    if (lang === 'fr') {
-      lines.push('Bonjour, je souhaite prendre rendez-vous:');
-      lines.push('');
-      lines.push(`• Prestation: ${selectedService?.name.fr}`);
-      lines.push(`• Coiffeuse: ${stylistName}`);
-      lines.push(`• Date: ${selectedDate ? formatLongDate(selectedDate, 'fr') : ''}`);
-      lines.push(`• Heure: ${selectedTime ?? ''}`);
-      lines.push(`• Durée: ${selectedService ? formatDuration(selectedService.duration, 'fr') : ''}`);
-      lines.push(`• Prix: ${selectedService ? formatPrice(selectedService.price, 'fr') : ''}`);
-      lines.push('');
-      lines.push(`Nom: ${clientName}`);
-      lines.push(`Téléphone: ${clientPhone}`);
-    } else {
-      lines.push('مرحباً، أرغب في حجز موعد:');
-      lines.push('');
-      lines.push(`• الخدمة: ${selectedService?.name.ar}`);
-      lines.push(`• الخبيرة: ${stylistName}`);
-      lines.push(`• التاريخ: ${selectedDate ? formatLongDate(selectedDate, 'ar') : ''}`);
-      lines.push(`• الوقت: ${selectedTime ?? ''}`);
-      lines.push(`• المدة: ${selectedService ? formatDuration(selectedService.duration, 'ar') : ''}`);
-      lines.push(`• السعر: ${selectedService ? formatPrice(selectedService.price, 'ar') : ''}`);
-      lines.push('');
-      lines.push(`الاسم: ${clientName}`);
-      lines.push(`الهاتف: ${clientPhone}`);
-    }
-    return lines.join('\n');
-  };
-
-  const handleWhatsAppSend = () => {
-    const msg = encodeURIComponent(buildWhatsAppMessage());
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`, '_blank');
-  };
 
   const handleConfirm = () => {
     if (!selectedService || !selectedDate || !selectedTime) return;
@@ -235,11 +200,15 @@ export function Booking() {
             </div>
           </div>
 
-          <button onClick={handleWhatsAppSend} className="btn-whatsapp btn-lg w-full mb-3">
-            <MessageCircle className="w-5 h-5" strokeWidth={1.8} />
-            {t('booking.whatsappSend')}
-          </button>
-          <p className="text-xs text-rose-600 mb-6">{t('booking.whatsappHint')}</p>
+          <a
+            href={waLink(SALON_WHATSAPP_NUMBER)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary w-full mb-3"
+          >
+            <MessageCircle className="w-4 h-4" strokeWidth={1.8} />
+            {t('booking.questionsWhatsapp')}
+          </a>
           <button onClick={resetBooking} className="btn-ghost">{t('booking.newBooking')}</button>
         </div>
       </section>
@@ -522,7 +491,7 @@ export function Booking() {
                   </p>
                   {(submitError === 'rate_limited' || submitError === 'too_many_bookings') && (
                     <a
-                      href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                      href={waLink(SALON_WHATSAPP_NUMBER)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-whatsapp btn-sm mt-3"

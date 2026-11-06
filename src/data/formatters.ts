@@ -33,6 +33,16 @@ const monthNames: Record<Lang, string[]> = {
   ],
 };
 
+export function formatDayName(date: Date, lang: Lang = 'fr'): string {
+  return dayNames[lang][date.getDay()];
+}
+
+/** Compact day label for tight spaces (week strip): "Mar" in French; Arabic names are already short. */
+export function formatShortDayName(date: Date, lang: Lang = 'fr'): string {
+  const name = dayNames[lang][date.getDay()];
+  return lang === 'fr' ? name.slice(0, 3) : name;
+}
+
 export function formatLongDate(date: Date, lang: Lang = 'fr'): string {
   const day = dayNames[lang][date.getDay()];
   const dayNum = date.getDate();
