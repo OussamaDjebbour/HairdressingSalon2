@@ -9,8 +9,11 @@ When a client books on the site, the owner's phone shows a notification ("Nouvel
 4. The function sends a Web Push (VAPID) to each subscribed device of the owner.
 5. It also deletes subscriptions the push service reports as gone.
 
+**Per salon:** many salons share one database. Each subscription belongs to the salon of the staff member who turned notifications on. A booking at a salon only notifies that salon's staff, and the title names the salon ("Nouvelle réservation · Élégance"). Everything below is done **once for the whole product**, not per salon: one VAPID key pair, one `NOTIFY_SECRET`, one Edge Function and one pair of Vault secrets.
+
 Code:
 - `supabase/migrations/20261107120000_push_notifications.sql`
+- `supabase/migrations/20261112100300_salon_push.sql` (per-salon scoping)
 - `supabase/functions/notify-booking/`
 - `supabase/functions/_shared/notify.ts` (message text)
 - `public/sw.js`
@@ -25,12 +28,7 @@ Prerequisites:
 
 Run the commands from the repo root.
 
-1. **Push the database change:**
-
-   ```sh
-   supabase db push --dry-run   # should list 20261107120000_push_notifications.sql
-   supabase db push
-   ```
+1. **Push the database change:** done on 2026-11-11, together with the salon migrations. `supabase db push --dry-run` should now report nothing to push.
 
 2. **Create the keys.** Generate them once and keep them somewhere safe, like a password manager:
 
