@@ -12,6 +12,14 @@ vi.mock('../data/queries', async () => {
   };
 });
 
+vi.mock('../data/salonSettings', async () => {
+  const f = await import('./admin/fixtures');
+  return {
+    useSalonHours: () => ({ data: f.eleganceHours }),
+    useClosedDates: () => ({ data: [] }),
+  };
+});
+
 const setStatus = vi.fn();
 let weekBookings: AdminBooking[] = [];
 let pendingBookings: AdminBooking[] = [];

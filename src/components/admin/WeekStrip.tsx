@@ -2,26 +2,30 @@ import { useLang } from '../../context/LanguageContext';
 import type { AdminBooking } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
 import { formatDayName, formatShortDayName } from '../../data/formatters';
-import { dayOccupancy, isClosedDay, weekDays } from '../../data/week';
+import type { DayHours } from '../../data/types';
+import { dayOccupancy, weekDays } from '../../data/week';
 
 interface WeekStripProps {
   day: Date;
   bookings: AdminBooking[];
   stylistCount: number;
+  /** The salon's hours on a date, or null when closed. */
+  hoursFor(d: Date): DayHours | null;
   onSelect(d: Date): void;
 }
 
 /** The week around `day`: tap a day to open it; the bar shows how full each open day is. */
-export function WeekStrip({ day, bookings, stylistCount, onSelect }: WeekStripProps) {
+export function WeekStrip({ day, bookings, stylistCount, hoursFor, onSelect }: WeekStripProps) {
   const { lang, t } = useLang();
   const selected = toYmd(day);
 
   return (
     <div className="flex gap-1.5">
       {weekDays(day).map((d) => {
-        const closed = isClosedDay(d);
+        const hours = hoursFor(d);
+        const closed = hours === null;
         const isSelected = toYmd(d) === selected;
-        const pct = Math.round(dayOccupancy(bookings, d, stylistCount) * 100);
+        const pct = Math.round(dayOccupancy(bookings, d, stylistCount, hours) * 100);
         const label = `${formatDayName(d, lang)} ${d.getDate()} — ${closed ? t('schedule.closed') : `${pct}%`}`;
         return (
           <button

@@ -11,6 +11,11 @@ vi.mock('../../data/queries', async () => {
   };
 });
 
+vi.mock('../../data/salonSettings', async () => {
+  const f = await import('./fixtures');
+  return { useSalonHours: () => ({ data: f.eleganceHours }), useClosedDates: () => ({ data: [] }) };
+});
+
 const create = vi.fn();
 const update = vi.fn();
 const setStatus = vi.fn();

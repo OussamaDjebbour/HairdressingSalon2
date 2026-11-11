@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn() } }));
 
 import { supabase } from '../lib/supabase';
-import { useServices, useStylists } from './queries';
+import { useAllServices, useAllStylists, useServices, useStylists } from './queries';
 
 const SEEDED = [
   {
@@ -19,6 +19,7 @@ const SEEDED = [
     image: 'img',
     icon: 'scissors',
     sort_order: 0,
+    active: true,
   },
 ];
 
@@ -27,18 +28,36 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-// spy on the salon filter; each test gives it a builder with .order()
+// A chainable query builder: records every .eq() and resolves on .order().
 const eq = vi.fn();
+function builder(data: unknown, error: unknown = null) {
+  const b = {
+    select: () => b,
+    eq: (...args: unknown[]) => (eq(...args), b),
+    order: () => Promise.resolve({ data, error }),
+  };
+  (supabase.from as ReturnType<typeof vi.fn>).mockReturnValue(b);
+}
+
+const STYLIST_ROW = {
+  id: 'amina',
+  name: 'Amina',
+  role: { fr: 'Coiffeuse', ar: 'خبيرة' },
+  specialties: [],
+  image: 'img',
+  sort_order: 0,
+  active: true,
+  stylist_services: [{ service_id: 'coupe-femme' }, { service_id: 'coloration' }],
+  stylist_workdays: [{ weekday: 4 }, { weekday: 2 }],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe('useServices', () => {
-  it('maps rows to services on success', async () => {
-    (supabase.from as ReturnType<typeof vi.fn>).mockReturnValue({
-      select: () => ({ eq: eq.mockReturnValue({ order: () => Promise.resolve({ data: SEEDED, error: null }) }) }),
-    });
+  it('maps rows to services, asking only for this salon\'s active ones', async () => {
+    builder(SEEDED);
 
     const { result } = renderHook(() => useServices(), { wrapper });
 
@@ -46,15 +65,13 @@ describe('useServices', () => {
     expect(result.current.data).toHaveLength(1);
     expect(result.current.data![0].id).toBe('coupe-femme');
     expect(result.current.data![0].name.fr).toBe('Coupe & Brushing');
+    expect(result.current.data![0].active).toBe(true);
     expect(eq).toHaveBeenCalledWith('salon_id', 'elegance');
+    expect(eq).toHaveBeenCalledWith('active', true);
   });
 
   it('surfaces an error when the query fails', async () => {
-    (supabase.from as ReturnType<typeof vi.fn>).mockReturnValue({
-      select: () => ({
-        eq: eq.mockReturnValue({ order: () => Promise.resolve({ data: null, error: new Error('boom') }) }),
-      }),
-    });
+    builder(null, new Error('boom'));
 
     const { result } = renderHook(() => useServices(), { wrapper });
 
@@ -63,34 +80,42 @@ describe('useServices', () => {
   });
 });
 
+describe('useAllServices', () => {
+  it('does not filter on active', async () => {
+    builder([{ ...SEEDED[0], active: false }]);
+
+    const { result } = renderHook(() => useAllServices(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data![0].active).toBe(false);
+    expect(eq).toHaveBeenCalledWith('salon_id', 'elegance');
+    expect(eq).not.toHaveBeenCalledWith('active', true);
+  });
+});
+
 describe('useStylists', () => {
-  it('maps offered services to serviceIds', async () => {
-    (supabase.from as ReturnType<typeof vi.fn>).mockReturnValue({
-      select: () => ({
-        eq: eq.mockReturnValue({
-          order: () =>
-          Promise.resolve({
-            data: [
-              {
-                id: 'amina',
-                name: 'Amina',
-                role: { fr: 'Coiffeuse', ar: 'خبيرة' },
-                specialties: [],
-                image: 'img',
-                sort_order: 0,
-                stylist_services: [{ service_id: 'coupe-femme' }, { service_id: 'coloration' }],
-              },
-            ],
-            error: null,
-          }),
-        }),
-      }),
-    });
+  it('maps offered services to serviceIds and workdays, active only', async () => {
+    builder([STYLIST_ROW]);
 
     const { result } = renderHook(() => useStylists(), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data![0].serviceIds).toEqual(['coupe-femme', 'coloration']);
+    expect(result.current.data![0].workdays).toEqual([2, 4]);
+    expect(result.current.data![0].active).toBe(true);
     expect(eq).toHaveBeenCalledWith('salon_id', 'elegance');
+    expect(eq).toHaveBeenCalledWith('active', true);
+  });
+});
+
+describe('useAllStylists', () => {
+  it('includes inactive stylists', async () => {
+    builder([{ ...STYLIST_ROW, active: false }]);
+
+    const { result } = renderHook(() => useAllStylists(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data![0].active).toBe(false);
+    expect(eq).not.toHaveBeenCalledWith('active', true);
   });
 });

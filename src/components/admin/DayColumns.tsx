@@ -2,28 +2,28 @@ import { Globe, PenLine } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { algiersToday, type AdminBooking } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
-import { CLOSING_HOUR, OPENING_HOUR } from '../../data/hours';
-import type { Stylist } from '../../data/types';
-import { isClosedDay, minutesToTime, salonDate, salonMinutes } from '../../data/week';
+import type { DayHours, Stylist } from '../../data/types';
+import { minutesToTime, salonDate, salonMinutes } from '../../data/week';
 
 const HOUR_HEIGHT = 64; // px per hour
 const CELL_MINUTES = 30;
 const QUARTER = 15;
-const OPEN = OPENING_HOUR * 60;
-const CLOSE = CLOSING_HOUR * 60;
-
-const topPx = (min: number) => `${((min - OPEN) / 60) * HOUR_HEIGHT}px`;
 
 interface DayColumnsProps {
   day: Date;
   stylists: Stylist[];
+  /** The salon's hours that day, or null when closed. */
+  hours: DayHours | null;
   bookings: AdminBooking[];
   onSlotTap(stylistId: string, time: string): void;
   onBookingTap(b: AdminBooking): void;
 }
 
 /** One column per stylist; free time is tappable to add a booking there. */
-export function DayColumns({ day, stylists, bookings, onSlotTap, onBookingTap }: DayColumnsProps) {
+export function DayColumns({ day, stylists, hours, bookings, onSlotTap, onBookingTap }: DayColumnsProps) {
+  const OPEN = hours?.opens ?? 0;
+  const CLOSE = hours?.closes ?? 0;
+  const topPx = (min: number) => `${((min - OPEN) / 60) * HOUR_HEIGHT}px`;
   const { lang, t } = useLang();
   const ymd = toYmd(day);
   const visible = bookings.filter((b) => b.status !== 'cancelled' && toYmd(salonDate(b.startsAt)) === ymd);
@@ -31,7 +31,8 @@ export function DayColumns({ day, stylists, bookings, onSlotTap, onBookingTap }:
 
   const cells: number[] = [];
   for (let min = OPEN; min < CLOSE; min += CELL_MINUTES) cells.push(min);
-  const hours = Array.from({ length: CLOSING_HOUR - OPENING_HOUR + 1 }, (_, i) => OPENING_HOUR + i);
+  const firstHour = Math.ceil(OPEN / 60);
+  const hourLabels = Array.from({ length: Math.max(0, Math.floor(CLOSE / 60) - firstHour + 1) }, (_, i) => firstHour + i);
 
   const nowMin = salonMinutes(new Date());
   const showNow = ymd === toYmd(algiersToday()) && nowMin >= OPEN && nowMin < CLOSE;
@@ -47,14 +48,14 @@ export function DayColumns({ day, stylists, bookings, onSlotTap, onBookingTap }:
         ))}
       </div>
 
-      {isClosedDay(day) ? (
+      {hours === null ? (
         <p className="text-center text-rose-600 py-16 rounded-2xl bg-cream-100">{t('schedule.closed')}</p>
       ) : (
         <div className="relative grid gap-1" style={{ gridTemplateColumns, height: `${(CLOSE - OPEN) / 60 * HOUR_HEIGHT}px` }}>
           <div className="relative">
-            {hours.map((h) => (
+            {hourLabels.map((h) => (
               <span key={h} className="absolute start-0 -mt-2 text-[11px] text-rose-600" style={{ top: topPx(h * 60) }}>
-                {String(h).padStart(2, '0')}:00
+                {minutesToTime(h * 60)}
               </span>
             ))}
           </div>
@@ -79,7 +80,7 @@ export function DayColumns({ day, stylists, bookings, onSlotTap, onBookingTap }:
             });
             return (
               <div key={stylist.id} className="relative rounded-lg bg-cream-50">
-                {hours.slice(1, -1).map((h) => (
+                {hourLabels.filter((h) => h * 60 > OPEN && h * 60 < CLOSE).map((h) => (
                   <div key={h} className="absolute inset-x-0 border-t border-cream-200" style={{ top: topPx(h * 60) }} />
                 ))}
                 {freeSlots.map(({ min, length }) => {

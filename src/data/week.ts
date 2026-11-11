@@ -1,6 +1,6 @@
 import { formatAlgiersTime, type AdminBooking } from './admin';
 import { toYmd } from './bookings';
-import { CLOSING_HOUR, OPENING_HOUR } from './hours';
+import type { DayHours } from './types';
 
 const STEP_MINUTES = 15;
 
@@ -8,11 +8,6 @@ const STEP_MINUTES = 15;
 export function weekDays(day: Date): Date[] {
   const sunday = new Date(day.getFullYear(), day.getMonth(), day.getDate() - day.getDay());
   return Array.from({ length: 7 }, (_, i) => new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + i));
-}
-
-/** Closed Sunday and Monday (mirrors the SQL rule). */
-export function isClosedDay(day: Date): boolean {
-  return day.getDay() === 0 || day.getDay() === 1;
 }
 
 const algiersYmd = new Intl.DateTimeFormat('en-CA', {
@@ -39,20 +34,20 @@ export function minutesToTime(min: number): string {
 }
 
 /** Share of the day's stylist-hours that is booked (0..1), ignoring cancelled bookings. */
-export function dayOccupancy(bookings: AdminBooking[], day: Date, stylistCount: number): number {
-  if (stylistCount <= 0) return 0;
+export function dayOccupancy(bookings: AdminBooking[], day: Date, stylistCount: number, hours: DayHours | null): number {
+  if (stylistCount <= 0 || !hours) return 0;
   const ymd = toYmd(day);
   const booked = bookings
     .filter((b) => b.status !== 'cancelled' && toYmd(salonDate(b.startsAt)) === ymd)
     .reduce((sum, b) => sum + (b.endsAt.getTime() - b.startsAt.getTime()) / 60000, 0);
-  const open = (CLOSING_HOUR - OPENING_HOUR) * 60 * stylistCount;
+  const open = (hours.closes - hours.opens) * stylistCount;
   return Math.min(1, Math.max(0, booked / open));
 }
 
-/** Start times the owner can pick: 15-minute steps from opening, ending by closing time. */
-export function staffTimeOptions(durationMin: number): string[] {
+/** Start times the owner can pick: 15-minute steps from opening, ending by closing time of that day. */
+export function staffTimeOptions(durationMin: number, hours: DayHours): string[] {
   const options: string[] = [];
-  for (let min = OPENING_HOUR * 60; min + durationMin <= CLOSING_HOUR * 60; min += STEP_MINUTES) {
+  for (let min = hours.opens; min + durationMin <= hours.closes; min += STEP_MINUTES) {
     options.push(minutesToTime(min));
   }
   return options;

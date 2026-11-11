@@ -3,12 +3,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { LanguageProvider } from '../../context/LanguageContext';
 import type { AdminBooking } from '../../data/admin';
 import { DayColumns } from './DayColumns';
-import { adminBooking, stylists } from './fixtures';
+import { adminBooking, eleganceHours, stylists } from './fixtures';
 
 function renderColumns(bookings: AdminBooking[], handlers = { onSlotTap: vi.fn(), onBookingTap: vi.fn() }) {
   render(
     <LanguageProvider>
-      <DayColumns day={new Date(2030, 0, 8)} stylists={stylists} bookings={bookings} {...handlers} />
+      <DayColumns day={new Date(2030, 0, 8)} stylists={stylists} hours={eleganceHours[2]} bookings={bookings} {...handlers} />
     </LanguageProvider>
   );
   return handlers;

@@ -8,7 +8,8 @@ import {
 import { isValidPhone, toYmd } from '../../data/bookings';
 import { useServices, useStylists } from '../../data/queries';
 import { salonDate, salonInstant, staffTimeOptions } from '../../data/week';
-import { CLOSING_HOUR } from '../../data/hours';
+import { dayHours } from '../../data/hours';
+import { useClosedDates, useSalonHours } from '../../data/salonSettings';
 import { clientMessage, toWaNumber, waLink, type ClientMessageKind } from '../../data/whatsapp';
 import { Badge } from '../Badge';
 
@@ -45,6 +46,8 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const titleId = useId();
   const services = useServices().data ?? [];
   const stylists = useStylists().data ?? [];
+  const salonHours = useSalonHours().data;
+  const closedDates = useClosedDates().data ?? [];
   const create = useCreateStaffBooking();
   const update = useUpdateStaffBooking();
   const setStatus = useSetBookingStatus();
@@ -57,12 +60,13 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   // Add mode: default to the stylist's usual first service once services have loaded.
   const serviceId = form.serviceId || (stylists.find((s) => s.id === form.stylistId)?.serviceIds[0] ?? services[0]?.id ?? '');
   const service = services.find((s) => s.id === serviceId);
-  const timeOptions = staffTimeOptions(service?.duration ?? 30);
+  const hours = salonHours ? dayHours(salonHours, closedDates, form.date) : null;
+  const timeOptions = hours ? staffTimeOptions(service?.duration ?? 30, hours) : [];
   // Keep a booking's current time selectable (and in order) even if it is off the new service's grid.
   if (!timeOptions.includes(form.time)) timeOptions.push(form.time);
   timeOptions.sort();
   const [h, m] = form.time.split(':').map(Number);
-  const pastClosing = !!service && h * 60 + m + service.duration > CLOSING_HOUR * 60;
+  const pastClosing = !!service && !!hours && h * 60 + m + service.duration > hours.closes;
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const requestCloseRef = useRef<() => void>(onClose);

@@ -3,13 +3,22 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 
 const service = {
   id: 'coupe-femme', category: 'hair', icon: 'scissors', image: '', price: 2500, duration: 60,
-  name: { fr: 'Coupe & Brushing', ar: 'قص' }, description: { fr: 'd', ar: 'd' },
+  name: { fr: 'Coupe & Brushing', ar: 'قص' }, description: { fr: 'd', ar: 'd' }, active: true,
 };
 
 vi.mock('../data/queries', () => ({
   useServices: () => ({ data: [service], isLoading: false, isError: false, refetch: vi.fn() }),
   useStylists: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
 }));
+
+vi.mock('../data/salonSettings', async () => {
+  const f = await import('./admin/fixtures');
+  return {
+    useSalonHours: () => ({ data: f.eleganceHours }),
+    useClosedDates: () => ({ data: [] }),
+    useSalonInfo: () => ({ data: { whatsapp: '0561234567' } }),
+  };
+});
 
 const mutate = vi.fn();
 vi.mock('../data/bookings', async (importOriginal) => ({

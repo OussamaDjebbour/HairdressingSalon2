@@ -3,12 +3,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { LanguageProvider } from '../../context/LanguageContext';
 import { toYmd } from '../../data/bookings';
 import { WeekStrip } from './WeekStrip';
-import { adminBooking } from './fixtures';
+import { dayHours } from '../../data/hours';
+import { adminBooking, eleganceHours } from './fixtures';
 
 function renderStrip(onSelect = vi.fn()) {
   render(
     <LanguageProvider>
-      <WeekStrip day={new Date(2030, 0, 8)} bookings={[adminBooking()]} stylistCount={3} onSelect={onSelect} />
+      <WeekStrip day={new Date(2030, 0, 8)} bookings={[adminBooking()]} stylistCount={3} hoursFor={(d) => dayHours(eleganceHours, [], d)} onSelect={onSelect} />
     </LanguageProvider>
   );
   return onSelect;

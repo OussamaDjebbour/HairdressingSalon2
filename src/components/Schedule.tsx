@@ -13,8 +13,9 @@ import {
 import { SALON_ID } from '../data/salon';
 import { useStylists } from '../data/queries';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
-import { CLOSING_HOUR, OPENING_HOUR } from '../data/hours';
-import { dayOccupancy, isClosedDay, minutesToTime, salonDate, salonMinutes, weekDays } from '../data/week';
+import { dayHours } from '../data/hours';
+import { useClosedDates, useSalonHours } from '../data/salonSettings';
+import { dayOccupancy, minutesToTime, salonDate, salonMinutes, weekDays } from '../data/week';
 import { DataError } from './DataError';
 import { Thread } from './Thread';
 import { Badge } from './Badge';
@@ -65,9 +66,9 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof Clock; label: str
 }
 
 /** First free half-hour for a stylist on a day (from now if it's today), else opening time. */
-function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boolean): string {
+function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boolean, opens: number, closes: number): string {
   const now = isToday ? salonMinutes(new Date()) : 0;
-  for (let min = OPENING_HOUR * 60; min + 30 <= CLOSING_HOUR * 60; min += 30) {
+  for (let min = opens; min + 30 <= closes; min += 30) {
     if (min < now) continue;
     const busy = bookings.some((b) => {
       if (b.stylistId !== stylistId || b.status === 'cancelled') return false;
@@ -76,7 +77,7 @@ function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boo
     });
     if (!busy) return minutesToTime(min);
   }
-  return minutesToTime(OPENING_HOUR * 60);
+  return minutesToTime(opens);
 }
 
 export function Schedule({ userId }: { userId: string }) {
@@ -87,6 +88,10 @@ export function Schedule({ userId }: { userId: string }) {
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const stylists = useStylists().data ?? [];
   const mySalon = useMySalon(userId);
+  const salonHours = useSalonHours().data;
+  const closedDates = useClosedDates().data ?? [];
+  // Until the hours load, every day counts as closed.
+  const hoursFor = (d: Date) => (salonHours ? dayHours(salonHours, closedDates, d) : null);
 
   const today = algiersToday();
   const week = weekDays(day);
@@ -105,7 +110,7 @@ export function Schedule({ userId }: { userId: string }) {
   );
   const active = all.filter((b) => b.status !== 'cancelled');
   const totalRevenue = active.reduce((sum, b) => sum + b.price, 0);
-  const occupationRate = Math.round(dayOccupancy(all, day, stylists.length) * 100);
+  const occupationRate = Math.round(dayOccupancy(all, day, stylists.length, hoursFor(day)) * 100);
   const upcoming = isToday ? active.find((b) => b.startsAt > now) : active[0];
 
   const waiting = (pendingQuery.data ?? [])
@@ -126,11 +131,13 @@ export function Schedule({ userId }: { userId: string }) {
   const openAdd = () => {
     const stylistId = stylists[0]?.id;
     if (!stylistId) return;
-    // A closed day (Sunday/Monday) can only fail: start on the next open day instead.
+    // A closed day can only fail: start on the next open day instead (within a year, in case none is open).
     let date = day;
-    while (isClosedDay(date)) date = addDays(date, 1);
+    for (let i = 0; i < 366 && !hoursFor(date); i++) date = addDays(date, 1);
+    const hours = hoursFor(date);
+    if (!hours) return;
     const onDate = (weekQuery.data ?? []).filter((b) => toYmd(salonDate(b.startsAt)) === toYmd(date));
-    setSheet({ mode: 'add', stylistId, date, time: firstFreeTime(onDate, stylistId, toYmd(date) === toYmd(today)) });
+    setSheet({ mode: 'add', stylistId, date, time: firstFreeTime(onDate, stylistId, toYmd(date) === toYmd(today), hours.opens, hours.closes) });
   };
 
   // Staff of another salon must never see this salon's schedule.
@@ -189,7 +196,7 @@ export function Schedule({ userId }: { userId: string }) {
         <NotificationsCard />
 
         <div className="max-w-3xl mx-auto mb-6">
-          <WeekStrip day={day} bookings={weekQuery.data ?? []} stylistCount={stylists.length} onSelect={setDay} />
+          <WeekStrip day={day} bookings={weekQuery.data ?? []} stylistCount={stylists.length} hoursFor={hoursFor} onSelect={setDay} />
         </div>
 
         {weekQuery.isLoading ? (
@@ -218,6 +225,7 @@ export function Schedule({ userId }: { userId: string }) {
                 <DayColumns
                   day={day}
                   stylists={stylists}
+                  hours={hoursFor(day)}
                   bookings={all}
                   onSlotTap={(stylistId, time) => setSheet({ mode: 'add', stylistId, date: day, time })}
                   onBookingTap={(booking) => setSheet({ mode: 'edit', booking })}
