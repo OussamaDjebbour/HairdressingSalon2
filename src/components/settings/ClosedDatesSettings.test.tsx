@@ -49,6 +49,11 @@ describe('ClosedDatesSettings', () => {
     );
   });
 
+  it('caps the label at 60 characters', () => {
+    renderIt();
+    expect(screen.getByLabelText('Libellé (facultatif)')).toHaveAttribute('maxLength', '60');
+  });
+
   it('to defaults to from, empty label is null', async () => {
     renderIt();
     fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2030-03-16' } });

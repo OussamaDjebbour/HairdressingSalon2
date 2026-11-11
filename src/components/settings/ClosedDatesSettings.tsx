@@ -104,6 +104,7 @@ export function ClosedDatesSettings() {
           <input
             id="closed-label"
             className="input"
+            maxLength={60}
             placeholder={t('settings.closed.placeholder')}
             value={label}
             onChange={(e) => setLabel(e.target.value)}

@@ -82,6 +82,21 @@ describe('SalonInfoSettings', () => {
     expect(screen.getByLabelText('Facebook (lien)')).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('blocks an uppercase HTTPS:// link like the server does', () => {
+    renderIt();
+    fireEvent.change(screen.getByLabelText('Instagram (lien)'), { target: { value: 'HTTPS://instagram.com/x' } });
+    save();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Instagram (lien)')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('caps address and city at 200 characters', () => {
+    renderIt();
+    for (const label of ['Adresse (français)', 'العنوان (arabe)', 'Ville (français)', 'المدينة (arabe)']) {
+      expect(screen.getByLabelText(label)).toHaveAttribute('maxLength', '200');
+    }
+  });
+
   it('marks the Instagram field when the server says invalid_url', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'invalid_url' } });
     renderIt();

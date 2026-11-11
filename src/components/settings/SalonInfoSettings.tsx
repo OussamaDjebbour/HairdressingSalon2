@@ -25,7 +25,7 @@ export function SalonInfoSettings() {
     setDraft({ ...info, ...patch });
   };
   const phone = info.whatsapp ?? '';
-  const urlBad = (v: string | null) => !!v && v.trim() !== '' && !/^https:\/\//i.test(v.trim());
+  const urlBad = (v: string | null) => !!v && v.trim() !== '' && !/^https:\/\//.test(v.trim());
 
   const submit = () => {
     setSaved(false);
@@ -72,22 +72,22 @@ export function SalonInfoSettings() {
     >
       <div>
         <label className="label" htmlFor="info-address-fr">{t('settings.info.addressFr')}</label>
-        <textarea id="info-address-fr" className="input" rows={2} value={info.address.fr}
+        <textarea id="info-address-fr" className="input" rows={2} maxLength={200} value={info.address.fr}
           onChange={(e) => set({ address: { ...info.address, fr: e.target.value } })} />
       </div>
       <div>
         <label className="label" htmlFor="info-address-ar">{t('settings.info.addressAr')}</label>
-        <textarea id="info-address-ar" className="input" rows={2} dir="rtl" value={info.address.ar}
+        <textarea id="info-address-ar" className="input" rows={2} dir="rtl" maxLength={200} value={info.address.ar}
           onChange={(e) => set({ address: { ...info.address, ar: e.target.value } })} />
       </div>
       <div>
         <label className="label" htmlFor="info-city-fr">{t('settings.info.cityFr')}</label>
-        <input id="info-city-fr" className="input" value={info.city.fr}
+        <input id="info-city-fr" className="input" maxLength={200} value={info.city.fr}
           onChange={(e) => set({ city: { ...info.city, fr: e.target.value } })} />
       </div>
       <div>
         <label className="label" htmlFor="info-city-ar">{t('settings.info.cityAr')}</label>
-        <input id="info-city-ar" className="input" dir="rtl" value={info.city.ar}
+        <input id="info-city-ar" className="input" dir="rtl" maxLength={200} value={info.city.ar}
           onChange={(e) => set({ city: { ...info.city, ar: e.target.value } })} />
       </div>
       <div>
