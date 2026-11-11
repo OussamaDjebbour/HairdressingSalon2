@@ -210,7 +210,7 @@ describe('BookingSheet — polish', () => {
     const options = within(screen.getByLabelText('Heure')).getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual([...options].sort());
     expect(screen.getByLabelText('Heure')).toHaveValue('17:30');
-    expect(screen.getByText('En dehors des horaires (9h–18h, fermé dimanche et lundi).')).toBeInTheDocument();
+    expect(screen.getByText('En dehors des horaires du salon ce jour-là.')).toBeInTheDocument();
   });
 
   it('moves focus into the sheet and keeps Tab inside it', () => {
