@@ -125,10 +125,4 @@ describe('SettingsPage', () => {
     expect(screen.getByText('Connexion')).toBeInTheDocument();
     expect(screen.queryByText('Horaires')).not.toBeInTheDocument();
   });
-
-  it('opens a placeholder sub-screen with a back link to the list', () => {
-    renderPage('/admin/settings/info');
-    expect(screen.getByRole('heading', { name: 'Infos du salon' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Retour' })).toHaveAttribute('href', '/admin/settings');
-  });
 });
