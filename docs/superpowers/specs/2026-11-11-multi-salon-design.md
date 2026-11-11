@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-11
 - **Follows:** SP1–SP3 (read path, online bookings + staff admin, owner schedule + push notifications), all merged into `main`.
-- **Status:** draft for approval.
+- **Status:** approved by the product owner on 2026-11-11.
 
 ## Intent: why this exists
 
@@ -176,7 +176,13 @@ Table and RPC shapes; exact screen layouts within the design system; how the "af
 ### One site, many addresses
 
 - *My call:* **one build, one Cloudflare Pages project**, with every salon's domain attached to it (free plan allows commercial use and many custom domains; Vercel's free plan doesn't allow commercial use). `vercel.json` and the Vercel references in `docs/notifications-setup.md` are replaced.
-- At startup the site looks up **its salon from the web address** (domain → salon, stored in the database). An unknown address shows a simple "salon introuvable" page. Local development picks a salon with an env var or `?salon=` parameter.
+- At startup the site looks up **its salon from the web address** through a **domains table** in the shared database (`domain → salon_id`, e.g. `elegance-demo.com → Élégance`, `salon-yasmine.com → Yasmine`, `sara-salon.com → Sara`). The edge middleware reads the request's host, looks it up (cached for a few minutes), and the app then uses that salon's id for every query.
+  - **Each domain is unique** (database constraint): one address can never point to two salons.
+  - **Hosts are normalised** before lookup and on insert: lowercase, `www.` stripped, so `WWW.Sara-Salon.com` finds Sara.
+  - **A salon may have several domains** (several rows pointing to it).
+  - An **unknown address** shows a simple "salon introuvable" page, never another salon's site.
+  - The domains table is public-readable (domains are public anyway) but written only by the product owner's script.
+  - Local development picks a salon with an env var or `?salon=` parameter.
 - Deep links (`/admin`, `/admin?day=…&booking=…`) must work on every domain, and `sw.js` / the manifest are served as real files.
 - *My call:* a small Cloudflare Pages Function (edge middleware) serves, per domain, the right `<title>`, `theme-color` and web-app manifest (name, short name, theme color), because these are read before the app's JavaScript runs (home-screen install, link previews).
 
