@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(51);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -161,6 +161,30 @@ reset role;
 select pg_temp.act_as('22222222-2222-2222-2222-222222222222');
 set local role authenticated;
 select throws_ok($$ select public.admin_my_salon() $$, 'P0001', 'not_authorized', 'non-staff refused');
+reset role;
+
+-- catalogue RPCs: Élégance staff never see or change rival's services, stylists or days off
+insert into public.stylist_days_off (id, salon_id, stylist_id, starts_on, ends_on)
+  values ('cccccccc-0000-0000-0000-000000000001', 'rival', 'nadia', '2030-05-01', '2030-05-02');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select throws_ok($$ select public.admin_save_service('rival-cut', '{"fr":"Hack","ar":""}', '{}', 'beaute', 1, 30, 0) $$, 'P0001', 'not_found', 'save_service: other salon''s service is not_found');
+select throws_ok($$ select public.admin_set_service_active('rival-cut', false) $$, 'P0001', 'not_found', 'set_service_active: other salon''s service is not_found');
+select throws_ok($$ select public.admin_save_stylist('nadia', 'Hack', '{"fr":"x","ar":"x"}', '{}', '{}') $$, 'P0001', 'not_found', 'save_stylist: other salon''s stylist is not_found');
+select throws_ok($$ select public.admin_save_stylist(null, 'Xavier', '{"fr":"x","ar":"x"}', array['rival-cut'], '{}') $$, 'P0001', 'unknown_service', 'save_stylist: other salon''s service is unknown_service');
+select throws_ok($$ select public.admin_set_stylist_active('nadia', false) $$, 'P0001', 'not_found', 'set_stylist_active: other salon''s stylist is not_found');
+select throws_ok($$ select public.admin_add_stylist_days_off('nadia', '2030-06-01', '2030-06-02') $$, 'P0001', 'not_found', 'add_days_off: other salon''s stylist is not_found');
+select throws_ok($$ select public.admin_delete_stylist_days_off('cccccccc-0000-0000-0000-000000000001') $$, 'P0001', 'not_found', 'delete_days_off: other salon''s row is not_found');
+select lives_ok($$ select public.admin_add_stylist_days_off('amina', '2030-06-01', '2030-06-02') $$, 'add_days_off: own stylist works');
+reset role;
+select is((select (name ->> 'fr') || ' ' || price || ' ' || active from public.services where id = 'rival-cut') || ' ' || (select name || ' ' || active from public.stylists where id = 'nadia'),
+          'Coupe R 1000 true Nadia true', 'rival service and stylist unchanged');
+select is((select count(*)::int from public.stylist_workdays where stylist_id = 'nadia'), 5, 'rival stylist workdays unchanged');
+select is((select count(*)::int from public.stylist_days_off where salon_id = 'rival'), 1, 'rival days off unchanged');
+select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
+set local role authenticated;
+select is((select count(*)::int from public.stylist_days_off where salon_id = 'elegance'), 0, 'RLS: rival staff see no elegance days off');
+select is((select count(*)::int from public.stylist_days_off), 1, 'RLS: rival staff see only their own days off');
 reset role;
 
 select * from finish();
