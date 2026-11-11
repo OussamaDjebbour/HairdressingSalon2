@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  # PRs are checked once (not once per push AND once per PR); main is checked after each merge.
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: npx tsc -b
+
+      - name: Unit tests
+        run: pnpm test
+        env:
+          # Placeholders: src/lib/supabase.ts throws without them; tests mock every Supabase call.
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
+
+      - name: Start local Supabase
+        run: supabase start -x logflare,vector,studio,imgproxy,edge-runtime
+
+      - name: Database tests
+        run: supabase test db
+
+      - name: Database lint
+        run: supabase db lint --level warning --fail-on warning

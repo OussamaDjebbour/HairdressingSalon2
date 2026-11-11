@@ -82,7 +82,7 @@ export function AdminPage() {
             <div className="w-8 h-8 rounded-full border-2 border-rose-300 border-t-rose-700 animate-spin" />
           </div>
         ) : session ? (
-          <Schedule />
+          <Schedule userId={session.user.id} />
         ) : (
           <LoginForm />
         )}

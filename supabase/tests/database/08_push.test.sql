@@ -7,7 +7,7 @@ values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@test.local'),
   ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'random@test.local'),
   ('33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff2@test.local');
-insert into private.staff (user_id) values ('11111111-1111-1111-1111-111111111111'), ('33333333-3333-3333-3333-333333333333');
+insert into private.staff (user_id, salon_id) values ('11111111-1111-1111-1111-111111111111', 'elegance'), ('33333333-3333-3333-3333-333333333333', 'elegance');
 
 create function pg_temp.act_as(p_uid text) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true) $$;
@@ -15,8 +15,8 @@ create function pg_temp.queued() returns int language sql as $$ select count(*):
 create function pg_temp.last_body() returns jsonb language sql as $$
   select convert_from(body, 'utf8')::jsonb from net.http_request_queue order by id desc limit 1 $$;
 create function pg_temp.online_booking(p_name text, p_time text, p_source text default 'online') returns void language sql as $$
-  insert into private.bookings (service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, source)
-  values ('manucure', 'sara', ('2030-01-08 ' || p_time || '+01')::timestamptz, ('2030-01-08 ' || p_time || '+01')::timestamptz + interval '45 minutes',
+  insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, source)
+  values ('elegance', 'manucure', 'sara', ('2030-01-08 ' || p_time || '+01')::timestamptz, ('2030-01-08 ' || p_time || '+01')::timestamptz + interval '45 minutes',
           2000, p_name, '0661000000', 'fr', p_source) $$;
 
 -- anon: no execute at all

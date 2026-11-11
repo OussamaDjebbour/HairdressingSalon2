@@ -16,6 +16,8 @@ export interface BookingPayload {
   starts_at: string;
   service_name: Record<Lang, string>;
   stylist_name: string;
+  /** Which salon the booking is for; shown in the title so multi-salon owners can tell them apart. */
+  salon_name?: string;
 }
 
 export interface NotifyRequest {
@@ -76,7 +78,7 @@ export function buildPushMessage(kind: NotifyRequest['kind'], booking: BookingPa
   const p = salonParts(booking.starts_at);
   const date = `${dayNames[lang][p.weekday]} ${p.day} ${monthNames[lang][p.month]}`;
   return {
-    title: c.newTitle,
+    title: booking.salon_name ? `${c.newTitle} · ${booking.salon_name}` : c.newTitle,
     body: `${booking.client_name} · ${c.when(date, p.time)}\n${booking.service_name[lang]} · ${booking.stylist_name}`,
     url: `/admin?day=${p.ymd}&booking=${booking.id}`,
     tag: `booking-${booking.id}`,

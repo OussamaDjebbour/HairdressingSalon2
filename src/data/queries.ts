@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Service, Stylist } from './types';
+import { SALON_ID } from './salon';
 
 interface ServiceRow {
   id: string;
@@ -28,6 +29,7 @@ export async function fetchServices(): Promise<Service[]> {
   const { data, error } = await supabase
     .from('services')
     .select('id, category, name, description, price, duration, image, icon, sort_order')
+    .eq('salon_id', SALON_ID)
     .order('sort_order');
   if (error) throw error;
   return (data as ServiceRow[]).map((r) => ({
@@ -46,6 +48,7 @@ export async function fetchStylists(): Promise<Stylist[]> {
   const { data, error } = await supabase
     .from('stylists')
     .select('id, name, role, specialties, image, sort_order, stylist_services(service_id)')
+    .eq('salon_id', SALON_ID)
     .order('sort_order');
   if (error) throw error;
   return (data as StylistRow[]).map((r) => ({

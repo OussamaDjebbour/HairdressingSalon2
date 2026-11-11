@@ -27,6 +27,11 @@ describe('buildPushMessage', () => {
     expect(ar.body).toContain('مانيكير وطلاء الأظافر · Sara');
   });
 
+  it('names the salon in the title when the payload carries one', () => {
+    expect(buildPushMessage('new_booking', { ...booking, salon_name: 'Rival' }, 'fr').title).toBe('Nouvelle réservation · Rival');
+    expect(buildPushMessage('new_booking', booking, 'fr').title).toBe('Nouvelle réservation');
+  });
+
   it('uses the salon date late in the UTC evening', () => {
     const late = { ...booking, starts_at: '2026-11-07T23:30:00Z' }; // 00:30 on the 8th in Algiers
     expect(buildPushMessage('new_booking', late, 'fr').url).toBe('/admin?day=2026-11-08&booking=b1');

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single-page marketing + booking site for a women's hairdressing/beauty salon ("Élégance") in Algiers. Vite + React 18 + TypeScript + Tailwind, originally scaffolded by Bolt (see `.bolt/`). Backend is Supabase (Postgres + Auth), managed by CLI migrations in `supabase/`. Customers book through RPCs (`get_slots`, `create_booking`); bookings live in the non-exposed `private` schema. Staff log in at `/admin` (sign-ups disabled; access requires a row in `private.staff`). Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (in `.env`).
+A single-page marketing + booking site for women's hairdressing/beauty salons in Algeria, being turned into a product sold to several salons (design: `docs/superpowers/specs/2026-11-11-multi-salon-design.md`). "Élégance" (salon id `'elegance'`) is the **demo** salon, not a real one. Vite + React 18 + TypeScript + Tailwind, originally scaffolded by Bolt (see `.bolt/`). Backend is one shared Supabase project (Postgres + Auth), managed by CLI migrations in `supabase/`; every salon's data lives in it, strictly separated (see "Salons" below). Customers book through RPCs (`get_slots`, `create_booking`); bookings live in the non-exposed `private` schema. Staff log in at `/admin` (sign-ups disabled; access requires a row in `private.staff`). Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (in `.env`), optional `VITE_SALON_ID` (defaults to `elegance`).
 
 ## Commands
 
@@ -28,6 +28,18 @@ supabase db lint --level warning            # security/schema lint
 ## Architecture
 
 `src/App.tsx` wraps everything in `LanguageProvider` + React Query's `QueryClientProvider` and has two routes: `/` → `HomePage` (a vertical stack of sections: `Navbar → Hero → TrustBadges → Services → Philosophy → Booking → Footer`, linked by anchor `id`s like `#booking` — in-page scrolling) and `/admin` → `AdminPage` (staff login + schedule).
+
+### Salons (one shared database, strict separation)
+
+Many salons share one database. Leaking one salon's clients or bookings to another is the worst possible bug, so the database enforces the separation and tests prove it:
+
+- `public.salons` lists the salons. **Every salon-owned table has `salon_id text not null` with a foreign key to `salons`, no default, and row-level security on.** Links between tables carry the salon too (composite FKs on `(salon_id, id)`), so a booking can't use another salon's service or stylist. Service/stylist ids stay globally unique.
+- **Staff belong to one salon** (`private.staff (user_id, salon_id)`). `private.my_salon()` returns the caller's salon. **Owner (`admin_*`) functions never take a salon id from the browser**; they use `my_salon()`, and an id from another salon behaves exactly like one that doesn't exist (`not_found` / `unknown_service` / no rows). Staff booking functions are `security invoker` under RLS on `private.bookings`; functions that need elevated rights (public booking, push) stay `security definer` with explicit salon scoping.
+- **Public functions take `p_salon_id`** (`get_slots`, `create_booking`); abuse limits count per salon. The frontend sends `SALON_ID` from `src/data/salon.ts` and filters public reads with `.eq('salon_id', SALON_ID)`.
+- `/admin` checks `admin_my_salon()`: staff of another salon see only `admin.otherSalon`.
+- Push subscriptions and notifications are per salon.
+- **Adding a table or a public function:** give the table a NOT NULL `salon_id` FK + RLS + policies; add isolation tests for the function in `supabase/tests/database/10_isolation.test.sql` **and** register its name in `11_guard.test.sql`. The guard test fails otherwise.
+- Avoid the old habit of ending a migration with `revoke execute on all functions in schema private …`: it strips `authenticated`'s grants on `my_salon`, `is_staff`, `normalize_phone`, `staff_slot`, `slot_start`, which the invoker staff functions need. Revoke specific functions instead.
 
 Two cross-cutting systems drive almost everything:
 
@@ -55,7 +67,7 @@ The SQL functions own the business rules (Algiers time, 09:00–18:00, closed Su
 
 ### Staff admin — `/admin`
 
-`AdminPage` uses `useSession()` from `src/lib/auth.ts` (Supabase Auth, email + password). The owner is the main user, mostly on her phone. Logged in, `Schedule.tsx` shows a week strip (`admin/WeekStrip.tsx`), a pending-count badge, and the day as one column per stylist (`admin/DayColumns.tsx`), loading a week at a time via `admin_list_bookings` (`useAdminBookings(from, to)`, `src/data/admin.ts`). Tapping free time or **+** opens `admin/BookingSheet.tsx` to add a booking (`admin_create_booking`); tapping a booking opens it to edit/move (`admin_update_booking`) or confirm/cancel (`admin_set_booking_status`), after which the sheet offers a pre-written WhatsApp message to the client in their language (`src/data/whatsapp.ts`). Owner rules differ from online ones: any stylist can do any service, 15-minute steps, past dates allowed, no 14-day window; hours, closed days and no-overlap still apply. `private.bookings.source` is `online` or `staff`, and online abuse limits only count `online` bookings. All admin RPCs raise `not_authorized` for non-staff. Staff accounts are created in the Supabase dashboard, then `insert into private.staff (user_id) …`.
+`AdminPage` uses `useSession()` from `src/lib/auth.ts` (Supabase Auth, email + password). The owner is the main user, mostly on her phone. Logged in, `Schedule.tsx` shows a week strip (`admin/WeekStrip.tsx`), a pending-count badge, and the day as one column per stylist (`admin/DayColumns.tsx`), loading a week at a time via `admin_list_bookings` (`useAdminBookings(from, to)`, `src/data/admin.ts`). Tapping free time or **+** opens `admin/BookingSheet.tsx` to add a booking (`admin_create_booking`); tapping a booking opens it to edit/move (`admin_update_booking`) or confirm/cancel (`admin_set_booking_status`), after which the sheet offers a pre-written WhatsApp message to the client in their language (`src/data/whatsapp.ts`). Owner rules differ from online ones: any stylist can do any service, 15-minute steps, past dates allowed, no 14-day window; hours, closed days and no-overlap still apply. `private.bookings.source` is `online` or `staff`, and online abuse limits only count `online` bookings. All admin RPCs raise `not_authorized` for non-staff. Staff accounts are created in the Supabase dashboard, then `insert into private.staff (user_id, salon_id) values ('<auth user id>', '<salon id>');` (e.g. `'elegance'`).
 
 ### Booking notifications (Web Push)
 

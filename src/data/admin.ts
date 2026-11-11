@@ -68,6 +68,23 @@ export function isNotAuthorized(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { message?: unknown }).message === 'not_authorized';
 }
 
+/** The salon id the signed-in staff member belongs to (raises not_authorized for non-staff). */
+export async function fetchMySalon(): Promise<string> {
+  const { data, error } = await supabase.rpc('admin_my_salon');
+  if (error) throw error;
+  return data as string;
+}
+
+/** Keyed by user id so a different account on the same device never sees a cached salon. */
+export function useMySalon(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['admin', 'my-salon', userId],
+    enabled: !!userId,
+    queryFn: fetchMySalon,
+    staleTime: Infinity,
+  });
+}
+
 export async function fetchAdminBookings(from: Date, to: Date): Promise<AdminBooking[]> {
   const { data, error } = await supabase.rpc('admin_list_bookings', { p_from: toYmd(from), p_to: toYmd(to) });
   if (error) throw error;
