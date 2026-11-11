@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(66);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -22,10 +22,12 @@ reset role;
 select is((select salon_id || ' ' || active || ' ' || icon || ' ' || image from public.services where id = (select v from pg_temp.ids where k = 'svc')),
           'elegance true sparkles ', 'create service: own salon, active, beaute icon');
 select is((select icon from public.services where id = (select v from pg_temp.ids where k = 'svc2')), 'scissors', 'create service: coiffure icon');
+select is((select name ->> 'ar' from public.services where id = (select v from pg_temp.ids where k = 'svc')), 'Soin test', 'empty Arabic name stored as the French');
 set local role authenticated;
-select lives_ok(format($$ select public.admin_save_service(%L, '{"fr":"Soin test 2","ar":"x"}', '{"fr":"d","ar":"d"}', 'beaute', 3500, 60, 9) $$, (select v from pg_temp.ids where k = 'svc')), 'update service');
+select lives_ok(format($$ select public.admin_save_service(%L, '{"fr":"Soin test 2","ar":"x"}', '{"fr":"Desc","ar":"  "}', 'beaute', 3500, 60, 9) $$, (select v from pg_temp.ids where k = 'svc')), 'update service');
 reset role;
 select is((select price || ' ' || duration || ' ' || (name ->> 'fr') from public.services where id = (select v from pg_temp.ids where k = 'svc')), '3500 60 Soin test 2', 'update changes the row');
+select is((select description ->> 'ar' from public.services where id = (select v from pg_temp.ids where k = 'svc')), 'Desc', 'empty Arabic description stored as the French');
 set local role authenticated;
 select throws_ok($$ select public.admin_save_service(null, '{"fr":"A","ar":""}', '{}', 'beaute', 1000, 30, 0) $$, 'P0001', 'invalid_name', 'name too short');
 select throws_ok($$ select public.admin_save_service(null, '{"fr":"Valide","ar":""}', '{}', 'autre', 1000, 30, 0) $$, 'P0001', 'invalid_name', 'unknown category');
@@ -50,11 +52,12 @@ select is((select count(*)::int from public.stylist_workdays where stylist_id = 
 select is((select count(*)::int from public.stylist_services where stylist_id = (select v from pg_temp.ids where k = 'sty') and salon_id = 'elegance'), 2, 'new stylist: 2 services');
 select is((select salon_id || ' ' || active from public.stylists where id = (select v from pg_temp.ids where k = 'sty')), 'elegance true', 'new stylist in own salon, active');
 set local role authenticated;
-select public.admin_save_stylist((select v from pg_temp.ids where k = 'sty'), 'Lina B', '{"fr":"Coloriste","ar":"x"}', array[(select v from pg_temp.ids where k = 'svc')], array[4, 5, 6]::smallint[]);
+select public.admin_save_stylist((select v from pg_temp.ids where k = 'sty'), 'Lina B', '{"fr":"Coloriste","ar":""}', array[(select v from pg_temp.ids where k = 'svc')], array[4, 5, 6]::smallint[]);
 reset role;
 select is((select array_agg(weekday order by weekday) from public.stylist_workdays where stylist_id = (select v from pg_temp.ids where k = 'sty')), array[4, 5, 6]::smallint[], 'update replaces workdays');
 select is((select count(*)::int from public.stylist_services where stylist_id = (select v from pg_temp.ids where k = 'sty')), 1, 'update replaces services');
 select is((select name from public.stylists where id = (select v from pg_temp.ids where k = 'sty')), 'Lina B', 'update renames');
+select is((select role ->> 'ar' from public.stylists where id = (select v from pg_temp.ids where k = 'sty')), 'Coloriste', 'empty Arabic role stored as the French');
 set local role authenticated;
 select throws_ok($$ select public.admin_save_stylist(null, 'Zoé', '{"fr":"x","ar":"x"}', '{}', array[8]::smallint[]) $$, 'P0001', 'invalid_weekday', 'weekday 8');
 select throws_ok($$ select public.admin_save_stylist(null, 'Z', '{"fr":"x","ar":"x"}', '{}', '{}') $$, 'P0001', 'invalid_name', 'stylist name too short');
@@ -116,6 +119,10 @@ select throws_ok($$ select public.admin_save_salon_info('{}', '{}', '021123456',
 select throws_ok($$ select public.admin_save_salon_info('{}', '{}', null, 'http://x', null) $$, 'P0001', 'invalid_url', 'non-https url');
 reset role;
 select is((select instagram_url from public.salons where id = 'elegance'), null, 'empty instagram stored as null');
+set local role authenticated;
+select public.admin_save_salon_info('{"fr":"5 rue Y","ar":""}', '{"fr":"Oran","ar":"  "}', null, null, null) is null as x \gset
+reset role;
+select is((select (address ->> 'ar') || ' / ' || (city ->> 'ar') from public.salons where id = 'elegance'), '5 rue Y / Oran', 'empty Arabic address and city stored as the French');
 
 -- affected bookings (Thursday 2030-01-10 closes at 13:00)
 insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status)

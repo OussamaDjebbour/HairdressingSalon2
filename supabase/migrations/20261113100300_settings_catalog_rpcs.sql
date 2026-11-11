@@ -10,11 +10,18 @@ as $$
 declare
   v_salon text := private.my_salon();
   v_id    text := p_id;
+  v_name_fr text := btrim(coalesce(p_name ->> 'fr', ''));
+  v_desc_fr text := btrim(coalesce(p_description ->> 'fr', ''));
+  -- An empty Arabic text falls back to the French one.
+  v_name  jsonb := jsonb_build_object('fr', v_name_fr,
+                     'ar', coalesce(nullif(btrim(coalesce(p_name ->> 'ar', '')), ''), v_name_fr));
+  v_desc  jsonb := case when p_description is not null then jsonb_build_object('fr', v_desc_fr,
+                     'ar', coalesce(nullif(btrim(coalesce(p_description ->> 'ar', '')), ''), v_desc_fr)) end;
 begin
   if v_salon is null then
     raise exception 'not_authorized' using errcode = 'P0001';
   end if;
-  if length(btrim(coalesce(p_name ->> 'fr', ''))) not between 2 and 80
+  if length(v_name_fr) not between 2 and 80
      or p_category is null or p_category not in ('coiffure', 'beaute') then
     raise exception 'invalid_name' using errcode = 'P0001';
   end if;
@@ -29,14 +36,13 @@ begin
     v_id := gen_random_uuid()::text;
     insert into public.services (id, salon_id, category, name, description, price, duration, image, icon, sort_order)
     values (v_id, v_salon, p_category,
-            jsonb_build_object('fr', btrim(p_name ->> 'fr'), 'ar', btrim(coalesce(p_name ->> 'ar', ''))),
-            coalesce(p_description, '{"fr":"","ar":""}'::jsonb), p_price, p_duration, '',
+            v_name, coalesce(v_desc, '{"fr":"","ar":""}'::jsonb), p_price, p_duration, '',
             case p_category when 'beaute' then 'sparkles' else 'scissors' end,
             coalesce(p_sort_order, 0));
   else
     update public.services s
-    set name = jsonb_build_object('fr', btrim(p_name ->> 'fr'), 'ar', btrim(coalesce(p_name ->> 'ar', ''))),
-        description = coalesce(p_description, s.description),
+    set name = v_name,
+        description = coalesce(v_desc, s.description),
         category = p_category, price = p_price, duration = p_duration,
         sort_order = coalesce(p_sort_order, s.sort_order)
     where s.id = p_id and s.salon_id = v_salon;
@@ -73,7 +79,10 @@ declare
   v_salon text := private.my_salon();
   v_id    text := p_id;
   v_name  text := btrim(coalesce(p_name, ''));
-  v_role  jsonb := jsonb_build_object('fr', btrim(coalesce(p_role ->> 'fr', '')), 'ar', btrim(coalesce(p_role ->> 'ar', '')));
+  v_role_fr text := btrim(coalesce(p_role ->> 'fr', ''));
+  -- An empty Arabic role falls back to the French one.
+  v_role  jsonb := jsonb_build_object('fr', v_role_fr,
+                     'ar', coalesce(nullif(btrim(coalesce(p_role ->> 'ar', '')), ''), v_role_fr));
   v_services text[] := coalesce(p_service_ids, '{}'::text[]);
   v_days  smallint[] := coalesce(p_weekdays, '{}'::smallint[]);
 begin

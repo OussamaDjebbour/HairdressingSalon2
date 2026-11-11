@@ -107,8 +107,11 @@ begin
   if (v_ig is not null and v_ig !~ '^https://') or (v_fb is not null and v_fb !~ '^https://') then
     raise exception 'invalid_url' using errcode = 'P0001';
   end if;
-  v_addr := jsonb_build_object('fr', btrim(coalesce(p_address ->> 'fr', '')), 'ar', btrim(coalesce(p_address ->> 'ar', '')));
-  v_city := jsonb_build_object('fr', btrim(coalesce(p_city ->> 'fr', '')), 'ar', btrim(coalesce(p_city ->> 'ar', '')));
+  -- An empty Arabic text falls back to the French one.
+  v_addr := jsonb_build_object('fr', btrim(coalesce(p_address ->> 'fr', '')),
+              'ar', coalesce(nullif(btrim(coalesce(p_address ->> 'ar', '')), ''), btrim(coalesce(p_address ->> 'fr', ''))));
+  v_city := jsonb_build_object('fr', btrim(coalesce(p_city ->> 'fr', '')),
+              'ar', coalesce(nullif(btrim(coalesce(p_city ->> 'ar', '')), ''), btrim(coalesce(p_city ->> 'fr', ''))));
   if length(v_addr ->> 'fr') > 200 or length(v_addr ->> 'ar') > 200
      or length(v_city ->> 'fr') > 200 or length(v_city ->> 'ar') > 200 then
     raise exception 'invalid_name' using errcode = 'P0001';
