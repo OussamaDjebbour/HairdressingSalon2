@@ -4,14 +4,19 @@ import { Scissors, Globe, ArrowLeft, LogOut } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import { Schedule } from '../components/Schedule';
 import { useSession, signOut } from '../lib/auth';
+import { disablePush } from '../lib/push';
+import { useAdminManifest } from '../lib/manifest';
 import { LoginForm } from '../components/LoginForm';
 
 export function AdminPage() {
   const { lang, toggleLang, t } = useLang();
   const { session, loading } = useSession();
   const queryClient = useQueryClient();
+  useAdminManifest();
   const handleLogout = async () => {
     try {
+      // A logged-out device must not keep receiving client names.
+      await disablePush().catch(() => undefined);
       await signOut();
     } catch {
       // Session may still be active (e.g. offline); the header stays in its logged-in state so staff can retry.
