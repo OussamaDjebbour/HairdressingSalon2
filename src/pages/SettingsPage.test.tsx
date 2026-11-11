@@ -127,8 +127,8 @@ describe('SettingsPage', () => {
   });
 
   it('opens a placeholder sub-screen with a back link to the list', () => {
-    renderPage('/admin/settings/hours');
-    expect(screen.getByRole('heading', { name: 'Horaires' })).toBeInTheDocument();
+    renderPage('/admin/settings/info');
+    expect(screen.getByRole('heading', { name: 'Infos du salon' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Retour' })).toHaveAttribute('href', '/admin/settings');
   });
 });
