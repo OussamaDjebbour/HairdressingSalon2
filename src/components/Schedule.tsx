@@ -7,9 +7,10 @@ import {
 import { useLang } from '../context/LanguageContext';
 import { toYmd } from '../data/bookings';
 import {
-  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings,
+  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings, useMySalon,
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
+import { SALON_ID } from '../data/salon';
 import { useStylists } from '../data/queries';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
 import { CLOSING_HOUR, OPENING_HOUR } from '../data/hours';
@@ -85,6 +86,7 @@ export function Schedule() {
   const [day, setDay] = useState(() => parseYmd(searchParams.get('day')) ?? algiersToday());
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const stylists = useStylists().data ?? [];
+  const mySalon = useMySalon();
 
   const today = algiersToday();
   const week = weekDays(day);
@@ -130,6 +132,15 @@ export function Schedule() {
     const onDate = (weekQuery.data ?? []).filter((b) => toYmd(salonDate(b.startsAt)) === toYmd(date));
     setSheet({ mode: 'add', stylistId, date, time: firstFreeTime(onDate, stylistId, toYmd(date) === toYmd(today)) });
   };
+
+  // Staff of another salon must never see this salon's schedule.
+  if (mySalon.isLoading) return <section id="schedule" className="py-20" aria-busy="true" />;
+  if (mySalon.isError && isNotAuthorized(mySalon.error)) {
+    return <p className="text-center text-rose-600 py-20 px-4">{t('admin.notAuthorized')}</p>;
+  }
+  if (mySalon.data !== undefined && mySalon.data !== SALON_ID) {
+    return <p className="text-center text-rose-600 py-20 px-4">{t('admin.otherSalon')}</p>;
+  }
 
   if (weekQuery.isError && isNotAuthorized(weekQuery.error)) {
     return <p className="text-center text-rose-600 py-20 px-4">{t('admin.notAuthorized')}</p>;
