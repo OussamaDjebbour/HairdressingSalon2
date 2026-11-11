@@ -11,8 +11,8 @@ create function pg_temp.open_day(n int default 1) returns date language sql as $
 create function pg_temp.book(p_stylist text, p_day date, p_time time, p_phone text,
                              p_status text default 'pending', p_ip inet default null)
 returns void language sql as $$
-  insert into private.bookings (service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, client_ip, lang, status)
-  values ('coupe-femme', p_stylist,
+  insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, client_ip, lang, status)
+  values ('elegance', 'coupe-femme', p_stylist,
           (p_day + p_time) at time zone 'Africa/Algiers',
           ((p_day + p_time) at time zone 'Africa/Algiers') + interval '60 minutes',
           2500, 'Seed Client', p_phone, p_ip, 'fr', p_status) $$;
@@ -37,7 +37,7 @@ select throws_ok($$ select * from public.create_booking('elegance', 'coupe-femme
 
 -- conflicts and auto-assign
 select throws_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(), '09:30', 'Amel', '0555123456', 'fr') $$, 'P0001', 'slot_taken', 'overlap with existing booking');
-insert into public.stylist_services values ('leila', 'coupe-femme');
+insert into public.stylist_services (salon_id, stylist_id, service_id) values ('elegance', 'leila', 'coupe-femme');
 select is((select stylist_id from public.create_booking('elegance', 'coupe-femme', null, pg_temp.open_day(), '09:00', 'Rym', '0666123456', 'fr')),
           'leila', 'no preference skips busy stylist');
 select throws_ok($$ select * from public.create_booking('elegance', 'coupe-femme', null, pg_temp.open_day(), '09:00', 'Lina', '0666999999', 'fr') $$, 'P0001', 'slot_taken', 'no offering stylist free (sara never considered)');

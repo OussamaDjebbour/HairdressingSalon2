@@ -14,7 +14,7 @@ values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@test.local'),
   ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'random@test.local'),
   ('44444444-4444-4444-4444-444444444444', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rival@test.local');
-insert into private.staff (user_id) values ('11111111-1111-1111-1111-111111111111');
+insert into private.staff (user_id, salon_id) values ('11111111-1111-1111-1111-111111111111', 'elegance');
 insert into private.staff (user_id, salon_id) values ('44444444-4444-4444-4444-444444444444', 'rival');
 
 create function pg_temp.act_as(p_uid text) returns void language sql as $$

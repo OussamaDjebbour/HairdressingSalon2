@@ -12,9 +12,9 @@ create function pg_temp.book(p_stylist text, p_day date, p_time time, p_phone te
 returns void language plpgsql as $$
 begin
   execute format(
-    'insert into private.bookings (service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, source)
-     values (%L, %L, %L, %L, 2500, %L, %L, %L, %L)',
-    'coupe-femme', p_stylist,
+    'insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, source)
+     values (%L, %L, %L, %L, %L, 2500, %L, %L, %L, %L)',
+    'elegance', 'coupe-femme', p_stylist,
     (p_day + p_time) at time zone 'Africa/Algiers',
     ((p_day + p_time) at time zone 'Africa/Algiers') + interval '60 minutes',
     'Seed Client', p_phone, 'fr', p_source);
@@ -24,7 +24,7 @@ create function pg_temp.act_as(p_uid text) returns void language sql as $$
 
 insert into auth.users (id, instance_id, aud, role, email)
 values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@test.local');
-insert into private.staff (user_id) values ('11111111-1111-1111-1111-111111111111');
+insert into private.staff (user_id, salon_id) values ('11111111-1111-1111-1111-111111111111', 'elegance');
 
 select has_column('private', 'bookings', 'source', 'bookings.source exists');
 

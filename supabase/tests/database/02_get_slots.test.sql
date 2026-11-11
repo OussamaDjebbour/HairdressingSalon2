@@ -21,8 +21,8 @@ create function pg_temp.next_monday() returns date language sql as $$
   where extract(isodow from d) = 1 limit 1 $$;
 create function pg_temp.book(p_stylist text, p_day date, p_time time, p_minutes int, p_status text default 'pending')
 returns void language sql as $$
-  insert into private.bookings (service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status)
-  values ('coupe-femme', p_stylist,
+  insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status)
+  values ('elegance', 'coupe-femme', p_stylist,
           (p_day + p_time) at time zone 'Africa/Algiers',
           ((p_day + p_time) at time zone 'Africa/Algiers') + make_interval(mins => p_minutes),
           2500, 'Seed Client', '0555999999', 'fr', p_status) $$;
@@ -60,7 +60,7 @@ select is((select available from public.get_slots('elegance', pg_temp.open_day()
 select is((select available from public.get_slots('elegance', pg_temp.open_day(), 'coupe-femme', 'amina') where slot = '11:00'), true, 'adjacent slot available');
 
 -- "no preference": free while any offering stylist is free
-insert into public.stylist_services values ('leila', 'coupe-femme');
+insert into public.stylist_services (salon_id, stylist_id, service_id) values ('elegance', 'leila', 'coupe-femme');
 select is((select available from public.get_slots('elegance', pg_temp.open_day(), 'coupe-femme') where slot = '10:00'), true, 'no preference: another offering stylist is free');
 
 -- validation

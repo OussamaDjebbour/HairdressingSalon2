@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(34);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -45,7 +45,7 @@ values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@test.local'),
   ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'random@test.local'),
   ('44444444-4444-4444-4444-444444444444', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rival@test.local');
-insert into private.staff (user_id) values ('11111111-1111-1111-1111-111111111111');
+insert into private.staff (user_id, salon_id) values ('11111111-1111-1111-1111-111111111111', 'elegance');
 insert into private.staff (user_id, salon_id) values ('44444444-4444-4444-4444-444444444444', 'rival');
 
 insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status)
@@ -124,6 +124,23 @@ set local role authenticated;
 select public.admin_delete_push_subscription('https://push/rival');
 reset role;
 select is((select count(*)::int from private.push_subscriptions where endpoint = 'https://push/rival'), 1, 'staff cannot delete another salon''s subscription');
+
+-- admin_my_salon: callable only by staff, always returns the caller's own salon
+set local role anon;
+select throws_ok($$ select public.admin_my_salon() $$, '42501', null, 'anon cannot call admin_my_salon');
+reset role;
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select is(public.admin_my_salon(), 'elegance', 'Élégance staff sees elegance');
+reset role;
+select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
+set local role authenticated;
+select is(public.admin_my_salon(), 'rival', 'Rival staff sees rival');
+reset role;
+select pg_temp.act_as('22222222-2222-2222-2222-222222222222');
+set local role authenticated;
+select throws_ok($$ select public.admin_my_salon() $$, 'P0001', 'not_authorized', 'non-staff refused');
+reset role;
 
 select * from finish();
 rollback;

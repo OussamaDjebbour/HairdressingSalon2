@@ -6,10 +6,10 @@ insert into auth.users (id, instance_id, aud, role, email)
 values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@test.local'),
   ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'random@test.local');
-insert into private.staff (user_id) values ('11111111-1111-1111-1111-111111111111');
+insert into private.staff (user_id, salon_id) values ('11111111-1111-1111-1111-111111111111', 'elegance');
 
-insert into private.bookings (id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang)
-values ('aaaaaaaa-0000-0000-0000-000000000001', 'coupe-femme', 'amina',
+insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang)
+values ('aaaaaaaa-0000-0000-0000-000000000001', 'elegance', 'coupe-femme', 'amina',
         '2030-01-08 09:00+01', '2030-01-08 10:00+01', 2500, 'Yasmine', '0555123456', 'fr');
 
 create function pg_temp.act_as(p_uid text) returns void language sql as $$
@@ -41,8 +41,8 @@ select throws_ok($$ select public.admin_set_booking_status('aaaaaaaa-0000-0000-0
 reset role;
 
 -- re-confirming a cancelled booking whose slot was taken meanwhile
-insert into private.bookings (service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang)
-values ('coupe-femme', 'amina', '2030-01-08 09:00+01', '2030-01-08 10:00+01', 2500, 'Other', '0666123456', 'fr');
+insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang)
+values ('elegance', 'coupe-femme', 'amina', '2030-01-08 09:00+01', '2030-01-08 10:00+01', 2500, 'Other', '0666123456', 'fr');
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select throws_ok($$ select public.admin_set_booking_status('aaaaaaaa-0000-0000-0000-000000000001', 'confirmed') $$, 'P0001', 'slot_taken', 're-confirm conflict');
