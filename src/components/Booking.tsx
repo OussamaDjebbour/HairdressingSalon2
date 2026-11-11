@@ -27,17 +27,19 @@ export function Booking() {
   const { lang, t } = useLang();
   const servicesQuery = useServices();
   const stylistsQuery = useStylists();
-  const salonHours = useSalonHours().data;
-  const closedDates = useClosedDates().data;
+  const hoursQuery = useSalonHours();
+  const closedQuery = useClosedDates();
+  const salonHours = hoursQuery.data;
+  const closedDates = closedQuery.data;
   const whatsapp = useSalonInfo().data?.whatsapp;
   const waNumber = whatsapp ? toWaNumber(whatsapp) : null;
   const services = servicesQuery.data ?? [];
   const stylists = stylistsQuery.data ?? [];
-  const dataLoading = servicesQuery.isLoading || stylistsQuery.isLoading;
-  const dataError = servicesQuery.isError || stylistsQuery.isError;
+  const queries = [servicesQuery, stylistsQuery, hoursQuery, closedQuery];
+  const dataLoading = queries.some((q) => q.isLoading);
+  const dataError = queries.some((q) => q.isError);
   const retryData = () => {
-    servicesQuery.refetch();
-    stylistsQuery.refetch();
+    for (const q of queries) if (q.isError) q.refetch();
   };
   const [step, setStep] = useState<Step>(0);
   const [selectedService, setSelectedService] = useState<Service | null>(null);

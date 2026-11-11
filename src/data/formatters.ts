@@ -59,3 +59,9 @@ export function formatShortDate(date: Date): string {
 export function formatTime(time: string): string {
   return time;
 }
+
+/** "0561234567" → "0561 23 45 67" (other shapes are returned as given). */
+export function formatPhone(phone: string): string {
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(phone.replace(/\s/g, ''));
+  return m ? m.slice(1).join(' ') : phone;
+}
