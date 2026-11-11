@@ -251,9 +251,8 @@ function useSettingsWrite<TInput, TResult>(
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
-    onSuccess: () => {
-      for (const queryKey of keys) queryClient.invalidateQueries({ queryKey });
-    },
+    // Returning the promise keeps the mutation pending until fresh data is in, so screens never flash old values.
+    onSuccess: () => Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))),
   });
 }
 

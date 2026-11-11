@@ -119,6 +119,27 @@ describe('SettingsPage', () => {
     expect(screen.getByText('Ce compte appartient à un autre salon.')).toBeInTheDocument();
   });
 
+  it('keeps a verified screen when a background refetch of the salon fails', () => {
+    mySalon = { data: 'elegance', isLoading: false, isError: true, error: new Error('network') };
+    renderPage();
+    expect(screen.getByText('Horaires')).toBeInTheDocument();
+    expect(screen.queryByText('Réessayer')).not.toBeInTheDocument();
+  });
+
+  it('fails closed with a retry when the salon check fails before any data', () => {
+    mySalon = { data: undefined, isLoading: false, isError: true, error: new Error('network') };
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
+    expect(screen.queryByText('Horaires')).not.toBeInTheDocument();
+  });
+
+  it('shows the not-authorized message even over cached salon data', () => {
+    mySalon = { data: 'elegance', isLoading: false, isError: true, error: { message: 'not_authorized' } };
+    renderPage();
+    expect(screen.getByText('Ce compte n’a pas accès à l’espace salon.')).toBeInTheDocument();
+    expect(screen.queryByText('Horaires')).not.toBeInTheDocument();
+  });
+
   it('shows the login form when logged out', () => {
     loggedOut = true;
     renderPage();
