@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(30);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -96,6 +96,34 @@ reset role;
 set local role anon;
 select throws_ok($$ select count(*) from private.bookings $$, '42501', null, 'anon has no access to private');
 reset role;
+
+-- push notifications stay within the booking's salon
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select public.admin_save_push_subscription('https://push/elegance', 'k1', 'a1', 'fr');
+reset role;
+select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
+set local role authenticated;
+select public.admin_save_push_subscription('https://push/rival', 'k2', 'a2', 'fr');
+reset role;
+select is((select string_agg(endpoint || '=' || salon_id, ',' order by endpoint) from private.push_subscriptions),
+          'https://push/elegance=elegance,https://push/rival=rival', 'subscriptions are stored under the saver''s salon');
+
+select vault.create_secret('http://example.invalid/notify', 'notify_booking_url');
+select vault.create_secret('s3cret', 'notify_booking_secret');
+insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, source)
+values ('rival', 'rival-cut', 'nadia', '2030-02-05 10:00+01', '2030-02-05 11:00+01', 1000, 'Push Client', '0555111222', 'fr', 'online');
+create function pg_temp.last_body() returns jsonb language sql as $$
+  select convert_from(body, 'utf8')::jsonb from net.http_request_queue order by id desc limit 1 $$;
+select ok((pg_temp.last_body() -> 'subscriptions') @> '[{"endpoint": "https://push/rival"}]'::jsonb, 'push goes to the booking''s salon staff');
+select ok(not ((pg_temp.last_body() -> 'subscriptions') @> '[{"endpoint": "https://push/elegance"}]'::jsonb), 'push never goes to another salon''s staff');
+select is(pg_temp.last_body() -> 'booking' ->> 'salon_name', 'Rival', 'payload carries the salon name');
+
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select public.admin_delete_push_subscription('https://push/rival');
+reset role;
+select is((select count(*)::int from private.push_subscriptions where endpoint = 'https://push/rival'), 1, 'staff cannot delete another salon''s subscription');
 
 select * from finish();
 rollback;
