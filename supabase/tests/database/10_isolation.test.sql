@@ -15,6 +15,11 @@ insert into public.services (id, salon_id, category, name, description, price, d
 insert into public.stylists (id, salon_id, name, role, image)
   values ('nadia', 'rival', 'Nadia', '{"fr":"Coiffeuse","ar":"مصففة"}', 'x');
 insert into public.stylist_services (salon_id, stylist_id, service_id) values ('rival', 'nadia', 'rival-cut');
+-- rival opens and nadia works Tue–Sat 09:00–18:00, like elegance
+insert into public.salon_hours (salon_id, weekday, opens, closes)
+  select 'rival', d, case when d between 2 and 6 then time '09:00' end, case when d between 2 and 6 then time '18:00' end
+  from generate_series(1, 7) d;
+insert into public.stylist_workdays (salon_id, stylist_id, weekday) select 'rival', 'nadia', d from generate_series(2, 6) d;
 
 select throws_ok($$ select * from public.get_slots('elegance', pg_temp.open_day(), 'rival-cut') $$, 'P0001', 'unknown_service', 'get_slots: other salon''s service');
 select throws_ok($$ select * from public.get_slots('elegance', pg_temp.open_day(), 'coupe-femme', 'nadia') $$, 'P0001', 'unknown_service', 'get_slots: other salon''s stylist');
