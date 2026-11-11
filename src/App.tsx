@@ -4,6 +4,8 @@ import { queryClient } from './lib/queryClient';
 import { LanguageProvider } from './context/LanguageContext';
 import { HomePage } from './pages/HomePage';
 import { AdminPage } from './pages/AdminPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { SettingsSectionPage } from './pages/SettingsSectionPage';
 
 function App() {
   return (
@@ -13,6 +15,8 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/settings" element={<SettingsPage />} />
+            <Route path="/admin/settings/:section" element={<SettingsSectionPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

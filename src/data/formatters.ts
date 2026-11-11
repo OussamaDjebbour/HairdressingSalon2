@@ -50,6 +50,11 @@ export function formatLongDate(date: Date, lang: Lang = 'fr'): string {
   return `${day} ${dayNum} ${month}`;
 }
 
+/** "16 mars" / "16 مارس". */
+export function formatDayMonth(date: Date, lang: Lang = 'fr'): string {
+  return `${date.getDate()} ${monthNames[lang][date.getMonth()]}`;
+}
+
 export function formatShortDate(date: Date): string {
   const d = String(date.getDate()).padStart(2, '0');
   const m = String(date.getMonth() + 1).padStart(2, '0');

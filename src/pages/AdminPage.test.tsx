@@ -47,3 +47,10 @@ describe('AdminPage logout', () => {
     await waitFor(() => expect(calls).toEqual(['disablePush', 'signOut']));
   });
 });
+
+describe('AdminPage', () => {
+  it('no longer shows the notifications card (it lives in the settings)', () => {
+    renderPage();
+    expect(screen.queryByText('Notifications des réservations')).not.toBeInTheDocument();
+  });
+});

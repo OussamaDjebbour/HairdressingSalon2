@@ -22,7 +22,6 @@ import { Badge } from './Badge';
 import { WeekStrip } from './admin/WeekStrip';
 import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
-import { NotificationsCard } from './admin/NotificationsCard';
 
 // Online bookings are at most today + 13 days, but the owner can move a waiting one further out;
 // 30 days stays within admin_list_bookings' 31-day range cap.
@@ -200,8 +199,6 @@ export function Schedule({ userId }: { userId: string }) {
             </button>
           </div>
         )}
-
-        <NotificationsCard />
 
         {settingsReady && (
           <div className="max-w-3xl mx-auto mb-6">
