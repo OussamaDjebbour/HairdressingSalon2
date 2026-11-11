@@ -23,13 +23,24 @@ function ServiceCard({ service }: { service: Service }) {
   return (
     <article className="group flex flex-col bg-white rounded-2xl border border-cream-200 overflow-hidden transition-all duration-300 ease-silk hover:shadow-lift hover:-translate-y-0.5 hover:border-gold-200">
       <div className="relative overflow-hidden">
-        <SmartImage
-          src={service.image}
-          alt={service.name[lang]}
-          aspect="aspect-[16/11]"
-          rounded="rounded-none"
-          className="group-hover:scale-[1.04] transition-transform duration-700 ease-silk"
-        />
+        {service.image ? (
+          <SmartImage
+            src={service.image}
+            alt={service.name[lang]}
+            aspect="aspect-[16/11]"
+            rounded="rounded-none"
+            className="group-hover:scale-[1.04] transition-transform duration-700 ease-silk"
+          />
+        ) : (
+          // A service added in the settings has no photo yet: show its category icon instead of a shimmer.
+          <div
+            role="img"
+            aria-label={service.name[lang]}
+            className="aspect-[16/11] flex items-center justify-center bg-cream-100"
+          >
+            <Icon className="w-12 h-12 text-gold-500" strokeWidth={1.4} aria-hidden="true" />
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-rose-900/15 to-transparent" />
       </div>
 

@@ -21,6 +21,10 @@ const iconMap: Record<string, typeof Scissors> = {
   hand: Hand, brush: Brush, heart: Heart,
 };
 
+/** Up to two initials, e.g. "Lina Benali" → "LB" (Array.from keeps accented and Arabic letters whole). */
+const initials = (name: string) =>
+  name.trim().split(/\s+/).slice(0, 2).map((w) => Array.from(w)[0] ?? '').join('').toUpperCase();
+
 type Step = 0 | 1 | 2 | 3;
 
 export function Booking() {
@@ -348,13 +352,23 @@ export function Booking() {
                       }`}
                     >
                       <div className="relative">
-                        <SmartImage
-                          src={stylist.image}
-                          alt={stylist.name}
-                          aspect="aspect-square"
-                          rounded="rounded-full"
-                          className="w-16 h-16"
-                        />
+                        {stylist.image ? (
+                          <SmartImage
+                            src={stylist.image}
+                            alt={stylist.name}
+                            aspect="aspect-square"
+                            rounded="rounded-full"
+                            className="w-16 h-16"
+                          />
+                        ) : (
+                          // A stylist added in the settings has no photo yet: show her initials.
+                          <div
+                            aria-hidden="true"
+                            className="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center font-display text-xl font-semibold text-rose-700"
+                          >
+                            {initials(stylist.name)}
+                          </div>
+                        )}
                         {isSelected && (
                           <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center border-2 border-white">
                             <Check className="w-3.5 h-3.5 text-cream-50" strokeWidth={3} />
