@@ -62,3 +62,19 @@ describe('Booking confirm errors', () => {
     expect(within(screen.getByRole('button', { name: '10:00' })).queryByText('10:00')).not.toBeNull();
   });
 });
+
+describe('Booking success screen', () => {
+  it('success screen promises a WhatsApp confirmation from the salon', () => {
+    mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) =>
+      opts.onSuccess({ bookingId: 'b1', stylistId: 'amina' })
+    );
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    expect(screen.getByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Envoyer sur WhatsApp' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Une question ? Écrivez-nous sur WhatsApp' })).toHaveAttribute(
+      'href',
+      'https://wa.me/213561234567'
+    );
+  });
+});

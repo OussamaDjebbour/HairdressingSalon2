@@ -1,37 +1,36 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { AdminBooking } from '../data/admin';
+import { adminBooking } from './admin/fixtures';
 
-const mutate = vi.fn();
-let bookings: AdminBooking[] = [];
+vi.mock('../data/queries', async () => {
+  const f = await import('./admin/fixtures');
+  return {
+    useServices: () => ({ data: f.services, isLoading: false, isError: false }),
+    useStylists: () => ({ data: f.stylists, isLoading: false, isError: false }),
+  };
+});
+
+const setStatus = vi.fn();
+let weekBookings: AdminBooking[] = [];
+let pendingBookings: AdminBooking[] = [];
+const rangeCalls: Array<[string, string]> = [];
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 vi.mock('../data/admin', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/admin')>()),
-  useAdminBookings: () => ({ data: bookings, isLoading: false, isError: false, error: null, refetch: vi.fn() }),
-  useSetBookingStatus: () => ({ mutate, isPending: false }),
+  // The week query spans 6 days; the pending query spans 14 days from today.
+  useAdminBookings: (from: Date, to: Date) => (rangeCalls.push([from.toDateString(), to.toDateString()]), {
+    data: Math.round((to.getTime() - from.getTime()) / DAY_MS) === 6 ? weekBookings : pendingBookings,
+    isLoading: false, isError: false, error: null, refetch: vi.fn(),
+  }),
+  useSetBookingStatus: () => ({ mutate: setStatus, isPending: false }),
+  useCreateStaffBooking: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateStaffBooking: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { LanguageProvider } from '../context/LanguageContext';
 import { Schedule } from './Schedule';
-
-function booking(status: AdminBooking['status'], overrides: Partial<AdminBooking> = {}): AdminBooking {
-  const startsAt = new Date();
-  startsAt.setHours(10, 0, 0, 0);
-  return {
-    id: 'b1', startsAt, endsAt: new Date(startsAt.getTime() + 60 * 60000), status, price: 2500,
-    clientName: 'Yasmine', clientPhone: '0555123456', lang: 'fr', serviceId: 'coupe-femme',
-    serviceName: { fr: 'Coupe & Brushing', ar: 'قص' }, stylistId: 'amina', stylistName: 'Amina',
-    ...overrides,
-  };
-}
-
-// The timeline block is the nearest absolutely-positioned ancestor of the client name
-// (the sidebar list has none).
-function timelineBlock(clientName: string): HTMLElement {
-  const block = screen.getAllByText(clientName).map((el) => el.closest<HTMLElement>('.absolute')).find(Boolean);
-  if (!block) throw new Error(`no timeline block for ${clientName}`);
-  return block;
-}
 
 function renderSchedule() {
   render(
@@ -41,36 +40,73 @@ function renderSchedule() {
   );
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2030-01-08T07:00:00Z')); // Tuesday 8 Jan 2030, 08:00 in Algiers
+  weekBookings = [];
+  pendingBookings = [];
+});
 
-describe('Schedule actions', () => {
-  it('a pending booking can be confirmed or cancelled', () => {
-    bookings = [booking('pending')];
+afterEach(() => vi.useRealTimers());
+
+describe('Schedule', () => {
+  it('renders one column per stylist', () => {
     renderSchedule();
-    expect(screen.getByRole('button', { name: /^Confirmer$/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Annuler$/ })).toBeInTheDocument();
+    expect(screen.getByText('Amina')).toBeInTheDocument();
+    expect(screen.getByText('Leila')).toBeInTheDocument();
+    expect(screen.getByText('Sara')).toBeInTheDocument();
   });
 
-  it('a cancelled booking can be restored (re-confirmed) after an accidental cancel', () => {
-    bookings = [booking('cancelled')];
+  it('tapping a booking opens the sheet in edit mode', () => {
+    weekBookings = [adminBooking()];
     renderSchedule();
-    expect(screen.queryByRole('button', { name: /^Annuler$/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /^Confirmer$/ }));
-    expect(mutate).toHaveBeenCalledWith({ id: 'b1', status: 'confirmed' }, expect.anything());
+    fireEvent.click(screen.getAllByRole('button', { name: /Yasmine/ })[0]);
+    expect(screen.getByRole('dialog', { name: 'Rendez-vous' })).toBeInTheDocument();
+  });
+
+  it('a cancelled booking can still be restored from the sheet', () => {
+    weekBookings = [adminBooking({ status: 'cancelled' })];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: /Yasmine/ })); // only the side list shows cancelled ones
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer/ }));
+    expect(setStatus).toHaveBeenCalledWith({ id: 'b1', status: 'confirmed' }, expect.anything());
+  });
+
+  it('+ opens the add sheet', () => {
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
+    expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
+  });
+
+  it('pending badge shows the count and jumps to that day', () => {
+    pendingBookings = [
+      adminBooking({ id: 'p2', startIso: '2030-01-11T09:00:00Z' }),
+      adminBooking({ id: 'p1', startIso: '2030-01-10T09:00:00Z' }),
+      adminBooking({ id: 'c1', startIso: '2030-01-09T09:00:00Z', status: 'confirmed' }),
+    ];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '2 en attente' }));
+    expect(screen.getAllByText('Jeudi 10 janvier').length).toBeGreaterThan(0);
+  });
+
+  it('hides the pending badge when nothing is waiting', () => {
+    renderSchedule();
+    expect(screen.queryByRole('button', { name: /en attente/ })).toBeNull();
   });
 });
 
-describe('Schedule timeline', () => {
-  it('draws same-time bookings for different stylists side by side, not on top of each other', () => {
-    bookings = [
-      booking('pending'),
-      booking('confirmed', { id: 'b2', clientName: 'Lina', stylistId: 'sara', stylistName: 'Sara' }),
-    ];
+describe('Schedule — polish', () => {
+  it('+ on a closed day opens the next open day', () => {
     renderSchedule();
-    const a = timelineBlock('Yasmine');
-    const b = timelineBlock('Lina');
-    expect(a.style.width).toContain('50%');
-    expect(b.style.width).toContain('50%');
-    expect(a.style.insetInlineStart).not.toBe(b.style.insetInlineStart);
+    fireEvent.click(screen.getByRole('button', { name: 'Jour précédent' })); // Monday 7 Jan: closed
+    fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
+    expect(screen.getByLabelText('Date')).toHaveValue('2030-01-08');
+  });
+
+  it('counts waiting bookings for the next 30 days (the owner can move them past 14)', () => {
+    rangeCalls.length = 0;
+    renderSchedule();
+    expect(rangeCalls).toContainEqual([new Date(2030, 0, 8).toDateString(), new Date(2030, 1, 7).toDateString()]);
   });
 });
