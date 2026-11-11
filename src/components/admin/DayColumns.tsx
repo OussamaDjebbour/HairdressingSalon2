@@ -87,10 +87,12 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
                 });
               // Each half-hour offers its free part: the whole half-hour, or just the free quarter next to a
               // booking that starts or ends at :15/:45. A hidden stylist can't take new bookings, so offers none.
+              // A quarter that would run past closing (hours ending on :15/:45) is never offered.
               const freeSlots = (stylist.active ? cells : []).flatMap((min) => {
-                const firstFree = !busy(min, min + QUARTER);
-                const secondFree = !busy(min + QUARTER, min + CELL_MINUTES);
-                if (firstFree && secondFree) return [{ min, length: CELL_MINUTES }];
+                const closes = hours?.closes ?? min;
+                const firstFree = min + QUARTER <= closes && !busy(min, min + QUARTER);
+                const secondFree = min + CELL_MINUTES <= closes && !busy(min + QUARTER, min + CELL_MINUTES);
+                if (firstFree && secondFree) return [{ min, length: Math.min(CELL_MINUTES, closes - min) }];
                 if (firstFree) return [{ min, length: QUARTER }];
                 if (secondFree) return [{ min: min + QUARTER, length: QUARTER }];
                 return [];

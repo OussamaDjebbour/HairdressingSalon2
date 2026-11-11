@@ -74,6 +74,18 @@ describe('DayColumns quarter hours', () => {
     expect(screen.getByRole('button', { name: 'Amina 11:15' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Amina 10:30' })).toBeNull();
   });
+
+  it('never offers free time past a closing time on :45', () => {
+    renderColumns([], undefined, { hours: { opens: 9 * 60, closes: 17 * 60 + 45 } });
+    const cells = screen.getAllByRole('button', { name: /^Sara / });
+    expect(cells[cells.length - 1]).toHaveAccessibleName('Sara 17:30');
+    expect(screen.queryByRole('button', { name: 'Sara 17:45' })).toBeNull();
+    // 17:45 is 8.75 hours after the 09:00 top of the grid, at 64 px per hour.
+    const closingPx = 8.75 * 64;
+    for (const cell of cells) {
+      expect(parseFloat(cell.style.top) + parseFloat(cell.style.height)).toBeLessThanOrEqual(closingPx);
+    }
+  });
 });
 
 describe('DayColumns follows the day', () => {
