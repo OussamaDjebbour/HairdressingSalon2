@@ -48,3 +48,7 @@ insert into stylist_services (salon_id, stylist_id, service_id) values
   ('elegance', 'leila', 'soin-visage'),
   ('elegance', 'sara',  'manucure')
 on conflict do nothing;
+
+insert into stylist_workdays (salon_id, stylist_id, weekday)
+select 'elegance', s, d from unnest(array['amina', 'leila', 'sara']) s cross join generate_series(2, 6) d
+on conflict do nothing;
