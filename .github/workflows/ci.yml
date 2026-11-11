@@ -24,6 +24,10 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+        env:
+          # Placeholders: src/lib/supabase.ts throws without them; tests mock every Supabase call.
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
 
       - uses: supabase/setup-cli@v1
         with:
