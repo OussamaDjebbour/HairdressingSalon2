@@ -14,8 +14,8 @@ export const stylists: Stylist[] = ['amina', 'leila', 'sara'].map((id) => ({
 }));
 
 export const services: Service[] = [
-  { id: 'coupe-femme', category: 'coiffure', name: { fr: 'Coupe & Brushing', ar: 'قص وتصفيف' }, description: { fr: '', ar: '' }, price: 2500, duration: 60, image: '', icon: 'scissors', active: true },
-  { id: 'manucure', category: 'beaute', name: { fr: 'Manucure', ar: 'مانيكير' }, description: { fr: '', ar: '' }, price: 1500, duration: 60, image: '', icon: 'hand', active: true },
+  { id: 'coupe-femme', category: 'coiffure', name: { fr: 'Coupe & Brushing', ar: 'قص وتصفيف' }, description: { fr: '', ar: '' }, price: 2500, duration: 60, image: '', icon: 'scissors', active: true, sortOrder: 1 },
+  { id: 'manucure', category: 'beaute', name: { fr: 'Manucure', ar: 'مانيكير' }, description: { fr: '', ar: '' }, price: 1500, duration: 60, image: '', icon: 'hand', active: true, sortOrder: 2 },
 ];
 
 /** Élégance's hours: closed Monday and Sunday, 09:00-18:00 otherwise. */

@@ -10,6 +10,7 @@ export interface Service {
   image: string;
   icon: string;
   active: boolean;
+  sortOrder: number;
 }
 
 export interface Stylist {

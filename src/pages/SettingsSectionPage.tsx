@@ -1,5 +1,6 @@
 import { Navigate, useParams } from 'react-router-dom';
 import { useLang } from '../context/LanguageContext';
+import { ServicesSettings } from '../components/settings/ServicesSettings';
 import { SettingsLayout } from '../components/settings/SettingsLayout';
 
 const SECTION_TITLES: Record<string, string> = {
@@ -10,11 +11,11 @@ const SECTION_TITLES: Record<string, string> = {
   info: 'settings.info',
 };
 
-/** Placeholder for the five sub-screens; each is filled by its own task. */
+/** The five sub-screens; each is filled in by its own task (the rest are still empty). */
 export function SettingsSectionPage() {
   const { t } = useLang();
   const { section = '' } = useParams();
   const titleKey = SECTION_TITLES[section];
   if (!titleKey) return <Navigate to="/admin/settings" replace />;
-  return <SettingsLayout title={t(titleKey)} backTo="/admin/settings">{null}</SettingsLayout>;
+  return <SettingsLayout title={t(titleKey)} backTo="/admin/settings">{section === 'services' ? <ServicesSettings /> : null}</SettingsLayout>;
 }

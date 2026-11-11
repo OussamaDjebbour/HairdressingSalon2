@@ -171,7 +171,7 @@ export interface SaveServiceInput {
   id: string | null;
   name: Record<Lang, string>;
   description: Record<Lang, string> | null;
-  category: string;
+  category: 'coiffure' | 'beaute';
   price: number;
   duration: number;
   sortOrder: number | null;

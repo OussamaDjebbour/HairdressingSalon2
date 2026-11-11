@@ -48,6 +48,7 @@ export async function fetchServices(includeInactive = false): Promise<Service[]>
     image: r.image,
     icon: r.icon,
     active: r.active,
+    sortOrder: r.sort_order,
   }));
 }
 
