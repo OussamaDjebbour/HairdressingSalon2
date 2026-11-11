@@ -1,7 +1,9 @@
 name: CI
 
 on:
+  # PRs are checked once (not once per push AND once per PR); main is checked after each merge.
   push:
+    branches: [main]
   pull_request:
 
 jobs:
