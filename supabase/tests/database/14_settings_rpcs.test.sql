@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(52);
+select plan(62);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -93,7 +93,7 @@ reset role;
 select is((select opens || ' ' || closes from public.salon_hours where salon_id = 'elegance' and weekday = 4), '09:00:00 13:00:00', 'hours read back');
 set local role authenticated;
 select throws_ok($$ select public.admin_set_hours((pg_temp.hours_with('{"opens":"09:00","closes":"13:00"}') - 6)) $$, 'P0001', 'invalid_hours', 'only 6 entries');
-select throws_ok($$ select public.admin_set_hours(pg_temp.hours_with('{"opens":"09:00","closes":"13:00"}') || '[{"weekday":4,"opens":null,"closes":null}]'::jsonb - 6) $$, 'P0001', 'invalid_hours', 'duplicated weekday');
+select throws_ok($$ select public.admin_set_hours((pg_temp.hours_with('{"opens":"09:00","closes":"13:00"}') || '[{"weekday":4,"opens":null,"closes":null}]'::jsonb) - 6) $$, 'P0001', 'invalid_hours', 'duplicated weekday');
 select throws_ok($$ select public.admin_set_hours(pg_temp.hours_with('{"opens":"09:10","closes":"13:00"}')) $$, 'P0001', 'invalid_hours', 'not on a 15-minute step');
 select throws_ok($$ select public.admin_set_hours(pg_temp.hours_with('{"opens":"13:00","closes":"13:00"}')) $$, 'P0001', 'invalid_hours', 'opens not before closes');
 select throws_ok($$ select public.admin_set_hours(pg_temp.hours_with('{"opens":"09:00","closes":null}')) $$, 'P0001', 'invalid_hours', 'only one of opens/closes null');
@@ -127,9 +127,29 @@ set local role authenticated;
 select is((select reason from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000001'), 'outside_hours', 'affected: after closing time');
 insert into pg_temp.ids select 'c3', public.admin_add_closed_dates('2030-01-10', '2030-01-10', null);
 select is((select reason from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000001'), 'closed', 'affected: closed date wins over outside_hours');
-select public.admin_add_stylist_days_off('amina', '2030-01-17', '2030-01-17');
+select is((select count(*)::int from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000002'), 0, 'affected: in-hours future booking is not listed');
+insert into pg_temp.ids select 'off2', public.admin_add_stylist_days_off('amina', '2030-01-17', '2030-01-17');
 select is((select reason from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000002'), 'stylist_off', 'affected: stylist day off');
 select is((select count(*)::int from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000003'), 0, 'affected: cancelled bookings never listed');
+-- reasons are checked in order: closed, outside_hours, service_hidden, stylist_hidden, stylist_off
+select public.admin_set_service_active('coupe-femme', false) is null as x \gset
+select is((select reason from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000002'), 'service_hidden', 'affected: hidden service (before stylist_off)');
+select is((select reason from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000001'), 'closed', 'affected: closed still wins over service_hidden');
+select public.admin_set_stylist_active('amina', false) is null as x \gset
+select is((select reason from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000002'), 'service_hidden', 'affected: service_hidden wins over stylist_hidden');
+select public.admin_set_service_active('coupe-femme', true) is null as x \gset
+select is((select reason from public.admin_affected_bookings() where id = 'dddddddd-0000-0000-0000-000000000002'), 'stylist_hidden', 'affected: hidden stylist (before stylist_off)');
+select public.admin_set_stylist_active('amina', true) is null as x \gset
+reset role;
+
+-- non-staff are refused by every new function
+select pg_temp.act_as('22222222-2222-2222-2222-222222222222');
+set local role authenticated;
+select throws_ok($$ select public.admin_set_hours('[]') $$, 'P0001', 'not_authorized', 'set_hours: non-staff refused');
+select throws_ok($$ select public.admin_add_closed_dates('2030-01-01', '2030-01-02', null) $$, 'P0001', 'not_authorized', 'add_closed_dates: non-staff refused');
+select throws_ok($$ select public.admin_delete_closed_dates('cccccccc-0000-0000-0000-0000000000c1') $$, 'P0001', 'not_authorized', 'delete_closed_dates: non-staff refused');
+select throws_ok($$ select public.admin_save_salon_info('{}', '{}', null, null, null) $$, 'P0001', 'not_authorized', 'save_salon_info: non-staff refused');
+select throws_ok($$ select * from public.admin_affected_bookings() $$, 'P0001', 'not_authorized', 'affected_bookings: non-staff refused');
 reset role;
 
 select * from finish();
