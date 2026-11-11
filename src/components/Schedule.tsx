@@ -7,10 +7,9 @@ import {
 import { useLang } from '../context/LanguageContext';
 import { toYmd } from '../data/bookings';
 import {
-  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings, useMySalon,
+  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings,
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
-import { SALON_ID } from '../data/salon';
 import { useAllStylists } from '../data/queries';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
 import { dayHours, stylistWorks } from '../data/hours';
@@ -19,6 +18,7 @@ import { dayOccupancy, minutesToTime, salonDate, salonMinutes, weekDays } from '
 import { DataError } from './DataError';
 import { Thread } from './Thread';
 import { Badge } from './Badge';
+import { SalonGate } from './admin/SalonGate';
 import { WeekStrip } from './admin/WeekStrip';
 import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
@@ -79,7 +79,7 @@ function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boo
   return minutesToTime(opens);
 }
 
-export function Schedule({ userId }: { userId: string }) {
+function ScheduleBody() {
   const { lang, t } = useLang();
   // A notification opens /admin?day=YYYY-MM-DD&booking=<id>: start on that day, then open the booking.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,7 +88,6 @@ export function Schedule({ userId }: { userId: string }) {
   // Hidden stylists too: one with a booking that day still gets a column.
   const allStylists = useAllStylists().data ?? [];
   const stylists = allStylists.filter((s) => s.active);
-  const mySalon = useMySalon(userId);
   const hoursQuery = useSalonHours();
   const closedQuery = useClosedDates();
   const daysOff = useStylistDaysOff().data ?? [];
@@ -146,15 +145,6 @@ export function Schedule({ userId }: { userId: string }) {
     const onDate = (weekQuery.data ?? []).filter((b) => toYmd(salonDate(b.startsAt)) === toYmd(date));
     setSheet({ mode: 'add', stylistId, date, time: firstFreeTime(onDate, stylistId, toYmd(date) === toYmd(today), hours.opens, hours.closes) });
   };
-
-  // Staff of another salon must never see this salon's schedule.
-  if (mySalon.isLoading) return <section id="schedule" className="py-20" aria-busy="true" />;
-  if (mySalon.isError && isNotAuthorized(mySalon.error)) {
-    return <p className="text-center text-rose-600 py-20 px-4">{t('admin.notAuthorized')}</p>;
-  }
-  if (mySalon.data !== undefined && mySalon.data !== SALON_ID) {
-    return <p className="text-center text-rose-600 py-20 px-4">{t('admin.otherSalon')}</p>;
-  }
 
   if (weekQuery.isError && isNotAuthorized(weekQuery.error)) {
     return <p className="text-center text-rose-600 py-20 px-4">{t('admin.notAuthorized')}</p>;
@@ -335,5 +325,14 @@ export function Schedule({ userId }: { userId: string }) {
 
       {sheet && <BookingSheet key={JSON.stringify(sheet)} state={sheet} onClose={() => setSheet(null)} />}
     </section>
+  );
+}
+
+/** Staff of another salon must never see this salon's schedule: the gate wraps the whole body. */
+export function Schedule({ userId }: { userId: string }) {
+  return (
+    <SalonGate userId={userId}>
+      <ScheduleBody />
+    </SalonGate>
   );
 }

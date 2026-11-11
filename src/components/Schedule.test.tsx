@@ -31,7 +31,7 @@ vi.mock('../data/salonSettings', () => ({
 const setStatus = vi.fn();
 let weekBookings: AdminBooking[] = [];
 let pendingBookings: AdminBooking[] = [];
-let mySalon: { data?: string; isLoading: boolean; isError: boolean; error: unknown } = {
+let mySalon: { data?: string; isLoading: boolean; isError: boolean; error: unknown; refetch?: () => void } = {
   data: 'elegance', isLoading: false, isError: false, error: null,
 };
 const rangeCalls: Array<[string, string]> = [];
@@ -173,6 +173,13 @@ describe('Schedule — salon ownership', () => {
     mySalon = { data: undefined, isLoading: false, isError: true, error: { message: 'not_authorized' } };
     renderSchedule();
     expect(screen.getByText('Ce compte n’a pas accès à l’espace salon.')).toBeInTheDocument();
+    expect(screen.queryByText('Amina')).toBeNull();
+  });
+
+  it('fails closed with a retry when the salon check fails for another reason', () => {
+    mySalon = { data: undefined, isLoading: false, isError: true, error: new Error('network'), refetch: vi.fn() };
+    renderSchedule();
+    expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
     expect(screen.queryByText('Amina')).toBeNull();
   });
 
