@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(57);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -186,6 +186,24 @@ set local role authenticated;
 select is((select count(*)::int from public.stylist_days_off where salon_id = 'elegance'), 0, 'RLS: rival staff see no elegance days off');
 select is((select count(*)::int from public.stylist_days_off), 1, 'RLS: rival staff see only their own days off');
 reset role;
+
+-- settings RPCs: Élégance staff never see or change rival's hours, closed dates, salon info or bookings
+insert into public.salon_closed_dates (id, salon_id, starts_on, ends_on, label)
+  values ('cccccccc-0000-0000-0000-0000000000c1', 'rival', '2030-07-01', '2030-07-05', 'Rival closed');
+update public.salons set whatsapp = '0555000099', instagram_url = 'https://instagram.com/rival' where id = 'rival';
+insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status)
+  values ('bbbbbbbb-0000-0000-0000-000000000099', 'rival', 'rival-cut', 'nadia',
+          '2030-01-13 10:00+01', '2030-01-13 11:00+01', 1000, 'Rival Sunday', '0555999999', 'fr', 'pending');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select throws_ok($$ select public.admin_delete_closed_dates('cccccccc-0000-0000-0000-0000000000c1') $$, 'P0001', 'not_found', 'delete_closed_dates: other salon''s row is not_found');
+select lives_ok($$ select public.admin_set_hours('[{"weekday":1,"opens":null,"closes":null},{"weekday":2,"opens":"10:00","closes":"12:00"},{"weekday":3,"opens":null,"closes":null},{"weekday":4,"opens":null,"closes":null},{"weekday":5,"opens":null,"closes":null},{"weekday":6,"opens":null,"closes":null},{"weekday":7,"opens":null,"closes":null}]') $$, 'set_hours: own salon works');
+select lives_ok($$ select public.admin_save_salon_info('{"fr":"x","ar":"x"}', '{"fr":"x","ar":"x"}', '0661000000', null, null) $$, 'save_salon_info: own salon works');
+select is((select count(*)::int from public.admin_affected_bookings() where client_name = 'Rival Sunday'), 0, 'affected_bookings: never lists another salon''s bookings');
+reset role;
+select is((select count(*)::int from public.salon_hours where salon_id = 'rival' and opens = '09:00' and closes = '18:00'), 5, 'rival hours unchanged');
+select is((select whatsapp || ' ' || instagram_url from public.salons where id = 'rival') || ' ' || (select count(*)::int from public.salon_closed_dates where salon_id = 'rival'),
+          '0555000099 https://instagram.com/rival 1', 'rival salon info and closed dates unchanged');
 
 select * from finish();
 rollback;
