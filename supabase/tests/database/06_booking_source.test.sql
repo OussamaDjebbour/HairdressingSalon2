@@ -28,23 +28,23 @@ insert into private.staff (user_id) values ('11111111-1111-1111-1111-11111111111
 
 select has_column('private', 'bookings', 'source', 'bookings.source exists');
 
-select create_booking('coupe-femme', 'amina', pg_temp.open_day(), '09:00', 'Yasmine', '0555123456', 'fr');
+select create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(), '09:00', 'Yasmine', '0555123456', 'fr');
 select is((select source from private.bookings where client_name = 'Yasmine'), 'online', 'online bookings default to online');
 
 -- per-phone limit ignores bookings the owner added
 select pg_temp.book('amina', pg_temp.open_day(2), t::time, '0777000001', 'staff') from unnest(array['09:00', '10:00', '11:00']) t;
-select lives_ok($$ select * from public.create_booking('coupe-femme', 'amina', pg_temp.open_day(), '10:00', 'Nadia', '0777000001', 'fr') $$,
+select lives_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(), '10:00', 'Nadia', '0777000001', 'fr') $$,
                 'per-phone limit ignores staff bookings');
 
 -- ...but still counts online ones
 select pg_temp.book('leila', pg_temp.open_day(2), t::time, '0777000002') from unnest(array['09:00', '10:00', '11:00']) t;
-select throws_ok($$ select * from public.create_booking('coupe-femme', 'amina', pg_temp.open_day(), '11:00', 'Salma', '0777000002', 'fr') $$,
+select throws_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(), '11:00', 'Salma', '0777000002', 'fr') $$,
                  'P0001', 'too_many_bookings', 'per-phone limit still counts online bookings');
 
 -- site-wide breaker ignores bookings the owner added (copying the paper agenda in)
 select pg_temp.book(s, pg_temp.open_day(3), make_time(h, 0, 0), '0666000000', 'staff')
 from (select s, h from unnest(array['amina', 'leila', 'sara']) s, generate_series(9, 15) h limit 20) x;
-select lives_ok($$ select * from public.create_booking('coupe-femme', 'amina', pg_temp.open_day(), '12:00', 'Imane', '0777000003', 'fr') $$,
+select lives_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(), '12:00', 'Imane', '0777000003', 'fr') $$,
                 'site-wide breaker ignores staff bookings');
 
 -- staff list returns source

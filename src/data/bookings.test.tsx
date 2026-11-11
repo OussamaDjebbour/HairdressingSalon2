@@ -67,6 +67,7 @@ describe('useSlots', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(rpc).toHaveBeenCalledWith('get_slots', {
+      p_salon_id: 'elegance',
       p_date: '2030-01-08',
       p_service_id: 'coupe-femme',
       p_stylist_id: null,
@@ -99,6 +100,7 @@ describe('useCreateBooking', () => {
     });
 
     expect(rpc).toHaveBeenCalledWith('create_booking', {
+      p_salon_id: 'elegance',
       p_service_id: 'coupe-femme',
       p_stylist_id: null,
       p_date: '2030-01-08',
