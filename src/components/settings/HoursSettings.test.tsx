@@ -9,9 +9,10 @@ vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => rpc
 
 const day = { opens: 9 * 60, closes: 18 * 60 };
 const hours: SalonHours = { 1: null, 2: day, 3: day, 4: day, 5: day, 6: day, 7: day };
+let hoursQuery: { data?: SalonHours; isError: boolean; refetch: () => void } | null = null;
 vi.mock('../../data/salonSettings', async (orig) => ({
   ...(await orig<typeof import('../../data/salonSettings')>()),
-  useSalonHours: () => ({ data: hours }),
+  useSalonHours: () => hoursQuery ?? { data: hours },
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
@@ -34,6 +35,17 @@ const sent = () => rpc.mock.calls.find((c) => c[0] === 'admin_set_hours')![1].p_
 beforeEach(() => {
   rpc.mockReset();
   rpc.mockImplementation(async (fn: string) => (fn === 'admin_affected_bookings' ? { data: [], error: null } : { data: null, error: null }));
+  hoursQuery = null;
+});
+
+describe('HoursSettings without hours data', () => {
+  it('shows a retry instead of a blank screen when loading failed', () => {
+    const refetch = vi.fn();
+    hoursQuery = { data: undefined, isError: true, refetch };
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+    expect(refetch).toHaveBeenCalled();
+  });
 });
 
 describe('HoursSettings', () => {

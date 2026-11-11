@@ -3,6 +3,7 @@ import { useLang } from '../../context/LanguageContext';
 import { isValidPhone } from '../../data/bookings';
 import { toSettingsError, useSalonInfo, useSaveSalonInfo } from '../../data/salonSettings';
 import type { SalonInfo } from '../../data/types';
+import { QueryFallback } from './QueryFallback';
 
 type Field = 'whatsapp' | 'instagram' | 'facebook' | 'form';
 
@@ -10,14 +11,14 @@ const FIELD_OF_CODE: Record<string, Field> = { invalid_phone: 'whatsapp', invali
 
 export function SalonInfoSettings() {
   const { t } = useLang();
-  const { data } = useSalonInfo();
+  const infoQuery = useSalonInfo();
   const save = useSaveSalonInfo();
   const [draft, setDraft] = useState<SalonInfo | null>(null);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [saved, setSaved] = useState(false);
 
-  const info = draft ?? data;
-  if (!info) return null;
+  const info = draft ?? infoQuery.data;
+  if (!info) return <QueryFallback queries={[infoQuery]} />;
 
   const set = (patch: Partial<SalonInfo>) => {
     setSaved(false);

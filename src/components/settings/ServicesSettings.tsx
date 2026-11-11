@@ -11,6 +11,7 @@ import {
 } from '../../data/salonSettings';
 import type { Service } from '../../data/types';
 import { AffectedBookings } from './AffectedBookings';
+import { QueryFallback, queriesReady } from './QueryFallback';
 
 const DURATIONS = Array.from({ length: 40 }, (_, i) => (i + 1) * 15); // 15 … 600
 const ERROR_KEYS = ['invalid_name', 'invalid_price', 'invalid_duration', 'not_found', 'not_authorized'];
@@ -61,12 +62,15 @@ function toInput(d: Draft): SaveServiceInput | null {
 
 export function ServicesSettings() {
   const { t, lang } = useLang();
-  const { data: services = [] } = useAllServices();
+  const servicesQuery = useAllServices();
+  const services = servicesQuery.data ?? [];
   const save = useSaveService();
   const setActive = useSetServiceActive();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
+
+  if (!queriesReady([servicesQuery])) return <QueryFallback queries={[servicesQuery]} />;
 
   const fail = (err: unknown) => {
     const code = toSettingsError(err);

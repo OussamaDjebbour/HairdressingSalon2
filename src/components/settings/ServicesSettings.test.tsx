@@ -12,8 +12,9 @@ const svc = (id: string, fr: string, active: boolean, sortOrder: number): Servic
   price: 3000, duration: 45, image: '', icon: '', active, sortOrder,
 });
 let services: Service[] = [];
+let servicesQuery: { data?: Service[]; isLoading: boolean; isError: boolean; refetch?: () => void } | null = null;
 vi.mock('../../data/queries', () => ({
-  useAllServices: () => ({ data: services, isLoading: false, isError: false }),
+  useAllServices: () => servicesQuery ?? { data: services, isLoading: false, isError: false },
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
@@ -37,6 +38,25 @@ beforeEach(() => {
   rpc.mockReset();
   rpc.mockImplementation(async (fn: string) => (fn === 'admin_affected_bookings' ? { data: [], error: null } : { data: null, error: null }));
   services = [svc('h1', 'Hidden cut', false, 1), svc('a1', 'Brushing', true, 2), svc('a2', 'Coloration', true, 3)];
+  servicesQuery = null;
+});
+
+describe('ServicesSettings while the list is not in', () => {
+  it('shows a loading state, not an empty list', () => {
+    servicesQuery = { data: undefined, isLoading: true, isError: false };
+    renderIt();
+    expect(screen.getByRole('status')).toHaveTextContent('Chargement…');
+    expect(screen.queryByTestId('service-name')).toBeNull();
+  });
+
+  it('shows a retry when loading failed', () => {
+    const refetch = vi.fn();
+    servicesQuery = { data: undefined, isLoading: false, isError: true, refetch };
+    renderIt();
+    expect(screen.getByText('Impossible de charger le contenu.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+    expect(refetch).toHaveBeenCalled();
+  });
 });
 
 describe('ServicesSettings', () => {

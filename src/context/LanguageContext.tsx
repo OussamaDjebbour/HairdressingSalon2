@@ -275,6 +275,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'common.closed': 'Fermé',
     'data.error': 'Impossible de charger le contenu.',
     'data.retry': 'Réessayer',
+    'data.loading': 'Chargement…',
   },
   ar: {
     'nav.home': 'الرئيسية',
@@ -532,6 +533,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'common.closed': 'مغلق',
     'data.error': 'تعذّر تحميل المحتوى.',
     'data.retry': 'إعادة المحاولة',
+    'data.loading': 'جارٍ التحميل…',
   },
 };
 

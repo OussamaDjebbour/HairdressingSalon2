@@ -4,6 +4,7 @@ import { useLang } from '../../context/LanguageContext';
 import { formatLongDate } from '../../data/formatters';
 import { toSettingsError, useAddClosedDates, useClosedDates, useDeleteClosedDates } from '../../data/salonSettings';
 import { AffectedBookings } from './AffectedBookings';
+import { QueryFallback, queriesReady } from './QueryFallback';
 
 const ERROR_KEYS = ['invalid_dates', 'not_authorized'];
 
@@ -14,7 +15,8 @@ const parseYmd = (ymd: string) => {
 
 export function ClosedDatesSettings() {
   const { t, lang } = useLang();
-  const { data: closed = [] } = useClosedDates();
+  const closedQuery = useClosedDates();
+  const closed = closedQuery.data ?? [];
   const add = useAddClosedDates();
   const del = useDeleteClosedDates();
   const [from, setFrom] = useState('');
@@ -22,6 +24,8 @@ export function ClosedDatesSettings() {
   const [label, setLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
+
+  if (!queriesReady([closedQuery])) return <QueryFallback queries={[closedQuery]} />;
 
   const fail = (err: unknown) => {
     const code = toSettingsError(err);

@@ -15,6 +15,7 @@ import {
 import type { Stylist, Weekday } from '../../data/types';
 import { salonDate } from '../../data/week';
 import { AffectedBookings } from './AffectedBookings';
+import { QueryFallback, queriesReady } from './QueryFallback';
 
 const ERROR_KEYS = ['invalid_name', 'invalid_weekday', 'invalid_dates', 'unknown_service', 'not_found', 'not_authorized'];
 const WEEKDAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 7];
@@ -48,9 +49,12 @@ const toDraft = (s: Stylist): Draft => ({
 
 export function StylistsSettings() {
   const { t, lang } = useLang();
-  const { data: stylists = [] } = useAllStylists();
-  const { data: services = [] } = useAllServices();
-  const { data: daysOff = [] } = useStylistDaysOff();
+  const stylistsQuery = useAllStylists();
+  const servicesQuery = useAllServices();
+  const daysOffQuery = useStylistDaysOff();
+  const stylists = stylistsQuery.data ?? [];
+  const services = servicesQuery.data ?? [];
+  const daysOff = daysOffQuery.data ?? [];
   const save = useSaveStylist();
   const setActive = useSetStylistActive();
   const addOff = useAddStylistDaysOff();
@@ -60,6 +64,9 @@ export function StylistsSettings() {
   const [showAffected, setShowAffected] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+
+  const queries = [stylistsQuery, servicesQuery, daysOffQuery];
+  if (!queriesReady(queries)) return <QueryFallback queries={queries} />;
 
   const fail = (err: unknown) => {
     const code = toSettingsError(err);

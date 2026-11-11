@@ -5,6 +5,7 @@ import { toSettingsError, useSalonHours, useSetHours } from '../../data/salonSet
 import type { DayHours, SalonHours, Weekday } from '../../data/types';
 import { minutesToTime } from '../../data/week';
 import { AffectedBookings } from './AffectedBookings';
+import { QueryFallback } from './QueryFallback';
 
 const WEEKDAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 7];
 const ERROR_KEYS = ['invalid_hours', 'not_authorized'];
@@ -25,14 +26,14 @@ const options = (current: number | undefined) => {
 
 export function HoursSettings() {
   const { t, lang } = useLang();
-  const { data } = useSalonHours();
+  const hoursQuery = useSalonHours();
   const save = useSetHours();
   const [draft, setDraft] = useState<SalonHours | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
 
-  const hours = draft ?? data;
-  if (!hours) return null;
+  const hours = draft ?? hoursQuery.data;
+  if (!hours) return <QueryFallback queries={[hoursQuery]} />;
 
   const change = (day: Weekday, value: DayHours | null) => {
     setError(null);
