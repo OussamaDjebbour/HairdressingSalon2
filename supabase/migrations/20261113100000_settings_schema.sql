@@ -16,8 +16,9 @@ create table public.salon_hours (
   opens time,
   closes time,
   primary key (salon_id, weekday),
-  check ((opens is null and closes is null)
-    or (opens < closes and extract(minute from opens)::int % 15 = 0 and extract(minute from closes)::int % 15 = 0))
+  check ((opens is null) = (closes is null)
+    and (opens is null
+      or (opens < closes and extract(minute from opens)::int % 15 = 0 and extract(minute from closes)::int % 15 = 0)))
 );
 
 create table public.salon_closed_dates (
@@ -60,6 +61,11 @@ create policy stylist_days_off_read on public.stylist_days_off for select to aut
 
 grant select on public.salon_hours, public.salon_closed_dates, public.stylist_workdays to anon, authenticated;
 grant select on public.stylist_days_off to authenticated;
+
+-- Defense in depth: writes only through the security definer owner RPCs.
+revoke insert, update, delete, truncate
+  on public.salon_hours, public.salon_closed_dates, public.stylist_workdays, public.stylist_days_off
+  from anon, authenticated;
 
 -- Backfill existing salons
 insert into public.salon_hours (salon_id, weekday, opens, closes)

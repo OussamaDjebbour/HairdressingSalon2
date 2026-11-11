@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(20);
 
 insert into public.salons (id, name) values ('rival', 'Rival');
 insert into public.stylists (id, salon_id, name, role, image)
@@ -19,6 +19,7 @@ select is((select city->>'fr' || '/' || whatsapp from public.salons where id = '
 
 select throws_ok($$ update public.salon_hours set opens = '09:10' where salon_id = 'elegance' and weekday = 2 $$, '23514', null, 'opens off the 15-minute grid');
 select throws_ok($$ update public.salon_hours set opens = '19:00' where salon_id = 'elegance' and weekday = 2 $$, '23514', null, 'opens after closes');
+select throws_ok($$ update public.salon_hours set closes = null where salon_id = 'elegance' and weekday = 2 $$, '23514', null, 'opens set, closes null');
 select throws_ok($$ insert into public.salon_closed_dates (salon_id, starts_on, ends_on) values ('elegance', '2027-01-02', '2027-01-01') $$, '23514', null, 'ends_on before starts_on');
 select throws_ok($$ update public.salons set whatsapp = '021234567' where id = 'elegance' $$, '23514', null, 'bad whatsapp');
 select throws_ok($$ update public.salons set instagram_url = 'http://x' where id = 'elegance' $$, '23514', null, 'non-https url');
@@ -28,6 +29,12 @@ select is((select count(*)::int from public.salon_hours), 7, 'anon reads salon_h
 select is((select count(*)::int from public.stylist_days_off), 0, 'anon sees no days off');
 select throws_ok($$ insert into public.salon_hours (salon_id, weekday) values ('elegance', 1) $$, '42501', null, 'anon cannot insert hours');
 reset role;
+
+select is((select count(*)::int
+  from unnest(array['anon', 'authenticated']) r,
+       unnest(array['public.salon_hours', 'public.salon_closed_dates', 'public.stylist_workdays', 'public.stylist_days_off']) t,
+       unnest(array['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) p
+  where has_table_privilege(r, t, p)), 0, 'anon/authenticated have no write privileges on settings tables');
 
 select throws_ok($$ insert into public.stylist_workdays (salon_id, stylist_id, weekday) values ('elegance', 'nadia', 2) $$, '23503', null, 'cross-salon stylist workday rejected');
 
