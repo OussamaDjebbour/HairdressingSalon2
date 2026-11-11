@@ -25,3 +25,6 @@ dist-ssr
 
 # Superpowers scratch (mockups, execution ledgers)
 .superpowers/
+
+# Local edge function secrets
+supabase/functions/.env
