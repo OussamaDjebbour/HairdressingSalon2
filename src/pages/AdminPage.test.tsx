@@ -21,17 +21,28 @@ vi.mock('../components/Schedule', () => ({ Schedule: () => <div>schedule</div> }
 import { LanguageProvider } from '../context/LanguageContext';
 import { AdminPage } from './AdminPage';
 
+function renderPage() {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <LanguageProvider>
+          <AdminPage />
+        </LanguageProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+}
+
+describe('AdminPage header', () => {
+  it('offers a gear link to the settings when logged in', () => {
+    renderPage();
+    expect(screen.getByRole('link', { name: 'Réglages' })).toHaveAttribute('href', '/admin/settings');
+  });
+});
+
 describe('AdminPage logout', () => {
   it('stops notifications on this device before signing out', async () => {
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter>
-          <LanguageProvider>
-            <AdminPage />
-          </LanguageProvider>
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
+    renderPage();
     fireEvent.click(screen.getByRole('button', { name: /Se déconnecter/ }));
     await waitFor(() => expect(calls).toEqual(['disablePush', 'signOut']));
   });

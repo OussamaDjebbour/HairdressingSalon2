@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Scissors, Globe, ArrowLeft, LogOut } from 'lucide-react';
+import { Scissors, Globe, ArrowLeft, LogOut, Settings } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import { Schedule } from '../components/Schedule';
 import { useSession, signOut } from '../lib/auth';
@@ -43,17 +43,27 @@ export function AdminPage() {
             </span>
           </Link>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-4">
             <button
               onClick={toggleLang}
               className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
               aria-label="Toggle language"
             >
-              <Globe className="w-4 h-4" strokeWidth={1.8} />
+              <Globe className="hidden sm:block w-4 h-4" strokeWidth={1.8} />
               <span className={lang === 'fr' ? 'font-semibold text-cream-50' : 'text-cream-300'}>FR</span>
               <span className="text-cream-50/30">|</span>
               <span className={lang === 'ar' ? 'font-semibold text-cream-50' : 'text-cream-300'}>AR</span>
             </button>
+
+            {session && (
+              <Link
+                to="/admin/settings"
+                aria-label={t('settings.title')}
+                className="flex items-center justify-center w-9 h-9 rounded-full text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
+              >
+                <Settings className="w-4 h-4" strokeWidth={1.8} />
+              </Link>
+            )}
 
             {session && (
               <button
@@ -65,9 +75,10 @@ export function AdminPage() {
               </button>
             )}
 
+            {/* On a phone the logged-in header is full; the logo already links back to the site. */}
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-cream-100 hover:text-gold-300 transition-colors"
+              className={`${session ? 'hidden sm:inline-flex' : 'inline-flex'} items-center gap-1.5 text-sm font-medium text-cream-100 hover:text-gold-300 transition-colors`}
             >
               <ArrowLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               <span className="hidden sm:inline">{t('admin.backToSite')}</span>

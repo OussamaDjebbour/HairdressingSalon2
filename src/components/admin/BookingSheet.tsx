@@ -6,10 +6,11 @@ import {
   type AdminBooking, type StaffBookingInput,
 } from '../../data/admin';
 import { isValidPhone, toYmd } from '../../data/bookings';
-import { useServices, useStylists } from '../../data/queries';
-import { salonDate, salonInstant, staffTimeOptions } from '../../data/week';
-import { dayHours } from '../../data/hours';
-import { useClosedDates, useSalonHours } from '../../data/salonSettings';
+import { useAllServices, useAllStylists } from '../../data/queries';
+import { salonDate, salonInstant, salonMinutes, staffTimeOptions } from '../../data/week';
+import { dayHours, stylistWorks } from '../../data/hours';
+import { useClosedDates, useSalonHours, useStylistDaysOff } from '../../data/salonSettings';
+import type { DayHours } from '../../data/types';
 import { clientMessage, toWaNumber, waLink, type ClientMessageKind } from '../../data/whatsapp';
 import { Badge } from '../Badge';
 
@@ -35,6 +36,8 @@ function initialForm(state: SheetState, lang: Lang): StaffBookingInput {
   return { serviceId: '', stylistId: state.stylistId, date: state.date, time: state.time, clientName: '', clientPhone: '', lang };
 }
 
+const minutesOf = (b: AdminBooking) => Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000);
+
 function parseYmd(value: string): Date | null {
   const [y, m, d] = value.split('-').map(Number);
   return y && m && d ? new Date(y, m - 1, d) : null;
@@ -44,10 +47,11 @@ function parseYmd(value: string): Date | null {
 export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const { lang, t } = useLang();
   const titleId = useId();
-  const services = useServices().data ?? [];
-  const stylists = useStylists().data ?? [];
+  const allServices = useAllServices().data ?? [];
+  const allStylists = useAllStylists().data ?? [];
   const salonHours = useSalonHours().data;
   const closedDates = useClosedDates().data ?? [];
+  const daysOff = useStylistDaysOff().data ?? [];
   const create = useCreateStaffBooking();
   const update = useUpdateStaffBooking();
   const setStatus = useSetBookingStatus();
@@ -57,16 +61,33 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
 
+  // Pickers offer active items, plus the booking's own service and stylist even if they were hidden since.
+  const editing = state.mode === 'edit' ? state.booking : null;
+  const services = allServices.filter((s) => s.active || s.id === editing?.serviceId);
+  const ownStylistId = state.mode === 'edit' ? state.booking.stylistId : state.stylistId;
+  const stylists = allStylists.filter((s) => s.active || s.id === ownStylistId);
+
   // Add mode: default to the stylist's usual first service once services have loaded.
-  const serviceId = form.serviceId || (stylists.find((s) => s.id === form.stylistId)?.serviceIds[0] ?? services[0]?.id ?? '');
-  const service = services.find((s) => s.id === serviceId);
+  const usual = allStylists.find((s) => s.id === form.stylistId)?.serviceIds.find((id) => services.some((s) => s.id === id));
+  const serviceId = form.serviceId || (usual ?? services[0]?.id ?? '');
+  const service = allServices.find((s) => s.id === serviceId);
+  // Editing keeps the booked length unless the service changes (as admin_update_booking does).
+  const ownSpan: DayHours | null = editing
+    ? { opens: salonMinutes(editing.startsAt), closes: salonMinutes(editing.startsAt) + minutesOf(editing) }
+    : null;
+  const duration = editing && serviceId === editing.serviceId ? minutesOf(editing) : service?.duration ?? 30;
   const hours = salonHours ? dayHours(salonHours, closedDates, form.date) : null;
-  const timeOptions = hours ? staffTimeOptions(service?.duration ?? 30, hours) : [];
+  // On a closed day, a booking can still be re-timed within its own span.
+  const optionHours = hours ?? ownSpan;
+  const timeOptions = optionHours ? staffTimeOptions(duration, optionHours) : [];
   // Keep a booking's current time selectable (and in order) even if it is off the new service's grid.
   if (!timeOptions.includes(form.time)) timeOptions.push(form.time);
   timeOptions.sort();
   const [h, m] = form.time.split(':').map(Number);
-  const pastClosing = !!service && !!hours && h * 60 + m + service.duration > hours.closes;
+  const pastClosing = !!service && !!hours && h * 60 + m + duration > hours.closes;
+  // Booking a stylist on her day off is allowed (the owner knows best), but say so.
+  const stylist = allStylists.find((s) => s.id === form.stylistId);
+  const stylistOff = !!stylist && !stylistWorks(stylist, daysOff, form.date);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const requestCloseRef = useRef<() => void>(onClose);
@@ -169,7 +190,6 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   };
 
   const title = notice ? t('admin.sheet.notifyTitle') : t(state.mode === 'add' ? 'admin.sheet.addTitle' : 'admin.sheet.editTitle');
-  const editing = state.mode === 'edit' ? state.booking : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-rose-950/40 animate-fadeIn" onClick={requestClose}>
@@ -245,6 +265,9 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
+              {stylistOff && stylist && (
+                <p role="status" className="mt-1 text-xs text-amber-800">{t('schedule.stylistOff').replace('{name}', stylist.name)}</p>
+              )}
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field id="sheet-date" label={t('admin.sheet.date')}>
