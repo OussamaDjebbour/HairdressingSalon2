@@ -79,14 +79,14 @@ function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boo
   return minutesToTime(OPENING_HOUR * 60);
 }
 
-export function Schedule() {
+export function Schedule({ userId }: { userId: string }) {
   const { lang, t } = useLang();
   // A notification opens /admin?day=YYYY-MM-DD&booking=<id>: start on that day, then open the booking.
   const [searchParams, setSearchParams] = useSearchParams();
   const [day, setDay] = useState(() => parseYmd(searchParams.get('day')) ?? algiersToday());
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const stylists = useStylists().data ?? [];
-  const mySalon = useMySalon();
+  const mySalon = useMySalon(userId);
 
   const today = algiersToday();
   const week = weekDays(day);

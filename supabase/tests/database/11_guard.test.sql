@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(15);
 
 -- Each guard check is a function returning the violating names; the same function is
 -- used on the real schema (must be empty) and on probes (must be reported).
@@ -10,7 +10,10 @@ create function pg_temp.tables_without_salon_id() returns text[] language sql as
   select coalesce(array(
     select n.nspname || '.' || c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('public', 'private') and c.relkind in ('r', 'p') and c.relname <> 'salons'
-      and not exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'salon_id' and a.attnotnull and not a.attisdropped)
+      and not exists (
+        select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'salon_id' and a.attnotnull and not a.attisdropped
+          and exists (select 1 from pg_constraint k where k.conrelid = c.oid and k.contype = 'f'
+                      and k.confrelid = 'public.salons'::regclass and k.conkey = array[a.attnum]))
     order by 1), '{}'::text[]) $$;
 
 create function pg_temp.salon_id_defaults() returns text[] language sql as $$
@@ -42,7 +45,7 @@ create function pg_temp.unregistered_api_functions() returns text[] language sql
     order by 1), '{}'::text[]) $$;
 
 -- real schema
-select is(pg_temp.tables_without_salon_id(), '{}'::text[], 'every salon-owned table has a NOT NULL salon_id');
+select is(pg_temp.tables_without_salon_id(), '{}'::text[], 'every salon-owned table has a NOT NULL salon_id referencing salons');
 select is(pg_temp.salon_id_defaults(), '{}'::text[], 'no salon_id has a default');
 select is(pg_temp.tables_without_rls(), '{}'::text[], 'row-level security is on everywhere');
 select is(pg_temp.unregistered_api_functions(), '{}'::text[], 'every API function has isolation tests (register new ones here AND in 10_isolation)');
@@ -53,14 +56,17 @@ select is(array(select r from unnest(pg_temp.registered_api()) r
 -- probes: each check must report its violation
 create table public.guard_no_salon (id int);
 create table public.guard_default (id int, salon_id text not null default 'x');
-create table public.guard_no_rls (id int, salon_id text not null);
-create table public.guard_rls_ok (id int, salon_id text not null);
+create table public.guard_no_rls (id int, salon_id text not null references public.salons (id));
+create table public.guard_no_fk (id int, salon_id text not null);
+create table public.guard_rls_ok (id int, salon_id text not null references public.salons (id));
 alter table public.guard_rls_ok enable row level security;
 create table public.guard_part (id int) partition by list (id);
 create function public.guard_unregistered() returns int language sql as $$ select 1 $$;
 grant execute on function public.guard_unregistered() to authenticated;
 
 select ok(pg_temp.tables_without_salon_id() @> array['public.guard_no_salon'], 'guard detects a table without salon_id');
+select ok(pg_temp.tables_without_salon_id() @> array['public.guard_no_fk'], 'guard detects a salon_id without a foreign key to salons');
+select ok(not (pg_temp.tables_without_salon_id() @> array['public.guard_no_rls']), 'guard does not flag a salon_id with a foreign key');
 select ok(pg_temp.tables_without_salon_id() @> array['public.guard_part'], 'guard detects a partitioned table without salon_id');
 select ok(pg_temp.salon_id_defaults() @> array['public.guard_default'], 'guard detects a salon_id default');
 select ok(pg_temp.tables_without_rls() @> array['public.guard_no_rls'], 'guard detects a table without RLS');

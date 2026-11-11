@@ -346,6 +346,10 @@ git commit -m "ci: typecheck, unit, database and lint checks on every push"
 **Files:** none.
 
 - [ ] **Step 1:** Ask the product owner before touching the live project. Confirm the live project isn't paused (`curl -s -o /dev/null -w "%{http_code}" "$VITE_SUPABASE_URL/rest/v1/"` → `401`, not `521`).
+- [ ] **Step 1b:** Pre-push checks on the LIVE project (the product owner runs them in the SQL editor / dashboard):
+  - a. `select relname, relowner::regrole, relforcerowsecurity from pg_class where relnamespace = 'private'::regnamespace and relkind = 'r';` → owner `postgres`, `relforcerowsecurity` false for `bookings`, `staff`, `push_subscriptions`; and `select rolbypassrls from pg_roles where rolname = 'postgres';` → `true`. (If not, `create_booking`/`post_push` would hit RLS and every online booking would fail.)
+  - b. Dashboard → Data API → exposed schemas = `public, graphql_public` only, and pg_graphql does not reflect `private` (the branch grants `authenticated` usage on schema `private` + select/insert/update on `private.bookings`).
+  - c. Optional, after the push: `supabase functions deploy notify-booking` so the push title shows the salon name.
 - [ ] **Step 2:** `supabase db push --dry-run` — Expected: lists exactly the five `202611121000xx_*` migrations. (The product owner runs `supabase db push` from their own shell; it hangs when run non-interactively here.)
 - [ ] **Step 3: Verify live** with the publishable key: `get_slots` with `p_salon_id: 'elegance'` returns slots for the next open day; the old 3-arg call returns an error; `admin_my_salon` as anon returns `42501`; in the SQL editor, `select count(*) from private.staff where salon_id = 'elegance'` equals the number of staff rows.
 - [ ] **Step 4:** Note in `docs/notifications-setup.md` that subscriptions and notifications are per salon (one VAPID pair for the whole product). Commit.

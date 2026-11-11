@@ -75,9 +75,11 @@ export async function fetchMySalon(): Promise<string> {
   return data as string;
 }
 
-export function useMySalon() {
+/** Keyed by user id so a different account on the same device never sees a cached salon. */
+export function useMySalon(userId: string | undefined) {
   return useQuery({
-    queryKey: ['admin', 'my-salon'],
+    queryKey: ['admin', 'my-salon', userId],
+    enabled: !!userId,
     queryFn: fetchMySalon,
     staleTime: Infinity,
   });

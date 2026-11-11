@@ -41,7 +41,7 @@ function renderSchedule(url = '/admin') {
   render(
     <MemoryRouter initialEntries={[url]}>
       <LanguageProvider>
-        <Schedule />
+        <Schedule userId="user-1" />
       </LanguageProvider>
     </MemoryRouter>
   );

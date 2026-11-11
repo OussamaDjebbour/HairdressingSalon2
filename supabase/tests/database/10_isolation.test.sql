@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(38);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -22,7 +22,7 @@ select throws_ok($$ select * from public.create_booking('elegance', 'rival-cut',
 select throws_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'nadia', pg_temp.open_day(), '10:00', 'Amel', '0555123456', 'fr') $$, 'P0001', 'unknown_service', 'create_booking: other salon''s stylist');
 select is((select count(*)::int from private.bookings where client_name = 'Amel'), 0, 'nothing inserted');
 
--- 20 recent online bookings at rival (cancelled, so no overlap constraint) trip rival's circuit breaker, not elegance's
+-- 20 recent online bookings at rival (cancelled, so they stay out of the per-phone count) trip rival's circuit breaker, not elegance's
 insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status, source)
 select 'rival', 'rival-cut', 'nadia', now() + interval '3 days' + i * interval '1 hour', now() + interval '3 days' + i * interval '1 hour' + interval '1 hour',
        1000, 'Flood', '0555000001', 'fr', 'cancelled', 'online'
@@ -38,6 +38,17 @@ select 'rival', 'rival-cut', 'nadia', now() + interval '3 days' + i * interval '
        1000, 'Phone', '0666123123', 'fr', 'online'
 from generate_series(1, 3) i;
 select lives_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(3), '10:00', 'Phoebe', '0666123123', 'fr') $$, 'rival''s bookings for a phone do not count at elegance');
+
+-- per-IP limit is per salon: 5 recent bookings from one IP at rival don't block that IP at elegance
+select set_config('request.headers', '{"x-forwarded-for": "203.0.113.50", "cf-connecting-ip": "203.0.113.50"}', true);
+insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status, source, client_ip)
+select 'rival', 'rival-cut', 'nadia', now() + interval '4 days' + i * interval '2 hours', now() + interval '4 days' + i * interval '2 hours' + interval '1 hour',
+       1000, 'IpFlood', '05550000' || lpad(i::text, 2, '0'), 'fr', 'cancelled', 'online', '203.0.113.50'
+from generate_series(1, 5) i;
+select throws_ok($$ select * from public.create_booking('rival', 'rival-cut', 'nadia', pg_temp.open_day(5), '10:00', 'Ivy', '0555444444', 'fr') $$, 'P0001', 'rate_limited', 'rival limits that IP');
+select lives_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(4), '10:00', 'Ida', '0555333333', 'fr') $$, 'rival''s bookings from an IP do not count at elegance');
+select set_config('request.headers', '{}', true);
+delete from private.bookings where client_name = 'IpFlood';
 
 -- staff functions: staff of one salon never see or change another salon's bookings
 insert into auth.users (id, instance_id, aud, role, email)
@@ -75,6 +86,11 @@ select throws_ok($$ insert into private.bookings (salon_id, service_id, stylist_
   values ('rival', 'rival-cut', 'nadia', '2030-01-10 10:00+01', '2030-01-10 11:00+01', 1000, 'Hack', '0555000000', 'fr', 'staff') $$,
   '42501', null, 'RLS: staff cannot insert into another salon');
 select is((select count(*)::int from private.staff), 1, 'RLS: staff see only their own staff row');
+-- direct UPDATE policy
+with u as (update private.bookings set client_name = 'x' where id = 'bbbbbbbb-0000-0000-0000-000000000001' returning 1)
+select is((select count(*)::int from u), 0, 'RLS: staff update affects no row of another salon');
+select throws_ok($$ update private.bookings set salon_id = 'rival' where id = 'aaaaaaaa-0000-0000-0000-000000000001' $$,
+  '42501', null, 'RLS: staff cannot move own row to another salon');
 reset role;
 
 select is((select status || ' ' || client_name || ' ' || stylist_id from private.bookings where id = 'bbbbbbbb-0000-0000-0000-000000000001'),
