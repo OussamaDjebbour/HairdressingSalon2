@@ -1,5 +1,5 @@
-import { useId, useState } from 'react';
-import { Check, X } from 'lucide-react';
+import { useState } from 'react';
+import { Check } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
   formatAlgiersTime, toAdminError, useMyRole, useCreateStaffBooking, useUpdateStaffBooking,
@@ -14,7 +14,7 @@ import type { DayHours } from '../../data/types';
 import { BookingSummary } from './BookingSummary';
 import { MessageReady } from './MessageReady';
 import { useBookingActions, type Notice } from './useBookingActions';
-import { useSheetDialog } from './useSheetDialog';
+import { Sheet } from './Sheet';
 
 export type SheetState =
   | { mode: 'add'; stylistId: string; date: Date; time: string }
@@ -50,7 +50,6 @@ function parseYmd(value: string): Date | null {
  */
 export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const { lang, t } = useLang();
-  const titleId = useId();
   const allServices = useAllServices().data ?? [];
   const allStylists = useAllStylists().data ?? [];
   const salonHours = useSalonHours().data;
@@ -113,7 +112,6 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     if (!notice && view === 'form' && dirty && !window.confirm(message)) return;
     onClose();
   };
-  const dialogRef = useSheetDialog(requestClose);
 
   const save = () => {
     const name = form.clientName.trim();
@@ -156,124 +154,112 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const title = notice ? t(`admin.ready.${notice.kind}`) : t(state.mode === 'add' ? 'admin.sheet.addTitle' : 'admin.sheet.editTitle');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-rose-950/40 animate-fadeIn" onClick={requestClose}>
-      <div
-        ref={dialogRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md max-h-[92vh] overflow-y-auto bg-cream-50 rounded-t-3xl sm:rounded-3xl shadow-lift p-5 sm:p-6"
-      >
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 id={titleId} className="flex items-center gap-2.5 font-display text-xl font-semibold text-rose-900">
-            {notice && (
-              <span className="grid place-items-center w-8 h-8 rounded-full bg-sage-100 text-sage-700">
-                <Check className="w-4 h-4" strokeWidth={2.4} aria-hidden="true" />
-              </span>
+    <Sheet
+      title={
+        <>
+          {notice && (
+            <span className="grid place-items-center w-8 h-8 rounded-full bg-sage-100 text-sage-700">
+              <Check className="w-4 h-4" strokeWidth={2.4} aria-hidden="true" />
+            </span>
+          )}
+          {title}
+        </>
+      }
+      onRequestClose={requestClose}
+    >
+      {notice ? (
+        <MessageReady notice={notice} onSend={onClose} onLater={onClose} />
+      ) : editing && view === 'summary' ? (
+        <BookingSummary
+          booking={editing}
+          onConfirm={() => actions.confirm(editing)}
+          onRefuse={() => actions.refuse(editing)}
+          onCancel={() => actions.refuse(editing)}
+          onMessage={() => setNotice({ kind: 'confirmed', booking: editing })}
+          onEdit={() => setView('form')}
+          busy={actions.pendingId === editing.id}
+          error={actions.error}
+        />
+      ) : (
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <Field id="sheet-name" label={t('admin.sheet.name')} error={fieldErrors.name ? t('admin.error.invalid_name') : null}>
+            <input id="sheet-name" className="input" value={form.clientName} onChange={(e) => set('clientName', e.target.value)} autoComplete="off" />
+          </Field>
+          <Field id="sheet-phone" label={t('admin.sheet.phone')} error={fieldErrors.phone ? t('admin.error.invalid_phone') : null}>
+            <input id="sheet-phone" className="input" type="tel" dir="ltr" inputMode="tel" value={form.clientPhone} onChange={(e) => set('clientPhone', e.target.value)} />
+          </Field>
+          <Field id="sheet-service" label={t('admin.sheet.service')}>
+            <select id="sheet-service" className="input" value={serviceId} onChange={(e) => set('serviceId', e.target.value)}>
+              {services.map((s) => (
+                <option key={s.id} value={s.id}>{s.name[lang]}</option>
+              ))}
+            </select>
+          </Field>
+          <Field id="sheet-stylist" label={t('admin.sheet.stylist')}>
+            <select id="sheet-stylist" className="input" value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)}>
+              {stylists.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            {stylistOff && stylist && (
+              <p role="status" className="mt-1 text-xs text-amber-800">{t('schedule.stylistOff').replace('{name}', stylist.name)}</p>
             )}
-            {title}
-          </h2>
-          <button type="button" onClick={requestClose} className="btn-ghost btn-sm" aria-label={t('admin.sheet.close')}>
-            <X className="w-4 h-4" strokeWidth={2} />
-          </button>
-        </div>
-
-        {notice ? (
-          <MessageReady notice={notice} onSend={onClose} onLater={onClose} />
-        ) : editing && view === 'summary' ? (
-          <BookingSummary
-            booking={editing}
-            onConfirm={() => actions.confirm(editing)}
-            onRefuse={() => actions.refuse(editing)}
-            onCancel={() => actions.refuse(editing)}
-            onMessage={() => setNotice({ kind: 'confirmed', booking: editing })}
-            onEdit={() => setView('form')}
-            busy={actions.pendingId === editing.id}
-            error={actions.error}
-          />
-        ) : (
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              save();
-            }}
-          >
-            <Field id="sheet-name" label={t('admin.sheet.name')} error={fieldErrors.name ? t('admin.error.invalid_name') : null}>
-              <input id="sheet-name" className="input" value={form.clientName} onChange={(e) => set('clientName', e.target.value)} autoComplete="off" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field id="sheet-date" label={t('admin.sheet.date')}>
+              <input
+                id="sheet-date"
+                type="date"
+                className="input"
+                value={toYmd(form.date)}
+                onChange={(e) => {
+                  const d = parseYmd(e.target.value);
+                  if (d) set('date', d);
+                }}
+              />
             </Field>
-            <Field id="sheet-phone" label={t('admin.sheet.phone')} error={fieldErrors.phone ? t('admin.error.invalid_phone') : null}>
-              <input id="sheet-phone" className="input" type="tel" dir="ltr" inputMode="tel" value={form.clientPhone} onChange={(e) => set('clientPhone', e.target.value)} />
-            </Field>
-            <Field id="sheet-service" label={t('admin.sheet.service')}>
-              <select id="sheet-service" className="input" value={serviceId} onChange={(e) => set('serviceId', e.target.value)}>
-                {services.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name[lang]}</option>
+            <Field id="sheet-time" label={t('admin.sheet.time')}>
+              <select id="sheet-time" className="input" dir="ltr" value={form.time} onChange={(e) => set('time', e.target.value)}>
+                {timeOptions.map((tm) => (
+                  <option key={tm} value={tm}>{tm}</option>
                 ))}
               </select>
             </Field>
-            <Field id="sheet-stylist" label={t('admin.sheet.stylist')}>
-              <select id="sheet-stylist" className="input" value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)}>
-                {stylists.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              {stylistOff && stylist && (
-                <p role="status" className="mt-1 text-xs text-amber-800">{t('schedule.stylistOff').replace('{name}', stylist.name)}</p>
-              )}
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field id="sheet-date" label={t('admin.sheet.date')}>
-                <input
-                  id="sheet-date"
-                  type="date"
-                  className="input"
-                  value={toYmd(form.date)}
-                  onChange={(e) => {
-                    const d = parseYmd(e.target.value);
-                    if (d) set('date', d);
-                  }}
-                />
-              </Field>
-              <Field id="sheet-time" label={t('admin.sheet.time')}>
-                <select id="sheet-time" className="input" dir="ltr" value={form.time} onChange={(e) => set('time', e.target.value)}>
-                  {timeOptions.map((tm) => (
-                    <option key={tm} value={tm}>{tm}</option>
-                  ))}
-                </select>
-              </Field>
-              {pastClosing && <p className="col-span-2 -mt-1 text-xs text-rust-700">{t('admin.error.outside_hours')}</p>}
+            {pastClosing && <p className="col-span-2 -mt-1 text-xs text-rust-700">{t('admin.error.outside_hours')}</p>}
+          </div>
+          <div role="group" aria-label={t('admin.sheet.lang')}>
+            <span className="label">{t('admin.sheet.lang')}</span>
+            <div className="flex gap-2">
+              {(['fr', 'ar'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  aria-pressed={form.lang === l}
+                  onClick={() => set('lang', l)}
+                  className={form.lang === l ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
             </div>
-            <div role="group" aria-label={t('admin.sheet.lang')}>
-              <span className="label">{t('admin.sheet.lang')}</span>
-              <div className="flex gap-2">
-                {(['fr', 'ar'] as const).map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    aria-pressed={form.lang === l}
-                    onClick={() => set('lang', l)}
-                    className={form.lang === l ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
-                  >
-                    {l.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
+          </div>
 
-            {error && (
-              <p role="alert" className="rounded-xl border border-rust-200 bg-rust-50 px-3 py-2 text-sm text-rust-700">{error}</p>
-            )}
+          {error && (
+            <p role="alert" className="rounded-xl border border-rust-200 bg-rust-50 px-3 py-2 text-sm text-rust-700">{error}</p>
+          )}
 
-            {services.length === 0 && <p className="text-xs text-rose-600" role="status">{t('admin.sheet.loadingServices')}</p>}
-            <button type="submit" disabled={busy || services.length === 0} className="btn-primary w-full">{t('admin.sheet.save')}</button>
+          {services.length === 0 && <p className="text-xs text-rose-600" role="status">{t('admin.sheet.loadingServices')}</p>}
+          <button type="submit" disabled={busy || services.length === 0} className="btn-primary w-full">{t('admin.sheet.save')}</button>
 
-          </form>
-        )}
-      </div>
-    </div>
+        </form>
+      )}
+    </Sheet>
   );
 }
 
