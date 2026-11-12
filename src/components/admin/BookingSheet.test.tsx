@@ -497,6 +497,17 @@ describe('BookingSheet — validation and Radix fields', () => {
     );
   });
 
+  it('an Escape already handled (by a menu that has since closed) leaves the sheet open', () => {
+    const onClose = renderSheet(addState);
+    expect(document.querySelector('[data-radix-popper-content-wrapper]')).toBeNull();
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    escape.preventDefault();
+    act(() => {
+      window.dispatchEvent(escape);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('a booking at 10:10 shows 10:10 on the Heure field', () => {
     renderSheet({ mode: 'edit', booking: adminBooking({ startIso: '2030-01-08T09:10:00Z' }) }); // 10:10 in Algiers
     openForm();

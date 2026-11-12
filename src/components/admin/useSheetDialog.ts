@@ -29,8 +29,9 @@ export function useSheetDialog(requestClose: () => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        // Radix closes its own menu on this Escape; the sheet stays.
-        if (document.querySelector(PORTAL)) return;
+        // Radix closes its own menu on this Escape (and marks it handled); the sheet stays. The menu may
+        // already be unmounted when this listener runs, so the handled mark counts on its own.
+        if (e.defaultPrevented || document.querySelector(PORTAL)) return;
         requestCloseRef.current();
         return;
       }
