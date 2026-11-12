@@ -72,3 +72,14 @@ See `example.json`. Texts shown on the site are `{"fr": "…", "ar": "…"}`; a 
 Service and stylist ids are shared by all salons: start them with the salon id (`sara-coupe`).
 A photo is either a file name inside `salons/<slug>/photos/` (e.g. `"coupe.jpg"`, uploaded by the
 script) or an `https://` address used as is.
+
+## The demo: `pnpm setup-demo <salon-id>`
+
+Turns a salon (e.g. `elegance`) into the showroom. It creates a dedicated demo login
+(`demo+<salon-id>@demo.invalid`, or another domain with `--domain=`; never an owner's account),
+flags the salon as the demo and records its **current** state as the snapshot the nightly reset
+(03:00 Algiers) and the owner's "Réinitialiser la démo" button return to. The "Essayer la démo"
+button then appears on that salon's `/admin`. Uses `.env.admin`; `--dry-run` writes nothing.
+
+Re-running keeps the login, **rotates its password** (printed once; visitors never need it) and
+**re-captures the snapshot**: run it when the salon looks the way prospects should see it.

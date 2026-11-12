@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "new-salon": "tsx scripts/new-salon.ts"
+    "new-salon": "tsx scripts/new-salon.ts",
+    "setup-demo": "tsx scripts/setup-demo.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
