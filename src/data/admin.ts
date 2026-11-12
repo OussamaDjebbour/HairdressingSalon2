@@ -22,6 +22,8 @@ export interface AdminBooking {
   stylistId: string;
   stylistName: string;
   source: BookingSource;
+  /** When the booking was made (online: when the client asked). */
+  createdAt: Date;
 }
 
 interface AdminBookingRow {
@@ -155,6 +157,7 @@ export async function fetchAdminBookings(from: Date, to: Date): Promise<AdminBoo
     stylistId: r.stylist_id,
     stylistName: r.stylist_name,
     source: r.source,
+    createdAt: new Date(r.created_at),
   }));
 }
 

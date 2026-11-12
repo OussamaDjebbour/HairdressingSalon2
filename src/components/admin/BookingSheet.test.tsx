@@ -19,13 +19,14 @@ vi.mock('../../data/queries', async () => {
 });
 
 let daysOff: StylistDayOff[] = [];
+let salonWhatsapp: string | null = '0555 00 11 22';
 vi.mock('../../data/salonSettings', async () => {
   const f = await import('./fixtures');
   return {
     useSalonHours: () => ({ data: f.eleganceHours }),
     useClosedDates: () => ({ data: [] }),
     useStylistDaysOff: () => ({ data: daysOff }),
-    useSalonInfo: () => ({ data: { whatsapp: '0555 00 11 22' } }),
+    useSalonInfo: () => ({ data: { whatsapp: salonWhatsapp } }),
   };
 });
 
@@ -62,6 +63,11 @@ function fillClient(name: string, phone: string) {
   fireEvent.change(screen.getByLabelText('Téléphone'), { target: { value: phone } });
 }
 
+/** Existing bookings open on the summary; the form is one tap away. */
+function openForm() {
+  fireEvent.click(screen.getByRole('button', { name: 'Modifier ou déplacer' }));
+}
+
 function whatsappText(): string {
   const href = screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')!;
   return decodeURIComponent(href.split('?text=')[1]);
@@ -74,13 +80,14 @@ beforeEach(() => {
   servicesOverride = undefined;
   stylistsOverride = undefined;
   daysOff = [];
+  salonWhatsapp = '0555 00 11 22';
 });
 
 describe('BookingSheet — add', () => {
   it('add prefills stylist, date and time and lists every service', () => {
     renderSheet(addState);
     expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Styliste')).toHaveValue('sara');
+    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('sara');
     expect(screen.getByLabelText('Date')).toHaveValue('2030-01-08');
     expect(screen.getByLabelText('Heure')).toHaveValue('10:00');
     const serviceSelect = screen.getByLabelText('Prestation');
@@ -154,7 +161,7 @@ describe('BookingSheet — edit', () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet({ mode: 'edit', booking: adminBooking({ status: 'confirmed' }) });
     expect(screen.queryByRole('button', { name: /Confirmer/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Annuler/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler le rendez-vous' }));
     expect(setStatus).toHaveBeenCalledWith({ id: 'b1', status: 'cancelled' }, expect.anything());
     expect(whatsappText()).toContain('est annulé');
   });
@@ -162,28 +169,139 @@ describe('BookingSheet — edit', () => {
   it('moving offers the moved message', () => {
     update.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet({ mode: 'edit', booking: adminBooking() });
+    openForm();
     fireEvent.change(screen.getByLabelText('Heure'), { target: { value: '11:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: 'b1', time: '11:00' }), expect.anything());
     expect(whatsappText()).toContain('a été déplacé au Mardi 8 janvier à 11:00');
   });
 
-  it('confirm and cancel are disabled while there are unsaved changes', () => {
-    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'pending' }) });
-    fireEvent.change(screen.getByLabelText('Heure'), { target: { value: '11:00' } });
-    expect(screen.getByRole('button', { name: /Confirmer/ })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Annuler/ })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Heure'), { target: { value: '10:00' } });
-    expect(screen.getByRole('button', { name: /Confirmer/ })).toBeEnabled();
-  });
-
   it('a name-only edit just closes', () => {
     update.mockImplementation((_input, opts) => opts.onSuccess());
     const onClose = renderSheet({ mode: 'edit', booking: adminBooking() });
+    openForm();
     fireEvent.change(screen.getByLabelText('Nom de la cliente'), { target: { value: 'Yasmine B' } });
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     expect(onClose).toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: /Envoyer sur WhatsApp/ })).toBeNull();
+  });
+});
+
+describe('BookingSheet — summary first', () => {
+  it('opens a waiting website booking as a summary with Confirmer and Refuser, not a form', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'pending', source: 'online' }) });
+    expect(screen.getByText('À confirmer')).toBeInTheDocument();
+    expect(screen.getByText(/via le site/)).toBeInTheDocument();
+    expect(screen.getByText('10:00 – 11:00')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refuser' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Nom de la cliente')).toBeNull();
+    expect(screen.getByText('Coupe & Brushing')).toBeInTheDocument();
+    expect(screen.getByText('Amina')).toBeInTheDocument();
+  });
+
+  it('a confirmed booking offers the WhatsApp message and cancelling', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'confirmed' }) });
+    expect(screen.queryByRole('button', { name: 'Confirmer' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Annuler le rendez-vous' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Message WhatsApp' }));
+    expect(screen.getByText('Rendez-vous confirmé')).toBeInTheDocument();
+    expect(whatsappText()).toContain('est confirmé');
+  });
+
+  it('confirming shows the ready message with the WhatsApp link', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'pending' }) });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByText('Rendez-vous confirmé')).toBeInTheDocument();
+    expect(screen.getByText(/Prévenez Yasmine sur WhatsApp/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')!.startsWith('https://wa.me/213555123456?text=')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Plus tard' })).toBeInTheDocument();
+  });
+
+  it('a failed confirm keeps the summary and shows why', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onError(new Error('slot_taken')));
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'pending' }) });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByText('Rendez-vous confirmé')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+  });
+
+  it('“Modifier ou déplacer” opens the form', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    openForm();
+    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Yasmine');
+  });
+
+  it('the demo account gets no call button and a WhatsApp chat with the salon', () => {
+    role = 'demo';
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: '05•• •• •• 56' }) });
+    expect(screen.queryByRole('link', { name: 'Appeler' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')).toBe('https://wa.me/213555001122');
+  });
+
+  it('“Retour au résumé” goes back from the form, asking first if something changed', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    openForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+
+    openForm();
+    fireEvent.change(screen.getByLabelText('Nom de la cliente'), { target: { value: 'Yasmine B' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+    expect(confirm).toHaveBeenCalledWith('Abandonner les modifications non enregistrées ?');
+    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Yasmine B'); // declined: stays
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+    openForm();
+    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Yasmine'); // accepted: edits dropped
+  });
+
+  it('the demo without a salon number shows the message but no broken WhatsApp link', () => {
+    role = 'demo';
+    salonWhatsapp = null;
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: '05•• •• •• 56' }) });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByText('Rendez-vous confirmé')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Envoyer sur WhatsApp/ })).toBeNull();
+  });
+
+  it('says “Coiffeuse”, like the rest of the admin', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    expect(screen.getByText('Coiffeuse')).toBeInTheDocument();
+    expect(screen.queryByText('Styliste')).toBeNull();
+  });
+
+  it('shows cancelling and refusing as destructive, apart from the main action', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'confirmed' }) });
+    expect(screen.getByRole('button', { name: 'Annuler le rendez-vous' })).toHaveClass('text-rust-700', 'w-full');
+  });
+
+  it('refusing a request is shown as destructive too', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'pending' }) });
+    expect(screen.getByRole('button', { name: 'Refuser' })).toHaveClass('text-rust-700');
+  });
+
+  it('gives every control in the sheet a full-size tap area', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    for (const name of ['Fermer', 'Modifier ou déplacer']) expect(screen.getByRole('button', { name })).toHaveClass('tap');
+    for (const name of ['Appeler', 'WhatsApp']) expect(screen.getByRole('link', { name })).toHaveClass('tap');
+  });
+
+  it('lays the client name out in its own direction', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientName: 'Lina M.' }) });
+    expect(screen.getByText('Lina M.')).toHaveAttribute('dir', 'auto');
+  });
+
+  it('the owner can call or open a WhatsApp chat with the client', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    expect(screen.getByRole('link', { name: 'Appeler' })).toHaveAttribute('href', 'tel:0555123456');
+    expect(screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')).toBe('https://wa.me/213555123456');
   });
 });
 
@@ -211,6 +329,7 @@ describe('BookingSheet — polish', () => {
   it('keeps an off-grid booking time in order and flags it if the service no longer fits', () => {
     servicesOverride = [{ ...services[0], duration: 120 }, ...services.slice(1)];
     renderSheet({ mode: 'edit', booking: adminBooking({ startIso: '2030-01-08T16:30:00Z' }) }); // 17:30 in Algiers
+    openForm();
     const options = within(screen.getByLabelText('Heure')).getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual([...options].sort());
     expect(screen.getByLabelText('Heure')).toHaveValue('17:30');
@@ -249,7 +368,7 @@ describe('BookingSheet — salon settings', () => {
     daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
     renderSheet(addState);
     expect(screen.queryByText(/ne travaille pas ce jour-là/)).toBeNull();
-    fireEvent.change(screen.getByLabelText('Styliste'), { target: { value: 'amina' } });
+    fireEvent.change(screen.getByLabelText('Coiffeuse'), { target: { value: 'amina' } });
     expect(screen.getByText('Amina ne travaille pas ce jour-là')).toBeInTheDocument();
   });
 
@@ -260,6 +379,7 @@ describe('BookingSheet — salon settings', () => {
       { ...services[0], id: 'gone', name: { fr: 'Disparue', ar: 'محذوفة' }, active: false },
     ];
     renderSheet({ mode: 'edit', booking: adminBooking({ serviceId: 'old-cut', serviceName: { fr: 'Ancienne coupe', ar: 'قص قديم' } }) });
+    openForm();
     const select = screen.getByLabelText('Prestation');
     expect(select).toHaveValue('old-cut');
     expect(within(select).getByRole('option', { name: 'Ancienne coupe' })).toBeInTheDocument();
@@ -269,13 +389,15 @@ describe('BookingSheet — salon settings', () => {
   it("keeps a booking's hidden stylist in the picker, but offers no other hidden one", () => {
     stylistsOverride = stylists.map((s) => (s.id === 'sara' ? s : { ...s, active: false }));
     renderSheet({ mode: 'edit', booking: adminBooking() }); // Amina, now hidden
-    const select = screen.getByLabelText('Styliste');
+    openForm();
+    const select = screen.getByLabelText('Coiffeuse');
     expect(select).toHaveValue('amina');
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Amina', 'Sara']);
   });
 
   it('a booking on a closed date keeps its own time to pick', () => {
     renderSheet({ mode: 'edit', booking: adminBooking({ startIso: '2030-01-07T09:00:00Z' }) }); // Monday: closed
+    openForm();
     const options = within(screen.getByLabelText('Heure')).getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual(['10:00']);
     expect(screen.getByLabelText('Heure')).toHaveValue('10:00');
@@ -288,6 +410,7 @@ describe('BookingSheet — demo account', () => {
   it('saves the masked phone back exactly as received, without a phone error', () => {
     role = 'demo';
     renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: masked }) });
+    openForm();
     expect(screen.getByLabelText('Téléphone')).toHaveValue(masked);
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     expect(screen.queryByText(/numéro/i)).toBeNull();
@@ -298,6 +421,7 @@ describe('BookingSheet — demo account', () => {
   it('still validates a phone the visitor typed', () => {
     role = 'demo';
     renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: masked }) });
+    openForm();
     fireEvent.change(screen.getByLabelText('Téléphone'), { target: { value: '123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     expect(update).not.toHaveBeenCalled();

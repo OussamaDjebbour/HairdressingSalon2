@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { ChevronRight, Plus } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { formatDuration, formatPrice } from '../../data/formatters';
 import { useAllServices } from '../../data/queries';
@@ -166,21 +166,24 @@ export function ServicesSettings() {
       </button>
       <ul className="space-y-2">
         {ordered.map((s) => (
-          <li key={s.id} className={`card flex items-center gap-2 ps-4 pe-2 py-2 ${s.active ? '' : 'opacity-70'}`}>
+          <li key={s.id} className={`card relative flex items-center gap-2 ps-4 pe-3 py-2 ${s.active ? '' : 'opacity-70'}`}>
             <button
               type="button"
-              className="flex-1 min-w-0 text-start py-1"
+              className="flex-1 min-w-0 text-start py-1 after:absolute after:inset-0 after:rounded-[inherit] after:content-['']"
               onClick={() => { setError(null); setDraft(toDraft(s)); }}
             >
-              <span data-testid="service-name" className="block font-medium text-rose-800 truncate">{s.name[lang]}</span>
-              <span className="block text-sm text-rose-600">
-                {formatPrice(s.price, lang)} · {formatDuration(s.duration, lang)}
-                {!s.active && <span className="ms-2 text-xs font-semibold text-amber-800">{t('settings.services.hidden')}</span>}
+              <span className="flex-1 min-w-0">
+                <span data-testid="service-name" className="block font-medium text-rose-800 break-words">{s.name[lang]}</span>
+                <span className="block text-sm text-rose-600">
+                  {formatPrice(s.price, lang)} · {formatDuration(s.duration, lang)}
+                  {!s.active && <span className="ms-2 text-xs font-semibold text-amber-800">{t('settings.services.hidden')}</span>}
+                </span>
               </span>
             </button>
-            <button type="button" className="btn-ghost btn-sm shrink-0" disabled={setActive.isPending} onClick={() => toggle(s)}>
+            <button type="button" className="btn-ghost btn-sm tap relative z-10 shrink-0" disabled={setActive.isPending} onClick={() => toggle(s)}>
               {t(s.active ? 'settings.services.hide' : 'settings.services.show')}
             </button>
+            <ChevronRight className="w-4 h-4 shrink-0 text-gold-600 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
           </li>
         ))}
       </ul>

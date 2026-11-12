@@ -38,6 +38,12 @@ describe('clientMessage', () => {
     expect(text).toContain('10:00');
   });
 
+  it('keeps a Latin client or salon name in order inside the Arabic message', () => {
+    const text = clientMessage('confirmed', { ...booking, clientName: 'Lina M.', lang: 'ar' });
+    expect(text).toContain('مرحباً \u2068Lina M.\u2069،');
+    expect(text).toContain('صالون \u2068Élégance\u2069');
+  });
+
   it('has cancelled and moved variants', () => {
     expect(clientMessage('cancelled', { ...booking, lang: 'fr' })).toContain('est annulé');
     expect(clientMessage('moved', { ...booking, lang: 'fr' })).toContain('a été déplacé au Mardi 8 janvier à 10:00');

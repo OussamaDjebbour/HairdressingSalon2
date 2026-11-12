@@ -86,8 +86,13 @@
   }
 
   .btn-whatsapp {
-    @apply btn bg-[#25D366] text-white px-7 py-3.5
-           hover:bg-[#1FB855] hover:shadow-lift;
+    @apply btn bg-whatsapp text-white px-7 py-3.5
+           hover:bg-whatsapp-dark hover:shadow-lift;
+  }
+
+  /* A full-size tap area (44 × 44 px minimum) for small controls used on phones. */
+  .tap {
+    @apply min-h-11 min-w-11;
   }
 
   .btn-sm {
@@ -237,6 +242,17 @@
   .text-pretty {
     text-wrap: pretty;
   }
+  /* Admin bottom sheet: the dynamic viewport height keeps the whole sheet on screen when the
+     phone's browser bars are showing (plain vh is the height with the bars hidden). */
+  .sheet-panel {
+    max-height: 92vh;
+    max-height: 92dvh;
+  }
+  /* Room under the last item, above the phone's home bar. */
+  .sheet-body {
+    padding-bottom: max(2rem, calc(env(safe-area-inset-bottom) + 1.25rem));
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

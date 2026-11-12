@@ -2,7 +2,7 @@ import type { Lang } from '../context/LanguageContext';
 import { formatAlgiersTime, type AdminBooking } from './admin';
 import { currentSalon } from './salon';
 import { normalizePhone } from './bookings';
-import { formatLongDate } from './formatters';
+import { formatLongDate, nameInText } from './formatters';
 import { salonDate } from './week';
 
 /** "0555 12 34 56" / "+213 555…" / "0555123456" → "213555123456", the form wa.me links expect. */
@@ -43,8 +43,9 @@ export function clientMessage(
   b: Pick<AdminBooking, 'clientName' | 'startsAt' | 'serviceName' | 'lang'>
 ): string {
   return templates[b.lang][kind]({
-    salon: currentSalon().name[b.lang],
-    name: b.clientName,
+    // Names may be Latin inside an Arabic message: isolated so they keep their order.
+    salon: nameInText(currentSalon().name[b.lang], b.lang),
+    name: nameInText(b.clientName, b.lang),
     date: formatLongDate(salonDate(b.startsAt), b.lang),
     time: formatAlgiersTime(b.startsAt),
     service: b.serviceName[b.lang],
