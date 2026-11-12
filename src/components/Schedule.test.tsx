@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { AdminBooking } from '../data/admin';
 import type { SalonHours, Stylist, StylistDayOff } from '../data/types';
@@ -130,8 +130,10 @@ describe('Schedule deep link (from a notification)', () => {
     weekBookings = [adminBooking({ id: 'p9', clientName: 'Nour', startIso: '2030-01-17T09:00:00Z' })];
     renderSchedule('/admin?day=2030-01-17&booking=p9');
     expect(screen.getAllByText('Jeudi 17 janvier').length).toBeGreaterThan(0);
-    expect(screen.getByRole('dialog', { name: 'Rendez-vous' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Nour');
+    const dialog = screen.getByRole('dialog', { name: 'Rendez-vous' });
+    // It opens on the booking's summary, ready to confirm.
+    expect(within(dialog).getByText('Nour')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
   });
 
   it('unknown booking id just opens the day', () => {

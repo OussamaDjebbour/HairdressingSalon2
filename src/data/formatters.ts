@@ -71,6 +71,14 @@ export function formatPhone(phone: string): string {
   return m ? m.slice(1).join(' ') : phone;
 }
 
+/** "il y a 5 min" / "il y a 3 h" / "il y a 2 j" (whole units, rounded down; never negative). */
+export function formatAgo(date: Date, now: Date, lang: Lang = 'fr'): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60000));
+  const [n, unit] =
+    minutes < 60 ? [minutes, 0] : minutes < 24 * 60 ? [Math.floor(minutes / 60), 1] : [Math.floor(minutes / (24 * 60)), 2];
+  return lang === 'ar' ? `منذ ${n} ${['دقيقة', 'ساعة', 'يوم'][unit]}` : `il y a ${n} ${['min', 'h', 'j'][unit]}`;
+}
+
 /** A plain number in the language's own digits and separators ("2 500", "4,9", "٢٤٠"). */
 export function formatNumber(n: number, lang: Lang = 'fr'): string {
   return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'fr-FR').replace(/\s/g, ' ');

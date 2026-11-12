@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatClaim, formatNumber, formatPrice } from './formatters';
+import { formatAgo, formatClaim, formatNumber, formatPrice } from './formatters';
 
 const LRI = '⁦'; // LEFT-TO-RIGHT ISOLATE
 const PDI = '⁩'; // POP DIRECTIONAL ISOLATE
@@ -28,5 +28,17 @@ describe('formatClaim / formatNumber', () => {
   it('shows counts in the language\'s own digits', () => {
     expect(formatNumber(240, 'fr')).toBe('240');
     expect(formatNumber(240, 'ar')).toBe('٢٤٠');
+  });
+});
+
+describe('formatAgo', () => {
+  const now = new Date('2030-01-08T12:00:00Z');
+  it('counts minutes, hours, then days', () => {
+    expect(formatAgo(new Date('2030-01-08T11:55:00Z'), now, 'fr')).toBe('il y a 5 min');
+    expect(formatAgo(new Date('2030-01-08T09:00:00Z'), now, 'fr')).toBe('il y a 3 h');
+    expect(formatAgo(new Date('2030-01-06T12:00:00Z'), now, 'fr')).toBe('il y a 2 j');
+  });
+  it('has an Arabic form', () => {
+    expect(formatAgo(new Date('2030-01-08T09:00:00Z'), now, 'ar')).toContain('3');
   });
 });
