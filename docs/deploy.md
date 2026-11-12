@@ -26,8 +26,11 @@ first real salon. Dashboard → Organization → Billing.
    npx wrangler pages project create salons --production-branch=main
    ```
 
-   (`salons` is the project name; the site is then `https://salons.pages.dev`.)
-3. Give the edge functions their two settings (each command asks you to paste the value):
+   (`salons` is the project name; the site is then `https://salons.pages.dev`, or with a suffix
+   if that name was taken.)
+3. If this repository was ever connected to **Vercel** (or another host), disconnect or delete
+   that project there, so it stops deploying an old copy of the site from the same repository.
+4. Give the edge functions their two settings (each command asks you to paste the value):
 
    ```bash
    npx wrangler pages secret put SUPABASE_URL --project-name salons
@@ -55,7 +58,9 @@ three dots next to your account name → Copy account ID).
 > **The repository belongs to a teammate and you are not an admin of it.** Only a repository
 > admin can add secrets. Ask the teammate either to add the secrets below (Settings → Secrets and
 > variables → Actions → New repository secret) or to make you an admin. Also ask them to create
-> an environment named **production** (Settings → Environments), which the deploy job uses.
+> an environment named **production** (Settings → Environments), which the deploy job uses, and
+> to restrict it to the `main` branch (that environment → Deployment branches and tags →
+> Selected branches → add `main`), so no other branch can ever use the deploy secrets.
 
 | Secret | Where to find it |
 | --- | --- |
@@ -70,7 +75,7 @@ three dots next to your account name → Copy account ID).
 | `CLOUDFLARE_PAGES_PROJECT` | `salons` (step 2) |
 
 From then on, merging to `main` deploys. To redeploy without a change: GitHub → Actions → Deploy →
-Run workflow. If a step fails, nothing after it runs: the database is updated before the site, so
+Run workflow (with `main` selected: started from another branch, only the checks run). If a step fails, nothing after it runs: the database is updated before the site, so
 a failed migration never publishes a site that expects it.
 
 ## 5. Your machine: `.env.admin`
@@ -102,10 +107,10 @@ supabase db push
 Then the live Élégance demo needs a row saying which address belongs to it, or the site shows
 "Salon introuvable". Use its real `pages.dev` address: copy it from the Cloudflare dashboard
 (Workers & Pages → `salons`); it gets a suffix (for example `salons-ab1.pages.dev`) if the name
-`salons` was already taken. In Supabase → SQL Editor:
+`salons` was already taken. In Supabase → SQL Editor (replace `<your-project>.pages.dev` with it):
 
 ```sql
-insert into public.salon_domains (domain, salon_id) values ('salons.pages.dev', 'elegance');
+insert into public.salon_domains (domain, salon_id) values ('<your-project>.pages.dev', 'elegance');
 ```
 
 After the first deploy (the merge), check it worked: view the page source of a salon's address. It shows
@@ -133,5 +138,7 @@ that salon's `<title>` and a `<style>` with `--brand-*` values (`--brand-600: ..
    asks before changing anything (`--yes` answers for you).
 4. **Check the site** at the new domain (DNS and the certificate can take a few minutes) and at
    `/admin`. Before the domain works, preview any salon on your computer with
-   `pnpm dev` and `http://localhost:5173/?salon=<slug>` (this only works on localhost).
+   `pnpm dev` and `http://localhost:5173/?salon=<slug>` (this only works on localhost; the live
+   database has no `localhost` address row, so plain `http://localhost:5173/` shows "Salon
+   introuvable" — use `?salon=elegance` or `VITE_SALON_ID=elegance pnpm dev`).
 5. **Hand over** the site address, `/admin` address, the owner's email and the password.

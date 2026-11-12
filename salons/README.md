@@ -39,6 +39,10 @@ after that they belong to the owner (Réglages). To overwrite them with the file
 `domains` list is never sent, so it can't take a salon's site offline; keys left out of the file
 keep their current value.
 
+**Moving a domain** from one salon to another: the edge keeps each address's salon for up to
+5 minutes, so for that long the page head (tab title, colours) can still show the old salon; the
+page itself follows the database at once.
+
 The owner's password is printed as soon as her login is created (and again in the summary): note
 it then, a later run can't show it again.
 

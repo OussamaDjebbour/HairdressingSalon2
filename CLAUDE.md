@@ -22,6 +22,7 @@ supabase test db                            # pgTAP tests in supabase/tests/data
 supabase db lint --level warning            # security/schema lint
 ```
 
+- `pnpm dev` against the **live** database needs `http://localhost:5173/?salon=elegance` (or `VITE_SALON_ID=elegance pnpm dev`): only the local seed has a `localhost` row in `salon_domains`, so a plain `localhost` shows "Salon introuvable".
 - To run the app against the local stack without editing `.env`: `VITE_SUPABASE_URL=<API_URL> VITE_SUPABASE_PUBLISHABLE_KEY=<ANON_KEY> pnpm dev` (values from `supabase status -o env`).
 - Changes to the live database go through new migration files + `supabase db push`; never edit an already-pushed migration.
 - **No `lint` script.** `eslint.config.js` exists, but the ESLint packages it imports are *not* in `package.json` and are *not* installed. To lint you must first install them (`@eslint/js`, `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `globals`, `eslint`), then `npx eslint .`.
@@ -81,7 +82,7 @@ The SQL functions own the business rules: Algiers time, each salon's **hours per
 
 ### Hosting
 
-One Cloudflare Pages project serves every salon's domain: the static build (`dist`) plus `functions/` (edge middleware that writes each salon's title, colours and app manifest; env `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`; `wrangler.toml`). `.github/workflows/deploy.yml` runs on every merge to `main`: CI checks, `supabase db push`, deploy `notify-booking`, `pnpm build`, `wrangler pages deploy`. One-time account setup and launching salons: `docs/deploy.md`.
+One Cloudflare Pages project serves every salon's domain: the static build (`dist`) plus `functions/` (edge middleware that writes each salon's title, colours and app manifest; env `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`; `wrangler.toml`). `public/_routes.json` keeps `/assets/*`, `/icons/*` and `/sw.js` off the functions; `index.html`'s static head is neutral (no salon name). `.github/workflows/deploy.yml` runs on every merge to `main` (its deploy job only ever runs for `main`): CI checks, `supabase db push`, deploy `notify-booking`, `pnpm build`, `wrangler pages deploy`. One-time account setup and launching salons: `docs/deploy.md`.
 
 ### Booking notifications (Web Push)
 
