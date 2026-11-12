@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { Scissors, Globe, ArrowLeft, LogOut, Settings } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Scissors, Globe, ArrowLeft, Settings } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { useSession } from '../../lib/auth';
-import { useLogout } from '../../lib/useLogout';
 import { useAdminManifest } from '../../lib/manifest';
 import { useSalon } from '../../data/salon';
 import { LoginForm } from '../LoginForm';
@@ -13,7 +12,8 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
   const { lang, toggleLang, t } = useLang();
   const salon = useSalon();
   const { session, loading } = useSession();
-  const handleLogout = useLogout();
+  // The settings pages have their own back arrow; logging out lives in Réglages → Compte.
+  const inSettings = useLocation().pathname.startsWith('/admin/settings');
   useAdminManifest();
 
   return (
@@ -46,7 +46,7 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
               <span className={lang === 'ar' ? 'font-semibold text-cream-50' : 'text-cream-300'}>AR</span>
             </button>
 
-            {session && (
+            {session && !inSettings && (
               <Link
                 to="/admin/settings"
                 aria-label={t('settings.title')}
@@ -54,16 +54,6 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
               >
                 <Settings className="w-4 h-4" strokeWidth={1.8} />
               </Link>
-            )}
-
-            {session && (
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
-              >
-                <LogOut className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
-                <span className="hidden sm:inline">{t('admin.logout')}</span>
-              </button>
             )}
 
             {/* On a phone the logged-in header is full; the logo already links back to the site. */}
