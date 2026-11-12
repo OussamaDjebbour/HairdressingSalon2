@@ -19,13 +19,14 @@ vi.mock('../../data/queries', async () => {
 });
 
 let daysOff: StylistDayOff[] = [];
+let salonWhatsapp: string | null = '0555 00 11 22';
 vi.mock('../../data/salonSettings', async () => {
   const f = await import('./fixtures');
   return {
     useSalonHours: () => ({ data: f.eleganceHours }),
     useClosedDates: () => ({ data: [] }),
     useStylistDaysOff: () => ({ data: daysOff }),
-    useSalonInfo: () => ({ data: { whatsapp: '0555 00 11 22' } }),
+    useSalonInfo: () => ({ data: { whatsapp: salonWhatsapp } }),
   };
 });
 
@@ -79,6 +80,7 @@ beforeEach(() => {
   servicesOverride = undefined;
   stylistsOverride = undefined;
   daysOff = [];
+  salonWhatsapp = '0555 00 11 22';
 });
 
 describe('BookingSheet — add', () => {
@@ -237,6 +239,41 @@ describe('BookingSheet — summary first', () => {
     renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: '05•• •• •• 56' }) });
     expect(screen.queryByRole('link', { name: 'Appeler' })).toBeNull();
     expect(screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')).toBe('https://wa.me/213555001122');
+  });
+
+  it('“Retour au résumé” goes back from the form, asking first if something changed', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    openForm();
+    fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+
+    openForm();
+    fireEvent.change(screen.getByLabelText('Nom de la cliente'), { target: { value: 'Yasmine B' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+    expect(confirm).toHaveBeenCalledWith('Abandonner les modifications non enregistrées ?');
+    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Yasmine B'); // declined: stays
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+    openForm();
+    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Yasmine'); // accepted: edits dropped
+  });
+
+  it('the demo without a salon number shows the message but no broken WhatsApp link', () => {
+    role = 'demo';
+    salonWhatsapp = null;
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: '05•• •• •• 56' }) });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByText('Rendez-vous confirmé')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Envoyer sur WhatsApp/ })).toBeNull();
+  });
+
+  it('lays the client name out in its own direction', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientName: 'Lina M.' }) });
+    expect(screen.getByText('Lina M.')).toHaveAttribute('dir', 'auto');
   });
 
   it('the owner can call or open a WhatsApp chat with the client', () => {

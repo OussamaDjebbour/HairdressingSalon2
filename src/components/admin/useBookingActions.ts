@@ -18,10 +18,13 @@ export function useBookingActions(onDone?: (booking: AdminBooking, status: 'conf
   const setStatus = useSetBookingStatus();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which booking the error belongs to (a list shows it under that one only).
+  const [errorId, setErrorId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
 
   const run = (b: AdminBooking, status: 'confirmed' | 'cancelled') => {
     setError(null);
+    setErrorId(null);
     setPendingId(b.id);
     setStatus.mutate(
       { id: b.id, status },
@@ -34,6 +37,7 @@ export function useBookingActions(onDone?: (booking: AdminBooking, status: 'conf
         onError: (err) => {
           setPendingId(null);
           setError(t(`admin.error.${toAdminError(err)}`));
+          setErrorId(b.id);
         },
       }
     );
@@ -47,6 +51,7 @@ export function useBookingActions(onDone?: (booking: AdminBooking, status: 'conf
     },
     pendingId,
     error,
+    errorId,
     notice,
     clearNotice: () => setNotice(null),
   };

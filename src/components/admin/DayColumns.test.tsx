@@ -173,3 +173,10 @@ describe('DayColumns with many stylists', () => {
     for (const grid of grids()) expect(grid.style.minWidth).toBe('');
   });
 });
+
+describe('DayColumns names', () => {
+  it('lays a client name out in its own direction (a Latin name in the Arabic page)', () => {
+    renderColumns([adminBooking({ clientName: 'Lina M.' })]);
+    expect(screen.getByText('Lina M.')).toHaveAttribute('dir', 'auto');
+  });
+});

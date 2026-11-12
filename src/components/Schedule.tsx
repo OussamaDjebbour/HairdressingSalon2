@@ -8,7 +8,7 @@ import {
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
 import { useAllStylists } from '../data/queries';
-import { formatPrice, formatDuration, formatLongDate, formatShortDayName } from '../data/formatters';
+import { countText, formatPrice, formatDuration, formatLongDate, formatShortDayName } from '../data/formatters';
 import { dayHours, stylistWorks } from '../data/hours';
 import { useClosedDates, useSalonHours, useStylistDaysOff } from '../data/salonSettings';
 import { dayOccupancy, minutesToTime, salonDate, salonMinutes, weekDays } from '../data/week';
@@ -19,7 +19,7 @@ import { Blocked, SalonGate } from './admin/SalonGate';
 import { WeekStrip } from './admin/WeekStrip';
 import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
-import { PendingSheet } from './admin/PendingSheet';
+import { PendingSheet, type Answered } from './admin/PendingSheet';
 
 // Online bookings are at most today + 13 days, but the owner can move a waiting one further out;
 // 30 days stays within admin_list_bookings' 31-day range cap.
@@ -70,6 +70,9 @@ function ScheduleBody() {
   const [day, setDay] = useState(() => parseYmd(searchParams.get('day')) ?? algiersToday());
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [showWaiting, setShowWaiting] = useState(false);
+  // The waiting list's answered rows outlive a booking opened from it; the list comes back after.
+  const [answered, setAnswered] = useState<Answered[]>([]);
+  const [backToWaiting, setBackToWaiting] = useState(false);
   // Hidden stylists too: one with a booking that day still gets a column.
   const allStylists = useAllStylists().data ?? [];
   const stylists = allStylists.filter((s) => s.active);
@@ -122,6 +125,10 @@ function ScheduleBody() {
     .filter((b) => b.status === 'pending' && b.startsAt > now)
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
+  /** A booking as the latest loaded data has it (its status may have changed since it was opened). */
+  const latest = (b: AdminBooking) =>
+    (weekQuery.data ?? []).find((x) => x.id === b.id) ?? (pendingQuery.data ?? []).find((x) => x.id === b.id) ?? b;
+
   const linkedBookingId = searchParams.get('booking');
   const hasLink = searchParams.has('day') || searchParams.has('booking');
   useEffect(() => {
@@ -166,7 +173,7 @@ function ScheduleBody() {
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 ms-auto">
               {!isToday && (
-                <button onClick={() => setDay(algiersToday())} className="btn-secondary btn-sm">
+                <button onClick={() => setDay(algiersToday())} className="btn-secondary btn-sm px-3.5">
                   {t('schedule.today')}
                 </button>
               )}
@@ -177,11 +184,19 @@ function ScheduleBody() {
                   className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-200 px-3 py-1.5 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition-colors"
                 >
                   <BellRing className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
-                  {t('schedule.pendingCount').replace('{n}', String(waiting.length))}
+                  {isToday ? (
+                    t('schedule.pendingCount').replace('{n}', String(waiting.length))
+                  ) : (
+                    // Away from today "Aujourd'hui" joins the bar: on a phone the pill shrinks to its count.
+                    <>
+                      <span aria-hidden="true" className="sm:hidden">{waiting.length}</span>
+                      <span className="sr-only sm:not-sr-only">{t('schedule.pendingCount').replace('{n}', String(waiting.length))}</span>
+                    </>
+                  )}
                 </button>
               )}
               {/* Add a booking (WhatsApp, phone, walk-in) */}
-              <button type="button" onClick={openAdd} aria-label={t('admin.sheet.addTitle')} className="btn-primary btn-sm">
+              <button type="button" onClick={openAdd} aria-label={t('admin.sheet.addTitle')} className="btn-primary btn-sm px-4">
                 <Plus className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
                 {t('schedule.addShort')}
               </button>
@@ -226,7 +241,7 @@ function ScheduleBody() {
                 </div>
                 <div className="mt-3 px-1 text-sm text-rose-700 space-y-0.5">
                   <p className="flex flex-wrap gap-x-2">
-                    <span>{t('schedule.summary.count').replace('{n}', String(active.length))}</span>
+                    <span>{countText(t, lang, 'schedule.summary.count', active.length)}</span>
                     <span aria-hidden="true">·</span>
                     <span>{formatPrice(totalRevenue, lang)}</span>
                     <span aria-hidden="true">·</span>
@@ -295,14 +310,33 @@ function ScheduleBody() {
       {showWaiting && (
         <PendingSheet
           bookings={waiting}
+          answered={answered}
+          onAnswered={(a) => setAnswered((list) => [...list, a])}
           onOpen={(booking) => {
             setShowWaiting(false);
+            setBackToWaiting(true);
             setSheet({ mode: 'edit', booking });
           }}
-          onClose={() => setShowWaiting(false)}
+          onClose={() => {
+            setShowWaiting(false);
+            setAnswered([]);
+          }}
         />
       )}
-      {sheet && <BookingSheet key={JSON.stringify(sheet)} state={sheet} onClose={() => setSheet(null)} />}
+      {sheet && (
+        <BookingSheet
+          // One sheet per booking: fresh data (below) updates it without resetting what it shows.
+          key={sheet.mode === 'edit' ? sheet.booking.id : JSON.stringify(sheet)}
+          state={sheet.mode === 'edit' ? { mode: 'edit', booking: latest(sheet.booking) } : sheet}
+          onClose={() => {
+            setSheet(null);
+            if (backToWaiting) {
+              setBackToWaiting(false);
+              setShowWaiting(true);
+            }
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
   formatAlgiersTime, toAdminError, useMyRole, useCreateStaffBooking, useUpdateStaffBooking,
@@ -113,6 +113,15 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     onClose();
   };
 
+  /** Back from the form to the summary; unsaved edits are dropped (after asking). */
+  const backToSummary = () => {
+    if (dirty && !window.confirm(t('admin.sheet.discardChanges'))) return;
+    setForm(initialForm(state, lang));
+    setFieldErrors({});
+    setError(null);
+    setView('summary');
+  };
+
   const save = () => {
     const name = form.clientName.trim();
     // The demo account sees masked phones; sending the mask back unchanged keeps the stored number.
@@ -188,6 +197,12 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
             save();
           }}
         >
+          {editing && (
+            <button type="button" onClick={backToSummary} className="inline-flex items-center gap-1.5 text-sm text-rose-700 hover:text-rose-900">
+              <ArrowLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
+              {t('admin.sheet.backToSummary')}
+            </button>
+          )}
           <Field id="sheet-name" label={t('admin.sheet.name')} error={fieldErrors.name ? t('admin.error.invalid_name') : null}>
             <input id="sheet-name" className="input" value={form.clientName} onChange={(e) => set('clientName', e.target.value)} autoComplete="off" />
           </Field>

@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { useState } from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import type { AdminBooking } from '../../data/admin';
 import { adminBooking } from './fixtures';
 
+let salonWhatsapp: string | null = '0555 00 11 22';
 vi.mock('../../data/salonSettings', () => ({
-  useSalonInfo: () => ({ data: { whatsapp: '0555 00 11 22' } }),
+  useSalonInfo: () => ({ data: { whatsapp: salonWhatsapp } }),
 }));
 
 const setStatus = vi.fn();
@@ -16,7 +18,7 @@ vi.mock('../../data/admin', async (importOriginal) => ({
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
-import { PendingSheet } from './PendingSheet';
+import { PendingSheet, type Answered } from './PendingSheet';
 
 // Now: Tuesday 8 Jan 2030, 08:00 in Algiers.
 const nour = adminBooking({
@@ -28,13 +30,36 @@ const sabrina = adminBooking({
   createdAt: new Date('2030-01-08T06:30:00Z'),
 });
 
+/** Schedule keeps the answered rows (so they survive opening a booking); the harness plays that part. */
+function Harness({ bookings, onOpen, onClose }: { bookings: AdminBooking[]; onOpen(b: AdminBooking): void; onClose(): void }) {
+  const [answered, setAnswered] = useState<Answered[]>([]);
+  return (
+    <PendingSheet
+      bookings={bookings}
+      answered={answered}
+      onAnswered={(a) => setAnswered((list) => [...list, a])}
+      onOpen={onOpen}
+      onClose={onClose}
+    />
+  );
+}
+
 function renderSheet(bookings: AdminBooking[], onOpen = vi.fn(), onClose = vi.fn()) {
-  render(
+  const view = render(
     <LanguageProvider>
-      <PendingSheet bookings={bookings} onOpen={onOpen} onClose={onClose} />
+      <Harness bookings={bookings} onOpen={onOpen} onClose={onClose} />
     </LanguageProvider>
   );
-  return { onOpen, onClose };
+  return {
+    onOpen,
+    onClose,
+    rerender: (next: AdminBooking[]) =>
+      view.rerender(
+        <LanguageProvider>
+          <Harness bookings={next} onOpen={onOpen} onClose={onClose} />
+        </LanguageProvider>
+      ),
+  };
 }
 
 const cards = () => screen.getAllByRole('listitem');
@@ -42,6 +67,7 @@ const cards = () => screen.getAllByRole('listitem');
 beforeEach(() => {
   vi.clearAllMocks();
   role = 'owner';
+  salonWhatsapp = '0555 00 11 22';
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2030-01-08T07:00:00Z'));
 });
@@ -70,23 +96,15 @@ describe('PendingSheet', () => {
     expect(screen.getByRole('heading', { name: '1 réservation à confirmer' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
-    expect(screen.getByRole('heading', { name: 'Tout est confirmé.' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tout est traité.' })).toBeInTheDocument();
     expect(screen.getByText('Sabrina T. confirmée')).toBeInTheDocument();
   });
 
   it('keeps a confirmed row even when the list it was given no longer has it', () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
-    const { rerender } = render(
-      <LanguageProvider>
-        <PendingSheet bookings={[nour]} onOpen={vi.fn()} onClose={vi.fn()} />
-      </LanguageProvider>
-    );
+    const { rerender } = renderSheet([nour]);
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
-    rerender(
-      <LanguageProvider>
-        <PendingSheet bookings={[]} onOpen={vi.fn()} onClose={vi.fn()} />
-      </LanguageProvider>
-    );
+    rerender([]);
     expect(screen.getByText('Nour K. confirmée')).toBeInTheDocument();
   });
 
@@ -136,6 +154,46 @@ describe('PendingSheet', () => {
     renderSheet([{ ...nour, clientPhone: '06•• •• •• 44' }]);
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
     expect(screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')!.startsWith('https://wa.me/213555001122?text=')).toBe(true);
+  });
+
+  it('a declined Refuser leaves the error under the card that failed', () => {
+    setStatus.mockImplementationOnce((_input, opts) => opts.onError({ message: 'slot_taken' }));
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderSheet([nour, sabrina]);
+    fireEvent.click(within(cards()[0]).getByRole('button', { name: 'Confirmer' }));
+    fireEvent.click(within(cards()[1]).getByRole('button', { name: 'Refuser' }));
+    expect(within(cards()[0]).getByRole('alert')).toBeInTheDocument();
+    expect(within(cards()[1]).queryByRole('alert')).toBeNull();
+  });
+
+  it('says "Tout est traité." once every request was answered, refusals included', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet([nour]);
+    fireEvent.click(screen.getByRole('button', { name: 'Refuser' }));
+    expect(screen.getByRole('heading', { name: 'Tout est traité.' })).toBeInTheDocument();
+  });
+
+  it('in the demo without a salon number, offers no broken WhatsApp link', () => {
+    role = 'demo';
+    salonWhatsapp = null;
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet([nour]);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByText('Nour K. confirmée')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'WhatsApp' })).toBeNull();
+  });
+
+  it("can't open a booking while its answer is being sent", () => {
+    setStatus.mockImplementation(() => {}); // never answers: the confirm stays in flight
+    renderSheet([nour]);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(within(cards()[0]).getAllByRole('button')[0]).toBeDisabled();
+  });
+
+  it('lays a client name out in its own direction', () => {
+    renderSheet([nour]);
+    expect(screen.getByText('Nour K.')).toHaveAttribute('dir', 'auto');
   });
 
   it('Escape closes it', () => {

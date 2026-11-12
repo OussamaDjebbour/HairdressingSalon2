@@ -57,7 +57,7 @@ import { LanguageProvider } from '../context/LanguageContext';
 import { Schedule } from './Schedule';
 
 function renderSchedule(url = '/admin') {
-  render(
+  return render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[url]}>
         <LanguageProvider>
@@ -120,6 +120,50 @@ describe('Schedule', () => {
     renderSchedule();
     fireEvent.click(screen.getByRole('button', { name: '2 en attente' }));
     expect(screen.getByRole('dialog', { name: '2 réservations à confirmer' })).toBeInTheDocument();
+  });
+
+  it('the waiting list comes back, with its answered rows, after closing a booking opened from it', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    pendingBookings = [
+      adminBooking({ id: 'p1', clientName: 'Nour', startIso: '2030-01-10T09:00:00Z', createdAt: new Date('2030-01-07T09:00:00Z') }),
+      adminBooking({ id: 'p2', clientName: 'Sabrina', startIso: '2030-01-11T09:00:00Z', createdAt: new Date('2030-01-07T10:00:00Z') }),
+    ];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '2 en attente' }));
+    fireEvent.click(within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: 'Confirmer' }));
+    fireEvent.click(within(screen.getAllByRole('listitem')[1]).getByText('Sabrina'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Rendez-vous' })).getByRole('button', { name: 'Fermer' }));
+    expect(screen.getByRole('dialog', { name: '1 réservation à confirmer' })).toBeInTheDocument();
+    expect(screen.getByText('Nour confirmée')).toBeInTheDocument();
+  });
+
+  it('closing the waiting list itself forgets its answered rows', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    pendingBookings = [adminBooking({ id: 'p1', clientName: 'Nour', startIso: '2030-01-10T09:00:00Z' })];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '1 en attente' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fermer' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 en attente' })); // the mock still lists it as waiting
+    expect(screen.queryByText('Nour confirmée')).toBeNull();
+  });
+
+  it('an open booking follows fresh data (its status changed meanwhile)', () => {
+    weekBookings = [adminBooking({ status: 'pending' })];
+    const { rerender } = renderSchedule();
+    fireEvent.click(screen.getAllByRole('button', { name: /Yasmine/ })[0]);
+    expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+    weekBookings = [adminBooking({ status: 'confirmed' })];
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/admin']}>
+          <LanguageProvider>
+            <Schedule userId="user-1" />
+          </LanguageProvider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    expect(screen.getByRole('button', { name: 'Message WhatsApp' })).toBeInTheDocument();
   });
 
   it('a card in the waiting list opens that booking', () => {

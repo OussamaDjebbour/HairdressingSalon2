@@ -151,7 +151,7 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
                       >
                         {/* Two lines only (three when outside the hours), so a 45-minute booking shows everything; the source is an icon. */}
                         <span className="flex items-center gap-1">
-                          <span className="flex-1 min-w-0 text-[11px] font-semibold text-rose-800 truncate">{b.clientName}</span>
+                          <span dir="auto" className="flex-1 min-w-0 text-start text-[11px] font-semibold text-rose-800 truncate">{b.clientName}</span>
                           <SourceIcon className="w-2.5 h-2.5 flex-shrink-0 text-rose-500" strokeWidth={2} aria-hidden="true" />
                           <span className="sr-only">{t(b.source === 'staff' ? 'schedule.source.staff' : 'schedule.source.online')}</span>
                         </span>

@@ -45,7 +45,7 @@ export function BookingSummary({ booking: b, onConfirm, onRefuse, onMessage, onC
       </div>
 
       <div className="rounded-2xl bg-white border border-cream-200 p-4">
-        <p className="font-semibold text-rose-900">{b.clientName}</p>
+        <p dir="auto" className="font-semibold text-rose-900 text-start">{b.clientName}</p>
         <p className="mt-0.5 text-sm text-rose-700" dir="ltr">{formatPhone(b.clientPhone)}</p>
         <div className="mt-3 flex gap-2">
           {!demo && (

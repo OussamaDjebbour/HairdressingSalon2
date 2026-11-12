@@ -71,12 +71,49 @@ export function formatPhone(phone: string): string {
   return m ? m.slice(1).join(' ') : phone;
 }
 
-/** "il y a 5 min" / "il y a 3 h" / "il y a 2 j" (whole units, rounded down; never negative). */
+export type PluralCategory = 'one' | 'two' | 'few' | 'many' | 'other';
+
+/**
+ * The plural form a count takes (CLDR rules). French: 0 and 1 are singular. Arabic: 1 singular,
+ * 2 dual, 3–10 plural, 11–99 singular (accusative), the rest (0, 100…) plain.
+ */
+export function pluralCategory(n: number, lang: Lang): PluralCategory {
+  if (lang === 'fr') return n <= 1 ? 'one' : 'other';
+  const last2 = n % 100;
+  if (n === 1) return 'one';
+  if (n === 2) return 'two';
+  if (last2 >= 3 && last2 <= 10) return 'few';
+  if (last2 >= 11 && last2 <= 99) return 'many';
+  return 'other';
+}
+
+const arabicAgo: Record<'min' | 'h' | 'd', Record<PluralCategory, string>> = {
+  min: { one: 'منذ دقيقة', two: 'منذ دقيقتين', few: 'منذ {n} دقائق', many: 'منذ {n} دقيقة', other: 'منذ {n} دقيقة' },
+  h: { one: 'منذ ساعة', two: 'منذ ساعتين', few: 'منذ {n} ساعات', many: 'منذ {n} ساعة', other: 'منذ {n} ساعة' },
+  d: { one: 'منذ يوم', two: 'منذ يومين', few: 'منذ {n} أيام', many: 'منذ {n} يومًا', other: 'منذ {n} يوم' },
+};
+
+/** "à l’instant" / "il y a 5 min" / "il y a 3 h" / "il y a 2 j" (whole units, rounded down; never negative). */
 export function formatAgo(date: Date, now: Date, lang: Lang = 'fr'): string {
   const minutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60000));
-  const [n, unit] =
-    minutes < 60 ? [minutes, 0] : minutes < 24 * 60 ? [Math.floor(minutes / 60), 1] : [Math.floor(minutes / (24 * 60)), 2];
-  return lang === 'ar' ? `منذ ${n} ${['دقيقة', 'ساعة', 'يوم'][unit]}` : `il y a ${n} ${['min', 'h', 'j'][unit]}`;
+  if (minutes === 0) return lang === 'ar' ? 'الآن' : 'à l’instant';
+  const [n, unit]: [number, 'min' | 'h' | 'd'] =
+    minutes < 60 ? [minutes, 'min'] : minutes < 24 * 60 ? [Math.floor(minutes / 60), 'h'] : [Math.floor(minutes / (24 * 60)), 'd'];
+  if (lang === 'ar') return arabicAgo[unit][pluralCategory(n, 'ar')].replace('{n}', String(n));
+  return `il y a ${n} ${unit === 'd' ? 'j' : unit}`;
+}
+
+/** The translation of a counted phrase: looks up `${key}.${category}` and fills in {n}. */
+export function countText(t: (key: string) => string, lang: Lang, key: string, n: number): string {
+  return t(`${key}.${pluralCategory(n, lang)}`).replace('{n}', String(n));
+}
+
+/**
+ * A name placed inside a sentence. In Arabic it is wrapped in FIRST STRONG ISOLATE … POP DIRECTIONAL
+ * ISOLATE so a Latin name keeps its own order ("Lina M." would otherwise show as ".Lina M").
+ */
+export function nameInText(name: string, lang: Lang): string {
+  return lang === 'ar' ? `\u2068${name}\u2069` : name;
 }
 
 /** A plain number in the language's own digits and separators ("2 500", "4,9", "٢٤٠"). */
