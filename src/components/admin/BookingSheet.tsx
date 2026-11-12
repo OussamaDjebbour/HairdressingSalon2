@@ -2,14 +2,14 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Check, MessageCircle, Phone, X } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
-  formatAlgiersTime, toAdminError, useCreateStaffBooking, useSetBookingStatus, useUpdateStaffBooking,
+  formatAlgiersTime, toAdminError, useMyRole, useCreateStaffBooking, useSetBookingStatus, useUpdateStaffBooking,
   type AdminBooking, type StaffBookingInput,
 } from '../../data/admin';
 import { isValidPhone, toYmd } from '../../data/bookings';
 import { useAllServices, useAllStylists } from '../../data/queries';
 import { salonDate, salonInstant, salonMinutes, staffTimeOptions } from '../../data/week';
 import { dayHours, stylistWorks } from '../../data/hours';
-import { useClosedDates, useSalonHours, useStylistDaysOff } from '../../data/salonSettings';
+import { useClosedDates, useSalonHours, useSalonInfo, useStylistDaysOff } from '../../data/salonSettings';
 import type { DayHours } from '../../data/types';
 import { clientMessage, toWaNumber, waLink, type ClientMessageKind } from '../../data/whatsapp';
 import { Badge } from '../Badge';
@@ -52,6 +52,8 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const salonHours = useSalonHours().data;
   const closedDates = useClosedDates().data ?? [];
   const daysOff = useStylistDaysOff().data ?? [];
+  const demo = useMyRole() === 'demo';
+  const salonWhatsapp = useSalonInfo().data?.whatsapp ?? null;
   const create = useCreateStaffBooking();
   const update = useUpdateStaffBooking();
   const setStatus = useSetBookingStatus();
@@ -147,7 +149,12 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
 
   const save = () => {
     const name = form.clientName.trim();
-    const errors = { name: name.length < 2 || name.length > 80, phone: !isValidPhone(form.clientPhone) };
+    // The demo account sees masked phones; sending the mask back unchanged keeps the stored number.
+    const phoneUnchanged = state.mode === 'edit' && form.clientPhone === state.booking.clientPhone;
+    const errors = {
+      name: name.length < 2 || name.length > 80,
+      phone: !(demo && phoneUnchanged) && !isValidPhone(form.clientPhone),
+    };
     setFieldErrors(errors);
     if (errors.name || errors.phone || !service) return;
     setError(null);
@@ -215,7 +222,11 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
               {clientMessage(notice.kind, notice.booking)}
             </p>
             <a
-              href={waLink(toWaNumber(notice.booking.clientPhone), clientMessage(notice.kind, notice.booking))}
+              href={waLink(
+                // In the demo the message goes to the salon's own number, never to a client.
+                demo ? toWaNumber(salonWhatsapp ?? '') : toWaNumber(notice.booking.clientPhone),
+                clientMessage(notice.kind, notice.booking)
+              )}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-whatsapp btn-lg w-full"
@@ -239,10 +250,13 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
                 <span className="text-xs text-rose-600">
                   {t(editing.source === 'staff' ? 'schedule.source.staff' : 'schedule.source.online')}
                 </span>
-                <a href={`tel:${editing.clientPhone}`} dir="ltr" className="ms-auto inline-flex items-center gap-1 text-sm text-rose-700 hover:text-rose-900">
-                  <Phone className="w-3.5 h-3.5" strokeWidth={1.8} />
-                  {editing.clientPhone}
-                </a>
+                {/* The demo account sees a masked number: no call shortcut, it would dial nonsense. */}
+                {!demo && (
+                  <a href={`tel:${editing.clientPhone}`} dir="ltr" className="ms-auto inline-flex items-center gap-1 text-sm text-rose-700 hover:text-rose-900">
+                    <Phone className="w-3.5 h-3.5" strokeWidth={1.8} />
+                    {editing.clientPhone}
+                  </a>
+                )}
               </div>
             )}
 

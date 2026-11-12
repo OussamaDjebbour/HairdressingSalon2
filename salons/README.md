@@ -72,3 +72,22 @@ See `example.json`. Texts shown on the site are `{"fr": "…", "ar": "…"}`; a 
 Service and stylist ids are shared by all salons: start them with the salon id (`sara-coupe`).
 A photo is either a file name inside `salons/<slug>/photos/` (e.g. `"coupe.jpg"`, uploaded by the
 script) or an `https://` address used as is.
+
+## The demo: `pnpm setup-demo <salon-id>`
+
+Turns a salon (e.g. `elegance`) into the showroom. It creates a dedicated demo login
+(`demo+<salon-id>@demo.invalid`, or another domain with `--domain=`; never an owner's account),
+flags the salon as the demo and records its **current** state as the snapshot the nightly reset
+(03:00 Algiers) and the owner's "Réinitialiser la démo" button return to. The "Essayer la démo"
+button then appears on that salon's `/admin`. Uses `.env.admin`; `--dry-run` writes nothing.
+
+Before writing it shows the salon (name, future bookings and how many are online, owner accounts,
+demo or not) and asks you to **type the salon id**; without a terminal pass `--yes=<salon-id>`
+(it must match). It **refuses** a salon that is not the demo yet and has future online bookings
+(a real salon: the reset would delete them) unless `--force`. Once it has run, the first reset
+**deletes every booking, closed date and stylist day off** of that salon (not part of the
+snapshot): export or check them first.
+
+Re-running keeps the login, **rotates its password** (printed once; visitors never need it) and
+**re-captures the snapshot** as the salon is at that moment. So: tap **Réinitialiser la démo
+first**, make your changes, then **re-run immediately**. See `docs/deploy.md` § 7.

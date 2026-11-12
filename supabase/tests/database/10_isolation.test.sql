@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(68);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -204,6 +204,51 @@ reset role;
 select is((select count(*)::int from public.salon_hours where salon_id = 'rival' and opens = '09:00' and closes = '18:00'), 5, 'rival hours unchanged');
 select is((select whatsapp || ' ' || instagram_url from public.salons where id = 'rival') || ' ' || (select count(*)::int from public.salon_closed_dates where salon_id = 'rival'),
           '0555000099 https://instagram.com/rival 1', 'rival salon info and closed dates unchanged');
+
+-- demo: setup never takes another salon's staff; admin_me and demo_login stay per salon
+set local role service_role;
+select throws_ok($$ select public.setup_demo('rival', '11111111-1111-1111-1111-111111111111', 'demo@test.local', 'pw') $$,
+  'P0001', 'staff_taken', 'setup_demo: elegance staff cannot become rival''s demo account');
+reset role;
+select is((select salon_id || ' ' || role from private.staff where user_id = '11111111-1111-1111-1111-111111111111') || ' ' ||
+          (select demo from public.salons where id = 'rival') || ' ' || (select count(*) from private.demo_settings),
+          'elegance owner false 0', 'a refused setup_demo changes nothing');
+select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
+set local role authenticated;
+select results_eq($$ select salon_id, role from public.admin_me() $$, $$ values ('rival', 'owner') $$, 'admin_me: rival staff see rival');
+reset role;
+set local role anon;
+select is((select count(*)::int from public.demo_login('rival')), 0, 'demo_login: no login for a salon that is not a demo');
+reset role;
+
+-- demo reset: touches only the demo salon; rival (not a demo) can never be reset
+create function pg_temp.rival_state() returns text language sql as $$
+  select concat_ws(' | ',
+    (select string_agg(id || ':' || (name ->> 'fr') || ':' || price || ':' || duration || ':' || active, ',' order by id) from public.services where salon_id = 'rival'),
+    (select string_agg(id || ':' || name || ':' || active, ',' order by id) from public.stylists where salon_id = 'rival'),
+    (select string_agg(stylist_id || ':' || service_id, ',' order by stylist_id, service_id) from public.stylist_services where salon_id = 'rival'),
+    (select string_agg(stylist_id || ':' || weekday, ',' order by stylist_id, weekday) from public.stylist_workdays where salon_id = 'rival'),
+    (select string_agg(id::text || ':' || status || ':' || client_name || ':' || starts_at, ',' order by id) from private.bookings where salon_id = 'rival'),
+    (select string_agg(weekday || ':' || coalesce(opens::text, '-') || ':' || coalesce(closes::text, '-'), ',' order by weekday) from public.salon_hours where salon_id = 'rival'),
+    (select string_agg(id::text, ',' order by id) from public.salon_closed_dates where salon_id = 'rival'),
+    (select string_agg(id::text, ',' order by id) from public.stylist_days_off where salon_id = 'rival'),
+    (select string_agg(endpoint, ',' order by endpoint) from private.push_subscriptions where salon_id = 'rival'),
+    (select string_agg(user_id::text || ':' || role, ',' order by user_id) from private.staff where salon_id = 'rival'),
+    (select concat_ws(':', name, whatsapp, instagram_url, demo) from public.salons where id = 'rival')) $$;
+create temp table rival_before as select pg_temp.rival_state() as v;
+insert into auth.users (id, instance_id, aud, role, email)
+  values ('dddddddd-dddd-dddd-dddd-dddddddddddd', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo@test.local');
+select public.setup_demo('elegance', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'demo@test.local', 'pw');
+select throws_ok($$ select private.demo_reset('rival') $$, 'P0001', 'not_demo', 'demo_reset: rival is not a demo');
+select throws_ok($$ select private.demo_fake_bookings('rival', current_date, 7) $$, 'P0001', 'not_demo', 'demo_fake_bookings: never in rival');
+select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
+set local role authenticated;
+select throws_ok($$ select public.admin_reset_demo() $$, 'P0001', 'not_authorized', 'admin_reset_demo: rival staff cannot reset');
+reset role;
+select lives_ok($$ select private.demo_reset('elegance') $$, 'demo_reset: elegance resets');
+select lives_ok($$ select private.demo_reset_all() $$, 'demo_reset_all runs');
+select is(pg_temp.rival_state(), (select v from rival_before), 'rival''s services, stylists, bookings, hours, closed dates, days off, push and staff unchanged after elegance resets');
+select ok((select count(*) from private.bookings where salon_id = 'elegance') > 0, 'the fake bookings went to elegance');
 
 select * from finish();
 rollback;

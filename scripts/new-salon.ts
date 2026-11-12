@@ -19,27 +19,17 @@
  */
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, extname, join, resolve } from 'node:path';
+import { extname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { fileURLToPath } from 'node:url';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { generatePalette } from '../src/lib/palette';
+import { env, fail, findUserByEmail, info, loadEnv, ok, ROOT, StepFailed, supabaseClient, warn } from './lib/admin';
 import { addDomain, ensureCname, findZone, isRegisteredDomain, pagesHostnames, pagesTarget, type Cloudflare } from './lib/cloudflare';
 import { ConfigError, parseSalonConfig, type SalonConfig } from './lib/config';
 import { confirmContinue, existingSalonLines, type CurrentSalon } from './lib/existing';
 import { buildProvisionPayload, localPhotos, provisionErrorMessage, storagePath } from './lib/provision';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUCKET = 'salon-photos';
-
-const ok = (msg: string) => console.log(`✓ ${msg}`);
-const warn = (msg: string) => console.log(`! ${msg}`);
-const info = (msg: string) => console.log(`  ${msg}`);
-class StepFailed extends Error {}
-function fail(msg: string): never {
-  console.error(`✗ ${msg}`);
-  throw new StepFailed(msg);
-}
 
 const CONTENT_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
@@ -61,16 +51,6 @@ function parseArgs(argv: string[]) {
     reapply: flags.has('--reapply-settings'),
     addOwner: flags.has('--add-owner'),
   };
-}
-
-function loadEnv(required: boolean) {
-  const file = join(ROOT, '.env.admin');
-  if (existsSync(file)) {
-    process.loadEnvFile(file); // variables already set in the shell win
-    ok('Loaded .env.admin');
-  } else if (required) {
-    fail('.env.admin not found: copy .env.admin.example to .env.admin and fill it in');
-  }
 }
 
 function loadConfig(slug: string): SalonConfig {
@@ -95,20 +75,7 @@ function loadConfig(slug: string): SalonConfig {
   return config;
 }
 
-/** Stands in for WebSocket: the script never opens a realtime channel. */
-class NoRealtime {
-  constructor() {
-    throw new Error('realtime is not used by this script');
-  }
-}
-
 const photoFile = (slug: string, ref: string) => join(ROOT, 'salons', slug, 'photos', ref);
-
-function env(name: string): string {
-  const v = process.env[name]?.trim();
-  if (!v) fail(`${name} is not set (in .env.admin)`);
-  return v;
-}
 
 /**
  * The salon id already exists: show which salon that is and what this run changes, then ask
@@ -147,16 +114,10 @@ async function uploadPhotos(supabase: SupabaseClient, slug: string, config: Salo
 
 /** The owner's auth user: found by email, or created (confirmed) with a generated password. */
 async function ensureOwner(supabase: SupabaseClient, email: string): Promise<{ id: string; password?: string }> {
-  const perPage = 1000;
-  for (let page = 1; ; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
-    if (error) fail(`Listing users failed: ${error.message}`);
-    const found = data.users.find((u) => u.email?.toLowerCase() === email);
-    if (found) {
-      ok(`Owner login ${email} already exists`);
-      return { id: found.id };
-    }
-    if (data.users.length < perPage) break;
+  const found = await findUserByEmail(supabase, email);
+  if (found) {
+    ok(`Owner login ${email} already exists`);
+    return { id: found.id };
   }
   const password = randomBytes(12).toString('base64url');
   const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
@@ -196,14 +157,6 @@ async function attachDomains(cf: Cloudflare, domains: string[]): Promise<{ todo:
     }
   }
   return { todo, failed };
-}
-
-function supabaseClient(url: string, key: string): SupabaseClient {
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    // Realtime is never used here; Node 20 has no global WebSocket for it to find.
-    realtime: { transport: NoRealtime as never },
-  });
 }
 
 /** The salon stored under this id (name and domains), or null when the id is free. */

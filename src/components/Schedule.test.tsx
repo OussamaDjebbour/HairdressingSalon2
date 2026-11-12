@@ -26,6 +26,7 @@ vi.mock('../data/salonSettings', () => ({
   useSalonHours: () => hoursQuery,
   useClosedDates: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
   useStylistDaysOff: () => ({ data: daysOff }),
+  useSalonInfo: () => ({ data: { whatsapp: null } }),
 }));
 
 const setStatus = vi.fn();
@@ -45,6 +46,7 @@ vi.mock('../data/admin', async (importOriginal) => ({
     isLoading: false, isError: false, error: null, refetch: vi.fn(),
   }),
   useMySalon: () => mySalon,
+  useMyRole: () => 'owner',
   useSetBookingStatus: () => ({ mutate: setStatus, isPending: false }),
   useCreateStaffBooking: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateStaffBooking: () => ({ mutate: vi.fn(), isPending: false }),

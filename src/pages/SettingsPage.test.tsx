@@ -23,6 +23,8 @@ vi.mock('../components/admin/NotificationsCard', () => ({ NotificationsCard: () 
 const day = { opens: 540, closes: 1080 };
 const hours: SalonHours = { 1: null, 2: day, 3: day, 4: day, 5: day, 6: day, 7: null };
 let closed: ClosedDates[] = [];
+let role: 'owner' | 'demo' | null = 'owner';
+const resetDemo = vi.fn();
 let mySalon: { data?: string; isLoading: boolean; isError: boolean; error: unknown } = {
   data: 'elegance', isLoading: false, isError: false, error: null,
 };
@@ -37,9 +39,13 @@ vi.mock('../data/salonSettings', () => ({
 vi.mock('../data/admin', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/admin')>()),
   useMySalon: () => mySalon,
+  useMyRole: () => role,
+  useResetDemo: () => ({ mutate: resetDemo, isPending: false }),
 }));
 
 import { LanguageProvider } from '../context/LanguageContext';
+import { setCurrentSalon } from '../data/salon';
+import { ELEGANCE } from '../test/salon';
 import { SettingsPage } from './SettingsPage';
 import { SettingsSectionPage } from './SettingsSectionPage';
 
@@ -61,6 +67,9 @@ function renderPage(path = '/admin/settings') {
 beforeEach(() => {
   calls.length = 0;
   loggedOut = false;
+  role = 'owner';
+  resetDemo.mockReset();
+  setCurrentSalon(ELEGANCE);
   closed = [];
   mySalon = { data: 'elegance', isLoading: false, isError: false, error: null };
 });
@@ -145,5 +154,42 @@ describe('SettingsPage', () => {
     renderPage();
     expect(screen.getByText('Connexion')).toBeInTheDocument();
     expect(screen.queryByText('Horaires')).not.toBeInTheDocument();
+  });
+
+  describe('demo reset', () => {
+    const label = 'Réinitialiser la démo';
+
+    it('is shown to the owner of a demo salon and resets after confirm', () => {
+      setCurrentSalon({ ...ELEGANCE, demo: true });
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      renderPage();
+      fireEvent.click(screen.getByRole('button', { name: label }));
+      expect(confirm).toHaveBeenCalledWith(
+        'Remettre la démo à zéro ? Les rendez-vous et changements des visiteurs seront effacés.'
+      );
+      expect(resetDemo).toHaveBeenCalledTimes(1);
+      confirm.mockRestore();
+    });
+
+    it('does nothing when the confirmation is declined', () => {
+      setCurrentSalon({ ...ELEGANCE, demo: true });
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      renderPage();
+      fireEvent.click(screen.getByRole('button', { name: label }));
+      expect(resetDemo).not.toHaveBeenCalled();
+      confirm.mockRestore();
+    });
+
+    it('is hidden for the demo account', () => {
+      setCurrentSalon({ ...ELEGANCE, demo: true });
+      role = 'demo';
+      renderPage();
+      expect(screen.queryByRole('button', { name: label })).toBeNull();
+    });
+
+    it('is hidden on a salon that is not a demo', () => {
+      renderPage();
+      expect(screen.queryByRole('button', { name: label })).toBeNull();
+    });
   });
 });

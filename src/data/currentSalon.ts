@@ -14,7 +14,7 @@ const DEV_HOSTS = ['localhost', '127.0.0.1'];
 
 const SALON_COLUMNS =
   'id, name, name_ar, palette, hero_image, founder_name, founder_role, story, story_intro, ' +
-  'years_open, client_count, rating, review_count';
+  'years_open, client_count, rating, review_count, demo';
 
 interface SalonRow {
   id: string;
@@ -30,6 +30,7 @@ interface SalonRow {
   client_count: number | null;
   rating: number | string | null;
   review_count: number | null;
+  demo: boolean | null;
 }
 
 function bilingual(value: unknown): Record<Lang, string> | null {
@@ -53,6 +54,7 @@ function toCurrentSalon(r: SalonRow): CurrentSalon {
     clientCount: r.client_count ?? null,
     rating: r.rating == null ? null : Number(r.rating),
     reviewCount: r.review_count ?? null,
+    demo: r.demo === true,
   };
 }
 

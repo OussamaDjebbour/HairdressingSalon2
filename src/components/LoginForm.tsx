@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { useLang } from '../context/LanguageContext';
 import { signIn } from '../lib/auth';
+import { fetchDemoLogin } from '../data/admin';
+import { currentSalonId, useSalon } from '../data/salon';
 
 export function LoginForm() {
   const { t } = useLang();
+  const salon = useSalon();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
@@ -15,6 +18,20 @@ export function LoginForm() {
     setError(false);
     try {
       await signIn(email.trim(), password);
+    } catch {
+      setError(true);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const onDemo = async () => {
+    setPending(true);
+    setError(false);
+    try {
+      const login = await fetchDemoLogin(currentSalonId());
+      if (!login) throw new Error('no_demo');
+      await signIn(login.email, login.password);
     } catch {
       setError(true);
     } finally {
@@ -58,6 +75,11 @@ export function LoginForm() {
         <button type="submit" disabled={pending} className="btn-primary w-full">
           {t('admin.login.submit')}
         </button>
+        {salon.demo && (
+          <button type="button" disabled={pending} onClick={onDemo} className="btn-secondary w-full">
+            {t('admin.login.demo')}
+          </button>
+        )}
       </form>
     </div>
   );
