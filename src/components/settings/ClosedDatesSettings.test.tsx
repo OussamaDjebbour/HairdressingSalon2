@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -38,28 +38,52 @@ describe('ClosedDatesSettings', () => {
     expect(screen.getByTestId('closed-range').textContent).toContain('2 mars');
   });
 
+  const openPeriod = () => fireEvent.click(screen.getByRole('button', { name: /Période/ }));
+  const day = (n: number) => screen.getByRole('button', { name: new RegExp(`\\b${n} mai 2030`) });
+  const add = () => fireEvent.click(screen.getByRole('button', { name: 'Ajouter une fermeture' }));
+
+  beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }));
+  afterEach(() => vi.useRealTimers());
+
   it('adds a range with label', async () => {
+    vi.setSystemTime(new Date(2030, 4, 1, 10));
     renderIt();
-    fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2030-03-16' } });
-    fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2030-03-17' } });
-    fireEvent.change(screen.getByLabelText('Libellé (facultatif)'), { target: { value: 'Aïd' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Ajouter une fermeture' }));
+    openPeriod();
+    fireEvent.click(day(16));
+    fireEvent.click(day(17));
+    fireEvent.change(screen.getByLabelText(/Libellé/), { target: { value: 'Aïd' } });
+    add();
     await waitFor(() =>
-      expect(rpc).toHaveBeenCalledWith('admin_add_closed_dates', { p_from: '2030-03-16', p_to: '2030-03-17', p_label: 'Aïd' })
+      expect(rpc).toHaveBeenCalledWith('admin_add_closed_dates', { p_from: '2030-05-16', p_to: '2030-05-17', p_label: 'Aïd' })
     );
   });
 
-  it('caps the label at 60 characters', () => {
+  it('empty submit asks for a period', async () => {
     renderIt();
-    expect(screen.getByLabelText('Libellé (facultatif)')).toHaveAttribute('maxLength', '60');
+    add();
+    expect(await screen.findByText('Choisissez une période.')).toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('to defaults to from, empty label is null', async () => {
+  it('flags a label over 60 characters', async () => {
+    vi.setSystemTime(new Date(2030, 4, 1, 10));
     renderIt();
-    fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2030-03-16' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Ajouter une fermeture' }));
+    openPeriod();
+    fireEvent.click(day(16));
+    fireEvent.change(screen.getByLabelText(/Libellé/), { target: { value: 'x'.repeat(61) } });
+    add();
+    expect(await screen.findByText('Le libellé ne doit pas dépasser 60 caractères.')).toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('a single click is a one-day period, empty label is null', async () => {
+    vi.setSystemTime(new Date(2030, 4, 1, 10));
+    renderIt();
+    openPeriod();
+    fireEvent.click(day(16));
+    add();
     await waitFor(() =>
-      expect(rpc).toHaveBeenCalledWith('admin_add_closed_dates', { p_from: '2030-03-16', p_to: '2030-03-16', p_label: null })
+      expect(rpc).toHaveBeenCalledWith('admin_add_closed_dates', { p_from: '2030-05-16', p_to: '2030-05-16', p_label: null })
     );
   });
 

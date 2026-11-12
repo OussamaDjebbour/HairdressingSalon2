@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -113,23 +113,94 @@ describe('StylistsSettings', () => {
     expect(screen.getByTestId('day-off').textContent).toContain('2 mars');
   });
 
-  it('adds a day off with YYYY-MM-DD strings and shows invalid_dates', async () => {
+  describe('days off', () => {
+    const day = (n: number) => screen.getByRole('button', { name: new RegExp(`\\b${n} mai 2099`) });
+    const openPeriod = () => fireEvent.click(screen.getByRole('button', { name: /Période/ }));
+    const add = () => fireEvent.click(screen.getByRole('button', { name: 'Ajouter un congé' }));
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2099, 4, 1, 10));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('an empty period asks for one', async () => {
+      renderIt();
+      fireEvent.click(screen.getByText('Amina'));
+      add();
+      expect(await screen.findByText('Choisissez une période.')).toBeInTheDocument();
+      expect(rpc).not.toHaveBeenCalledWith('admin_add_stylist_days_off', expect.anything());
+    });
+
+    it('sends the picked range as YYYY-MM-DD', async () => {
+      renderIt();
+      fireEvent.click(screen.getByText('Amina'));
+      openPeriod();
+      fireEvent.click(day(2));
+      fireEvent.click(day(5));
+      add();
+      await waitFor(() =>
+        expect(rpc).toHaveBeenCalledWith('admin_add_stylist_days_off', { p_stylist_id: 'amina', p_from: '2099-05-02', p_to: '2099-05-05' })
+      );
+    });
+
+    it('a single day sends from === to', async () => {
+      renderIt();
+      fireEvent.click(screen.getByText('Amina'));
+      openPeriod();
+      fireEvent.click(day(7));
+      add();
+      await waitFor(() =>
+        expect(rpc).toHaveBeenCalledWith('admin_add_stylist_days_off', { p_stylist_id: 'amina', p_from: '2099-05-07', p_to: '2099-05-07' })
+      );
+    });
+
+    it('shows invalid_dates from the server on the period', async () => {
+      rpc.mockImplementation(async (fn: string) =>
+        fn === 'admin_add_stylist_days_off' ? { data: null, error: { message: 'invalid_dates' } } : { data: [], error: null }
+      );
+      renderIt();
+      fireEvent.click(screen.getByText('Amina'));
+      openPeriod();
+      fireEvent.click(day(7));
+      add();
+      expect(await screen.findByText(/Les dates sont invalides/)).toBeInTheDocument();
+    });
+  });
+
+  it('offers the services as checkboxes toggled through their labels', async () => {
     renderIt();
     fireEvent.click(screen.getByText('Amina'));
-    fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2030-05-10' } });
-    fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2030-05-12' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Ajouter un congé' }));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    fireEvent.click(screen.getByText('Coloration'));
+    expect(screen.getByRole('checkbox', { name: 'Coloration' })).toBeChecked();
+    fireEvent.click(screen.getByText('Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() =>
-      expect(rpc).toHaveBeenCalledWith('admin_add_stylist_days_off', { p_stylist_id: 'amina', p_from: '2030-05-10', p_to: '2030-05-12' })
+      expect(rpc).toHaveBeenCalledWith('admin_save_stylist', expect.objectContaining({ p_service_ids: ['h1', 's2'] }))
     );
+  });
 
-    rpc.mockImplementation(async (fn: string) =>
-      fn === 'admin_add_stylist_days_off' ? { data: null, error: { message: 'invalid_dates' } } : { data: [], error: null }
-    );
-    fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2030-06-10' } });
-    fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2030-06-01' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Ajouter un congé' }));
-    expect(await screen.findByText(/Les dates sont invalides/)).toBeInTheDocument();
+  it('a retried save that works leaves no stale error behind', async () => {
+    let calls = 0;
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === 'admin_save_stylist' && calls++ === 0) return { data: null, error: { message: 'unknown_service' } };
+      return { data: fn === 'admin_affected_bookings' ? [] : null, error: null };
+    });
+    renderIt();
+    fireEvent.click(screen.getByText('Amina'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Une prestation choisie');
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ajouter' })).toBeInTheDocument());
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('an empty first name is refused before any call', async () => {
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText('Le nom est obligatoire.')).toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalledWith('admin_save_stylist', expect.anything());
   });
 
   it('deletes a day off', async () => {

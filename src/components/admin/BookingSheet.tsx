@@ -1,16 +1,25 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { ArrowLeft, Check } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
   formatAlgiersTime, toAdminError, useMyRole, useCreateStaffBooking, useUpdateStaffBooking,
   type AdminBooking, type StaffBookingInput,
 } from '../../data/admin';
-import { isValidPhone, toYmd } from '../../data/bookings';
+import { toYmd } from '../../data/bookings';
+import { clientNameSchema, mobilePhoneSchema } from '../../data/schemas';
 import { useAllServices, useAllStylists } from '../../data/queries';
 import { salonDate, salonInstant, salonMinutes, staffTimeOptions } from '../../data/week';
 import { dayHours, stylistWorks } from '../../data/hours';
 import { useClosedDates, useSalonHours, useStylistDaysOff } from '../../data/salonSettings';
 import type { DayHours } from '../../data/types';
+import { TextField } from '../form/TextField';
+import { SelectField } from '../form/SelectField';
+import { DateField } from '../form/DateField';
+import { FormSummary } from '../form/FormSummary';
+import { applyServerError } from '../form/serverErrors';
 import { BookingSummary } from './BookingSummary';
 import { MessageReady } from './MessageReady';
 import { useBookingActions, type Notice } from './useBookingActions';
@@ -40,10 +49,34 @@ function initialForm(state: SheetState, lang: Lang): StaffBookingInput {
 
 const minutesOf = (b: AdminBooking) => Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000);
 
-function parseYmd(value: string): Date | null {
-  const [y, m, d] = value.split('-').map(Number);
-  return y && m && d ? new Date(y, m - 1, d) : null;
+/**
+ * The owner's rules for a booking. `keptPhone`: the demo account sees masked phones, and sending
+ * the mask back unchanged keeps the stored number, so that exact value skips the phone rule.
+ */
+function bookingSchema(keptPhone: string | null) {
+  return z.object({
+    clientName: clientNameSchema,
+    clientPhone: z.string().superRefine((v, ctx) => {
+      if (keptPhone !== null && v === keptPhone) return;
+      const result = mobilePhoneSchema.safeParse(v);
+      if (!result.success) ctx.addIssue({ code: 'custom', message: result.error.issues[0].message });
+    }),
+    serviceId: z.string(),
+    stylistId: z.string(),
+    date: z.date(),
+    time: z.string(),
+    lang: z.enum(['fr', 'ar']),
+  });
 }
+
+/** Server errors shown on a field; any other code keeps the form-level alert. */
+const SERVER_ERROR_FIELDS: Record<string, keyof StaffBookingInput> = {
+  slot_taken: 'time',
+  outside_hours: 'time',
+  salon_closed: 'time',
+  invalid_phone: 'clientPhone',
+  invalid_name: 'clientName',
+};
 
 /**
  * An existing booking opens as a summary (confirm, refuse, call, WhatsApp); "Modifier ou déplacer"
@@ -62,16 +95,26 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const update = useUpdateStaffBooking();
   const actions = useBookingActions();
 
-  const [form, setForm] = useState<StaffBookingInput>(() => initialForm(state, lang));
-  const [fieldErrors, setFieldErrors] = useState<{ name?: boolean; phone?: boolean }>({});
-  const [error, setError] = useState<string | null>(null);
+  const editing = state.mode === 'edit' ? state.booking : null;
+  const keptPhone = demo && editing ? editing.clientPhone : null;
+  const schema = useMemo(() => bookingSchema(keptPhone), [keptPhone]);
+  const {
+    register, control, handleSubmit, watch, setValue, reset, setError,
+    formState: { errors, submitCount },
+  } = useForm<StaffBookingInput, unknown, StaffBookingInput>({
+    resolver: zodResolver(schema),
+    mode: 'onTouched',
+    shouldFocusError: true,
+    defaultValues: initialForm(state, lang),
+  });
+  const form = watch();
+  const [error, setFormError] = useState<string | null>(null);
   const [view, setView] = useState<'summary' | 'form'>(state.mode === 'edit' ? 'summary' : 'form');
   // A move (from the form) or "Message WhatsApp" sets this; confirm/refuse set actions.notice.
   const [ownNotice, setNotice] = useState<Notice | null>(null);
   const notice = ownNotice ?? actions.notice;
 
   // Pickers offer active items, plus the booking's own service and stylist even if they were hidden since.
-  const editing = state.mode === 'edit' ? state.booking : null;
   const services = allServices.filter((s) => s.active || s.id === editing?.serviceId);
   const ownStylistId = state.mode === 'edit' ? state.booking.stylistId : state.stylistId;
   const stylists = allStylists.filter((s) => s.active || s.id === ownStylistId);
@@ -88,10 +131,8 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const hours = salonHours ? dayHours(salonHours, closedDates, form.date) : null;
   // On a closed day, a booking can still be re-timed within its own span.
   const optionHours = hours ?? ownSpan;
+  // SelectField keeps a booking's current time selectable (and in order) even if it is off the new service's grid.
   const timeOptions = optionHours ? staffTimeOptions(duration, optionHours) : [];
-  // Keep a booking's current time selectable (and in order) even if it is off the new service's grid.
-  if (!timeOptions.includes(form.time)) timeOptions.push(form.time);
-  timeOptions.sort();
   const [h, m] = form.time.split(':').map(Number);
   const pastClosing = !!service && !!hours && h * 60 + m + duration > hours.closes;
   // Booking a stylist on her day off is allowed (the owner knows best), but say so.
@@ -104,9 +145,13 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     form.clientName !== initial.clientName || form.clientPhone !== initial.clientPhone || form.lang !== initial.lang ||
     form.stylistId !== initial.stylistId || form.time !== initial.time || toYmd(form.date) !== toYmd(initial.date) ||
     (form.serviceId !== '' && form.serviceId !== initial.serviceId);
-  const set = <K extends keyof StaffBookingInput>(key: K, value: StaffBookingInput[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
-  const onError = (err: unknown) => setError(t(`admin.error.${toAdminError(err)}`));
+  const onError = (err: unknown) => {
+    const code = toAdminError(err);
+    const onField = applyServerError(code, SERVER_ERROR_FIELDS, (name, e) =>
+      setError(name as keyof StaffBookingInput, e, { shouldFocus: true })
+    );
+    if (!onField) setFormError(t(`admin.error.${code}`));
+  };
 
   // Every way of closing slides the sheet down first.
   const motion = useSheetMotion();
@@ -122,24 +167,15 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   /** Back from the form to the summary; unsaved edits are dropped (after asking). */
   const backToSummary = () => {
     if (dirty && !window.confirm(t('admin.sheet.discardChanges'))) return;
-    setForm(initialForm(state, lang));
-    setFieldErrors({});
-    setError(null);
+    reset(initialForm(state, lang));
+    setFormError(null);
     setView('summary');
   };
 
-  const save = () => {
-    const name = form.clientName.trim();
-    // The demo account sees masked phones; sending the mask back unchanged keeps the stored number.
-    const phoneUnchanged = state.mode === 'edit' && form.clientPhone === state.booking.clientPhone;
-    const errors = {
-      name: name.length < 2 || name.length > 80,
-      phone: !(demo && phoneUnchanged) && !isValidPhone(form.clientPhone),
-    };
-    setFieldErrors(errors);
-    if (errors.name || errors.phone || !service) return;
-    setError(null);
-    const input = { ...form, serviceId };
+  const save = (values: StaffBookingInput) => {
+    if (!service) return;
+    setFormError(null);
+    const input = { ...values, serviceId };
 
     if (state.mode === 'add') {
       create.mutate(input, { onSuccess: () => close(), onError });
@@ -156,7 +192,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
             ? setNotice({
                 kind: 'moved',
                 booking: {
-                  clientName: name, clientPhone: input.clientPhone, lang: input.lang,
+                  clientName: input.clientName, clientPhone: input.clientPhone, lang: input.lang,
                   startsAt: salonInstant(input.date, input.time), serviceName: service.name,
                 },
               })
@@ -197,62 +233,90 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
           error={actions.error}
         />
       ) : (
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            save();
-          }}
-        >
+        <form className="space-y-3" noValidate onSubmit={handleSubmit(save)}>
           {editing && (
             <button type="button" onClick={backToSummary} className="tap -ms-1 inline-flex items-center gap-1.5 px-1 text-sm text-rose-700 hover:text-rose-900">
               <ArrowLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
               {t('admin.sheet.backToSummary')}
             </button>
           )}
-          <Field id="sheet-name" label={t('admin.sheet.name')} error={fieldErrors.name ? t('admin.error.invalid_name') : null}>
-            <input id="sheet-name" className="input" value={form.clientName} onChange={(e) => set('clientName', e.target.value)} autoComplete="off" />
-          </Field>
-          <Field id="sheet-phone" label={t('admin.sheet.phone')} error={fieldErrors.phone ? t('admin.error.invalid_phone') : null}>
-            <input id="sheet-phone" className="input" type="tel" dir="ltr" inputMode="tel" value={form.clientPhone} onChange={(e) => set('clientPhone', e.target.value)} />
-          </Field>
-          <Field id="sheet-service" label={t('admin.sheet.service')}>
-            <select id="sheet-service" className="input" value={serviceId} onChange={(e) => set('serviceId', e.target.value)}>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>{s.name[lang]}</option>
-              ))}
-            </select>
-          </Field>
-          <Field id="sheet-stylist" label={t('admin.sheet.stylist')}>
-            <select id="sheet-stylist" className="input" value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)}>
-              {stylists.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+          <TextField id="sheet-name" label={t('admin.sheet.name')} autoComplete="off" error={errors.clientName?.message} {...register('clientName')} />
+          <TextField
+            id="sheet-phone"
+            label={t('admin.sheet.phone')}
+            type="tel"
+            dir="ltr"
+            inputMode="tel"
+            error={errors.clientPhone?.message}
+            {...register('clientPhone')}
+          />
+          <Controller
+            control={control}
+            name="serviceId"
+            render={({ field }) => (
+              <SelectField
+                ref={field.ref}
+                id="sheet-service"
+                label={t('admin.sheet.service')}
+                value={serviceId}
+                options={services.map((s) => ({ value: s.id, label: s.name[lang] }))}
+                onValueChange={field.onChange}
+                onBlur={field.onBlur}
+              />
+            )}
+          />
+          <div>
+            <Controller
+              control={control}
+              name="stylistId"
+              render={({ field }) => (
+                <SelectField
+                  ref={field.ref}
+                  id="sheet-stylist"
+                  label={t('admin.sheet.stylist')}
+                  value={field.value}
+                  options={stylists.map((s) => ({ value: s.id, label: s.name }))}
+                  onValueChange={field.onChange}
+                  onBlur={field.onBlur}
+                />
+              )}
+            />
             {stylistOff && stylist && (
               <p role="status" className="mt-1 text-xs text-amber-800">{t('schedule.stylistOff').replace('{name}', stylist.name)}</p>
             )}
-          </Field>
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field id="sheet-date" label={t('admin.sheet.date')}>
-              <input
-                id="sheet-date"
-                type="date"
-                className="input"
-                value={toYmd(form.date)}
-                onChange={(e) => {
-                  const d = parseYmd(e.target.value);
-                  if (d) set('date', d);
-                }}
-              />
-            </Field>
-            <Field id="sheet-time" label={t('admin.sheet.time')}>
-              <select id="sheet-time" className="input" dir="ltr" value={form.time} onChange={(e) => set('time', e.target.value)}>
-                {timeOptions.map((tm) => (
-                  <option key={tm} value={tm}>{tm}</option>
-                ))}
-              </select>
-            </Field>
+            <Controller
+              control={control}
+              name="date"
+              render={({ field }) => (
+                <DateField
+                  ref={field.ref}
+                  id="sheet-date"
+                  label={t('admin.sheet.date')}
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="time"
+              render={({ field }) => (
+                <SelectField
+                  ref={field.ref}
+                  id="sheet-time"
+                  label={t('admin.sheet.time')}
+                  value={field.value}
+                  options={timeOptions.map((tm) => ({ value: tm, label: tm }))}
+                  onValueChange={field.onChange}
+                  onBlur={field.onBlur}
+                  error={errors.time?.message}
+                  dirLtrValues
+                />
+              )}
+            />
             {pastClosing && <p className="col-span-2 -mt-1 text-xs text-rust-700">{t('admin.error.outside_hours')}</p>}
           </div>
           <div role="group" aria-label={t('admin.sheet.lang')}>
@@ -263,7 +327,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
                   key={l}
                   type="button"
                   aria-pressed={form.lang === l}
-                  onClick={() => set('lang', l)}
+                  onClick={() => setValue('lang', l)}
                   className={form.lang === l ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
                 >
                   {l.toUpperCase()}
@@ -272,6 +336,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
             </div>
           </div>
 
+          {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
           {error && (
             <p role="alert" className="rounded-xl border border-rust-200 bg-rust-50 px-3 py-2 text-sm text-rust-700">{error}</p>
           )}
@@ -282,15 +347,5 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
         </form>
       )}
     </Sheet>
-  );
-}
-
-function Field({ id, label, error = null, children }: { id: string; label: string; error?: string | null; children: React.ReactNode }) {
-  return (
-    <div>
-      <label htmlFor={id} className="label">{label}</label>
-      {children}
-      {error && <p className="mt-1 text-xs text-rust-700">{error}</p>}
-    </div>
   );
 }

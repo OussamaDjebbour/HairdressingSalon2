@@ -15,6 +15,7 @@ vi.mock('../../data/salonSettings', async (orig) => ({
   useSalonHours: () => hoursQuery ?? { data: hours },
 }));
 
+import { pickOption } from '../../test/select';
 import { LanguageProvider } from '../../context/LanguageContext';
 import { HoursSettings } from './HoursSettings';
 
@@ -51,7 +52,7 @@ describe('HoursSettings without hours data', () => {
 describe('HoursSettings', () => {
   it('saves all 7 days with the edited Thursday', async () => {
     renderIt();
-    fireEvent.change(screen.getByLabelText('Jeudi · Fermeture'), { target: { value: String(13 * 60) } });
+    pickOption('Jeudi · Fermeture', '13:00');
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_set_hours', expect.anything()));
     const p = sent();
@@ -68,11 +69,54 @@ describe('HoursSettings', () => {
     expect(sent()[6]).toEqual({ weekday: 7, opens: null, closes: null });
   });
 
-  it('opens >= closes shows the error and skips the RPC', () => {
+  it('names each day switch by the day and reveals the times when turned on', () => {
     renderIt();
-    fireEvent.change(screen.getByLabelText('Mardi · Ouverture'), { target: { value: String(19 * 60) } });
+    for (const d of ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']) {
+      expect(screen.getByRole('switch', { name: d })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('combobox', { name: 'Lundi · Ouverture' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('switch', { name: 'Lundi' }));
+    expect(screen.getByRole('combobox', { name: 'Lundi · Ouverture' })).toHaveTextContent('09:00');
+    expect(screen.getByRole('combobox', { name: 'Lundi · Fermeture' })).toHaveTextContent('18:00');
+  });
+
+  it('lays each day out as one row: day name, then the switch, then the times', () => {
+    renderIt();
+    const name = screen.getByText('Mardi', { selector: 'label' });
+    const sw = screen.getByRole('switch', { name: 'Mardi' });
+    const opens = screen.getByRole('combobox', { name: 'Mardi · Ouverture' });
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(name, sw)).toBe(true);
+    expect(follows(sw, opens)).toBe(true);
+    // compact time triggers: small text and a small arrow, so they still read as drop-downs
+    expect(opens).toHaveClass('text-sm');
+    expect(opens.querySelector('svg')).not.toBeNull();
+  });
+
+  it('opens >= closes shows the error under that day and skips the RPC', async () => {
+    renderIt();
+    pickOption('Mardi · Ouverture', '18:00');
+    pickOption('Mardi · Fermeture', '09:00');
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-    expect(screen.getByRole('alert')).toHaveTextContent(/Les horaires sont invalides/);
+    const closes = screen.getByRole('combobox', { name: 'Mardi · Fermeture' });
+    await waitFor(() => expect(closes).toHaveAttribute('aria-invalid', 'true'));
+    expect(closes).toHaveAccessibleDescription('L’heure de fermeture doit être après l’ouverture.');
+    expect(closes).toHaveFocus();
+    expect(screen.getByRole('combobox', { name: 'Jeudi · Fermeture' })).toHaveAttribute('aria-invalid', 'false');
     expect(rpc).not.toHaveBeenCalledWith('admin_set_hours', expect.anything());
+  });
+
+  it('shows a stored off-grid closing time as the Select value', () => {
+    hoursQuery = { data: { ...hours, 4: { opens: 9 * 60, closes: 18 * 60 + 45 } }, isError: false, refetch: vi.fn() };
+    renderIt();
+    expect(screen.getByRole('combobox', { name: 'Jeudi · Fermeture' })).toHaveTextContent('18:45');
+  });
+
+  it('keeps an off-grid time in the payload when saved untouched', async () => {
+    hoursQuery = { data: { ...hours, 4: { opens: 9 * 60, closes: 18 * 60 + 45 } }, isError: false, refetch: vi.fn() };
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_set_hours', expect.anything()));
+    expect(sent()[3]).toEqual({ weekday: 4, opens: '09:00', closes: '18:45' });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatAgo, formatClaim, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
+import { formatAgo, formatClaim, formatCompactDate, formatCompactRange, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
 
 const LRI = '⁦'; // LEFT-TO-RIGHT ISOLATE
 const PDI = '⁩'; // POP DIRECTIONAL ISOLATE
@@ -83,5 +83,33 @@ describe('calendar labels', () => {
   it('gives the weekday initials from Sunday', () => {
     expect(weekdayInitials('fr')).toEqual(['D', 'L', 'M', 'M', 'J', 'V', 'S']);
     expect(weekdayInitials('ar')).toEqual(['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']);
+  });
+});
+
+describe('formatCompactDate', () => {
+  it('French: short day, day, short month', () => {
+    expect(formatCompactDate(new Date(2026, 10, 12), 'fr')).toBe('Jeu. 12 nov.');
+    expect(formatCompactDate(new Date(2026, 4, 1), 'fr')).toBe('Ven. 1 mai');
+    expect(formatCompactDate(new Date(2026, 7, 2), 'fr')).toBe('Dim. 2 août');
+  });
+
+  it('Arabic: the Arabic day name, day and month', () => {
+    expect(formatCompactDate(new Date(2026, 10, 12), 'ar')).toBe('الخميس 12 نوفمبر');
+  });
+});
+
+describe('formatCompactRange', () => {
+  it('one day is one date', () => {
+    expect(formatCompactRange(new Date(2026, 10, 20), new Date(2026, 10, 20), 'fr')).toBe('Ven. 20 nov.');
+  });
+
+  it('names the month once when both days share it', () => {
+    expect(formatCompactRange(new Date(2026, 10, 20), new Date(2026, 10, 22), 'fr')).toBe('Ven. 20 → Dim. 22 nov.');
+    expect(formatCompactRange(new Date(2026, 10, 20), new Date(2026, 10, 22), 'ar')).toBe('الجمعة 20 ← الأحد 22 نوفمبر'); // reads right to left
+  });
+
+  it('names both months when they differ', () => {
+    expect(formatCompactRange(new Date(2026, 10, 30), new Date(2026, 11, 2), 'fr')).toBe('Lun. 30 nov. → Mer. 2 déc.');
+    expect(formatCompactRange(new Date(2026, 11, 30), new Date(2027, 0, 2), 'fr')).toBe('Mer. 30 déc. → Sam. 2 janv.');
   });
 });

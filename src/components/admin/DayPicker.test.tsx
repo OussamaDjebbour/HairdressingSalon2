@@ -46,6 +46,7 @@ vi.mock('../../data/queries', async () => {
 });
 
 import { LanguageProvider } from '../../context/LanguageContext';
+import { optionNames, pickOption } from '../../test/select';
 import { DayPicker, type RoomFilter } from './DayPicker';
 
 const tuesday = new Date(2030, 0, 8);
@@ -153,15 +154,26 @@ describe('DayPicker — room for a service and coiffeuse', () => {
     servicesOverride = [...f.services, { ...f.services[0], id: 'old', name: { fr: 'Ancienne', ar: 'قديمة' }, active: false }];
     stylistsOverride = [...f.stylists, { ...f.stylists[0], id: 'gone', name: 'Partie', active: false }];
     renderPicker();
-    const service = screen.getByLabelText('Prestation');
-    expect(within(service).getAllByRole('option').map((o) => o.textContent)).toEqual(['Toutes', 'Coupe & Brushing', 'Manucure']);
-    const stylist = screen.getByLabelText('Coiffeuse');
-    expect(within(stylist).getAllByRole('option').map((o) => o.textContent)).toEqual(['Toutes', 'Amina', 'Leila', 'Sara']);
+    expect(optionNames('Prestation')).toEqual(['Toutes', 'Coupe & Brushing', 'Manucure']);
+    expect(optionNames('Coiffeuse')).toEqual(['Toutes', 'Amina', 'Leila', 'Sara']);
+  });
+
+  it('filters with Radix menus labelled Prestation and Coiffeuse', () => {
+    renderPicker();
+    expect(screen.getByRole('combobox', { name: 'Prestation' })).toHaveTextContent('Toutes');
+    expect(screen.getByRole('combobox', { name: 'Coiffeuse' })).toHaveTextContent('Toutes');
+    expect(document.querySelector('select')).toBeNull();
   });
 
   it('reports the chosen service', () => {
     const { onFilterChange } = renderPicker();
-    fireEvent.change(screen.getByLabelText('Prestation'), { target: { value: 'coupe-femme' } });
+    pickOption('Prestation', 'Coupe & Brushing');
+    expect(onFilterChange).toHaveBeenCalledWith({ serviceId: 'coupe-femme', stylistId: null });
+  });
+
+  it('“Toutes” reports no choice', () => {
+    const { onFilterChange } = renderPicker(withAmina);
+    pickOption('Coiffeuse', 'Toutes');
     expect(onFilterChange).toHaveBeenCalledWith({ serviceId: 'coupe-femme', stylistId: null });
   });
 
@@ -218,7 +230,7 @@ describe('DayPicker — room for a service and coiffeuse', () => {
     renderPicker({ serviceId: 'gone', stylistId: 'hidden-one' });
     expect(screen.getByRole('button', { name: 'Mardi 8 janvier — 0%' })).toBeInTheDocument();
     expect(screen.queryAllByRole('button', { name: /absente/ })).toHaveLength(0);
-    expect(screen.getByLabelText('Prestation')).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Prestation' })).toHaveTextContent('Toutes');
   });
 });
 

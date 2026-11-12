@@ -1,8 +1,19 @@
 import { useEffect, useRef } from 'react';
 
+/** Where Radix portals its menus and calendars (outside the sheet in the DOM, above it on screen). */
+const PORTAL = '[data-radix-popper-content-wrapper]';
+const FOCUSABLE = 'button:not([disabled]):not([tabindex="-1"]), input:not([tabindex="-1"]), select:not([tabindex="-1"]), a[href]';
+
+/** True when the event happened inside an open Radix menu or calendar. */
+export function isInPortal(target: EventTarget | null): boolean {
+  return target instanceof Element && !!target.closest(PORTAL);
+}
+
 /**
  * Bottom-sheet dialog behaviour: focus moves in on open and back where it was on close,
  * Escape asks to close, Tab stays inside. Returns the ref for the dialog element.
+ * An open Radix menu or calendar (portalled outside the sheet) counts as part of it:
+ * Escape closes that first, and Tab may move through it.
  */
 export function useSheetDialog(requestClose: () => void) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -18,12 +29,15 @@ export function useSheetDialog(requestClose: () => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Radix closes its own menu on this Escape (and marks it handled); the sheet stays. The menu may
+        // already be unmounted when this listener runs, so the handled mark counts on its own.
+        if (e.defaultPrevented || document.querySelector(PORTAL)) return;
         requestCloseRef.current();
         return;
       }
-      if (e.key !== 'Tab' || !dialogRef.current) return;
-      const focusables = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input, select, a[href]')
+      if (e.key !== 'Tab' || e.defaultPrevented || !dialogRef.current) return;
+      const focusables = [dialogRef.current, ...Array.from(document.querySelectorAll<HTMLElement>(PORTAL))].flatMap((root) =>
+        Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE))
       );
       if (focusables.length === 0) return;
       const first = focusables[0];

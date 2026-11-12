@@ -1,118 +1,103 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useLang } from '../../context/LanguageContext';
-import { isValidPhone } from '../../data/bookings';
 import { toSettingsError, useSalonInfo, useSaveSalonInfo } from '../../data/salonSettings';
 import type { SalonInfo } from '../../data/types';
+import { optionalHttpsUrlSchema, optionalMobilePhoneSchema } from '../../data/schemas';
+import { TextField } from '../form/TextField';
+import { FormSummary } from '../form/FormSummary';
+import { applyServerError } from '../form/serverErrors';
 import { QueryFallback } from './QueryFallback';
 
-type Field = 'whatsapp' | 'instagram' | 'facebook' | 'form';
+const ERROR_KEYS = ['invalid_name', 'not_authorized'];
+// Counted without surrounding spaces, as the server does (btrim) — the value itself is sent unchanged.
+const text = z.string().refine((v) => v.trim().length <= 200, 'form.error.textLength');
 
-const FIELD_OF_CODE: Record<string, Field> = { invalid_phone: 'whatsapp', invalid_url: 'instagram' };
+const infoSchema = z.object({
+  addressFr: text,
+  addressAr: text,
+  cityFr: text,
+  cityAr: text,
+  whatsapp: optionalMobilePhoneSchema,
+  instagram: optionalHttpsUrlSchema,
+  facebook: optionalHttpsUrlSchema,
+});
+type InfoForm = z.infer<typeof infoSchema>;
 
-export function SalonInfoSettings() {
+const toValues = (i: SalonInfo): InfoForm => ({
+  addressFr: i.address.fr,
+  addressAr: i.address.ar,
+  cityFr: i.city.fr,
+  cityAr: i.city.ar,
+  whatsapp: i.whatsapp ?? '',
+  instagram: i.instagramUrl ?? '',
+  facebook: i.facebookUrl ?? '',
+});
+
+function SalonInfoForm({ info }: { info: SalonInfo }) {
   const { t } = useLang();
-  const infoQuery = useSalonInfo();
   const save = useSaveSalonInfo();
-  const [draft, setDraft] = useState<SalonInfo | null>(null);
-  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const {
+    register, handleSubmit, setError, getValues,
+    formState: { errors, submitCount },
+  } = useForm<InfoForm>({ mode: 'onTouched', resolver: zodResolver(infoSchema), defaultValues: toValues(info) });
 
-  const info = draft ?? infoQuery.data;
-  if (!info) return <QueryFallback queries={[infoQuery]} />;
-
-  const set = (patch: Partial<SalonInfo>) => {
+  const submit = handleSubmit((v) => {
     setSaved(false);
-    setErrors({});
-    setDraft({ ...info, ...patch });
-  };
-  const phone = info.whatsapp ?? '';
-  const urlBad = (v: string | null) => !!v && v.trim() !== '' && !/^https:\/\//.test(v.trim());
-
-  const submit = () => {
-    setSaved(false);
-    const next: Partial<Record<Field, string>> = {};
-    if (phone.trim() !== '' && !isValidPhone(phone)) next.whatsapp = t('settings.error.invalid_phone');
-    if (urlBad(info.instagramUrl)) next.instagram = t('settings.error.invalid_url');
-    if (urlBad(info.facebookUrl)) next.facebook = t('settings.error.invalid_url');
-    setErrors(next);
-    if (Object.keys(next).length) return;
+    setFormError(null);
     save.mutate(
       {
         ...info,
-        whatsapp: phone.trim(),
-        instagramUrl: (info.instagramUrl ?? '').trim(),
-        facebookUrl: (info.facebookUrl ?? '').trim(),
+        address: { fr: v.addressFr, ar: v.addressAr },
+        city: { fr: v.cityFr, ar: v.cityAr },
+        whatsapp: v.whatsapp.trim(),
+        instagramUrl: v.instagram.trim(),
+        facebookUrl: v.facebook.trim(),
       },
       {
-        onSuccess: () => {
-          setDraft(null);
-          setSaved(true);
-        },
+        onSuccess: () => setSaved(true),
         onError: (err) => {
           const code = toSettingsError(err);
-          const known = ['invalid_phone', 'invalid_url', 'invalid_name', 'not_authorized'].includes(code);
-          const msg = t(`settings.error.${known ? code : 'unknown'}`);
-          setErrors({ [FIELD_OF_CODE[code] ?? 'form']: msg });
+          // invalid_url: the first link our own check rejects, else Instagram (the server named neither)
+          const urlField = optionalHttpsUrlSchema.safeParse(getValues('instagram')).success &&
+            !optionalHttpsUrlSchema.safeParse(getValues('facebook')).success
+            ? 'facebook'
+            : 'instagram';
+          const onField = applyServerError(
+            code,
+            { invalid_phone: 'whatsapp', invalid_url: urlField },
+            (name, e) => setError(name as keyof InfoForm, e, { shouldFocus: true }),
+            'settings.error'
+          );
+          if (!onField) setFormError(t(`settings.error.${ERROR_KEYS.includes(code) ? code : 'unknown'}`));
         },
       }
     );
-  };
-
-  const err = (f: Field) =>
-    errors[f] && <p id={`info-err-${f}`} role="alert" className="text-sm text-rust-600 mt-1">{errors[f]}</p>;
-  const aria = (f: Field) => ({ 'aria-invalid': !!errors[f], 'aria-describedby': errors[f] ? `info-err-${f}` : undefined });
+  });
 
   return (
-    <form
-      noValidate
-      className="card p-4 space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-    >
-      <div>
-        <label className="label" htmlFor="info-address-fr">{t('settings.info.addressFr')}</label>
-        <textarea id="info-address-fr" className="input" rows={2} maxLength={200} value={info.address.fr}
-          onChange={(e) => set({ address: { ...info.address, fr: e.target.value } })} />
-      </div>
-      <div>
-        <label className="label" htmlFor="info-address-ar">{t('settings.info.addressAr')}</label>
-        <textarea id="info-address-ar" className="input" rows={2} dir="rtl" maxLength={200} value={info.address.ar}
-          onChange={(e) => set({ address: { ...info.address, ar: e.target.value } })} />
-      </div>
-      <div>
-        <label className="label" htmlFor="info-city-fr">{t('settings.info.cityFr')}</label>
-        <input id="info-city-fr" className="input" maxLength={200} value={info.city.fr}
-          onChange={(e) => set({ city: { ...info.city, fr: e.target.value } })} />
-      </div>
-      <div>
-        <label className="label" htmlFor="info-city-ar">{t('settings.info.cityAr')}</label>
-        <input id="info-city-ar" className="input" dir="rtl" maxLength={200} value={info.city.ar}
-          onChange={(e) => set({ city: { ...info.city, ar: e.target.value } })} />
-      </div>
-      <div>
-        <label className="label" htmlFor="info-whatsapp">{t('settings.info.whatsapp')}</label>
-        <input id="info-whatsapp" type="tel" dir="ltr" className="input" placeholder="0661 22 33 44" value={phone}
-          onChange={(e) => set({ whatsapp: e.target.value })} {...aria('whatsapp')} />
-        <p className="text-sm text-rose-600 mt-1">{t('settings.info.whatsappHint')}</p>
-        {err('whatsapp')}
-      </div>
-      <div>
-        <label className="label" htmlFor="info-instagram">{t('settings.info.instagram')}</label>
-        <input id="info-instagram" type="url" dir="ltr" className="input" placeholder="https://" value={info.instagramUrl ?? ''}
-          onChange={(e) => set({ instagramUrl: e.target.value })} {...aria('instagram')} />
-        {err('instagram')}
-      </div>
-      <div>
-        <label className="label" htmlFor="info-facebook">{t('settings.info.facebook')}</label>
-        <input id="info-facebook" type="url" dir="ltr" className="input" placeholder="https://" value={info.facebookUrl ?? ''}
-          onChange={(e) => set({ facebookUrl: e.target.value })} {...aria('facebook')} />
-        {err('facebook')}
-      </div>
-      {err('form')}
+    <form noValidate className="card p-4 space-y-4" onSubmit={submit} onChange={() => setSaved(false)}>
+      <TextField id="info-address-fr" label={t('settings.info.addressFr')} multiline error={errors.addressFr?.message} {...register('addressFr')} />
+      <TextField id="info-address-ar" label={t('settings.info.addressAr')} multiline optional help={t('form.help.arFallback')} dir="rtl" error={errors.addressAr?.message} {...register('addressAr')} />
+      <TextField id="info-city-fr" label={t('settings.info.cityFr')} error={errors.cityFr?.message} {...register('cityFr')} />
+      <TextField id="info-city-ar" label={t('settings.info.cityAr')} optional help={t('form.help.arFallback')} dir="rtl" error={errors.cityAr?.message} {...register('cityAr')} />
+      <TextField id="info-whatsapp" label={t('settings.info.whatsapp')} optional type="tel" dir="ltr" placeholder="0661 22 33 44" help={t('settings.info.whatsappHint')} error={errors.whatsapp?.message} {...register('whatsapp')} />
+      <TextField id="info-instagram" label={t('settings.info.instagram')} optional type="url" dir="ltr" placeholder="https://" error={errors.instagram?.message} {...register('instagram')} />
+      <TextField id="info-facebook" label={t('settings.info.facebook')} optional type="url" dir="ltr" placeholder="https://" error={errors.facebook?.message} {...register('facebook')} />
+      {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
+      {formError && <p role="alert" className="text-sm text-rust-600">{formError}</p>}
       {saved && <p role="status" className="text-sm text-sage-700">{t('settings.info.saved')}</p>}
       <button type="submit" className="btn-primary w-full" disabled={save.isPending}>{t('settings.info.save')}</button>
     </form>
   );
+}
+
+export function SalonInfoSettings() {
+  const infoQuery = useSalonInfo();
+  if (!infoQuery.data) return <QueryFallback queries={[infoQuery]} />;
+  return <SalonInfoForm info={infoQuery.data} />;
 }

@@ -50,6 +50,36 @@ export function formatLongDate(date: Date, lang: Lang = 'fr'): string {
   return `${day} ${dayNum} ${month}`;
 }
 
+const shortMonthNames = [
+  'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+  'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
+];
+
+/** The day and month part of a compact date: "12 nov." / "12 نوفمبر". */
+const compactDayMonth = (date: Date, lang: Lang) =>
+  `${date.getDate()} ${lang === 'fr' ? shortMonthNames[date.getMonth()] : monthNames.ar[date.getMonth()]}`;
+
+/** The weekday of a compact date: "Jeu." / "الخميس" (Arabic names are already short). */
+const compactDay = (date: Date, lang: Lang) =>
+  lang === 'fr' ? `${dayNames.fr[date.getDay()].slice(0, 3)}.` : dayNames.ar[date.getDay()];
+
+/** A date short enough for a field at phone width: "Jeu. 12 nov." / "الخميس 12 نوفمبر". */
+export function formatCompactDate(date: Date, lang: Lang = 'fr'): string {
+  return `${compactDay(date, lang)} ${compactDayMonth(date, lang)}`;
+}
+
+/**
+ * A period, compact: "Ven. 20 nov." (one day), "Ven. 20 → Dim. 22 nov." (same month),
+ * "Lun. 30 nov. → Mer. 2 déc." (months differ).
+ */
+export function formatCompactRange(from: Date, to: Date, lang: Lang = 'fr'): string {
+  const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth();
+  if (sameMonth && from.getDate() === to.getDate()) return formatCompactDate(from, lang);
+  const start = sameMonth ? `${compactDay(from, lang)} ${from.getDate()}` : formatCompactDate(from, lang);
+  // From start to end in reading order: right-to-left in Arabic.
+  return `${start} ${lang === 'ar' ? '←' : '→'} ${formatCompactDate(to, lang)}`;
+}
+
 /** "Novembre 2026" / "نوفمبر 2026". */
 export function formatMonthYear(date: Date, lang: Lang = 'fr'): string {
   const month = monthNames[lang][date.getMonth()];
