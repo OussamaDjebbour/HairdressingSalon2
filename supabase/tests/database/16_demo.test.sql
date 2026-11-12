@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(51);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -122,6 +122,37 @@ select throws_ok($$ select * from public.admin_me() $$, 'P0001', 'not_authorized
 reset role;
 set local role anon;
 select throws_ok($$ select * from public.admin_me() $$, '42501', null, 'anon cannot call admin_me');
+reset role;
+
+-- what the demo account cannot do
+select is(private.mask_phone('0555123456'), '05•• •• •• 56', 'mask_phone keeps the first and last two digits');
+insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang)
+values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'elegance', 'coupe-femme', 'amina', '2030-01-08 09:00+01', '2030-01-08 10:00+01', 2500, 'Client Reel', '0555123456', 'fr');
+
+select pg_temp.act_as('dddddddd-dddd-dddd-dddd-dddddddddddd');
+set local role authenticated;
+select is((select client_phone from public.admin_list_bookings('2030-01-08', '2030-01-08') where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+  '05•• •• •• 56', 'demo sees the phone masked');
+select lives_ok($$ select public.admin_update_booking('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'coupe-femme', 'amina', '2030-01-08', '09:00', 'Renommée', '05•• •• •• 56', 'fr') $$,
+  'demo can edit a booking passing the masked phone');
+select throws_ok($$ select public.admin_save_push_subscription('https://push.example/demo', 'p', 'a', 'fr') $$, 'P0001', 'demo_disabled', 'demo cannot subscribe to push');
+select is(public.admin_send_test_push(), 0, 'demo test push sends nothing');
+reset role;
+select results_eq($$ select client_name, client_phone from private.bookings where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' $$,
+  $$ values ('Renommée', '0555123456') $$, 'masked phone keeps the stored phone');
+
+select pg_temp.act_as('dddddddd-dddd-dddd-dddd-dddddddddddd');
+set local role authenticated;
+select lives_ok($$ select public.admin_update_booking('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'coupe-femme', 'amina', '2030-01-08', '09:00', 'Renommée', '0661223344', 'fr') $$,
+  'demo can set a real new phone');
+reset role;
+select is((select client_phone from private.bookings where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'), '0661223344', 'the new phone is stored');
+
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select is((select client_phone from public.admin_list_bookings('2030-01-08', '2030-01-08') where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+  '0661223344', 'owner sees the real phone');
+select lives_ok($$ select public.admin_save_push_subscription('https://push.example/owner', 'p', 'a', 'fr') $$, 'owner can still subscribe');
 reset role;
 
 select * from finish();
