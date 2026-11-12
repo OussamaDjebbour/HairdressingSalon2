@@ -47,6 +47,24 @@ describe('LoginForm', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('E-mail ou mot de passe incorrect.');
   });
 
+  it('shows both required errors on an empty submit and calls nothing', async () => {
+    render(<LanguageProvider><LoginForm /></LanguageProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Se connecter' }));
+    expect(await screen.findByText('L’e-mail est obligatoire.')).toBeInTheDocument();
+    expect(screen.getByText('Le mot de passe est obligatoire.')).toBeInTheDocument();
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it('toggles the password visibility', () => {
+    render(<LanguageProvider><LoginForm /></LanguageProvider>);
+    const pw = screen.getByLabelText('Mot de passe');
+    expect(pw).toHaveAttribute('type', 'password');
+    fireEvent.click(screen.getByRole('button', { name: 'Afficher le mot de passe' }));
+    expect(pw).toHaveAttribute('type', 'text');
+    fireEvent.click(screen.getByRole('button', { name: 'Masquer le mot de passe' }));
+    expect(pw).toHaveAttribute('type', 'password');
+  });
+
   it('shows no demo button for an ordinary salon', () => {
     render(<LanguageProvider><LoginForm /></LanguageProvider>);
     expect(screen.queryByRole('button', { name: 'Essayer la démo' })).toBeNull();

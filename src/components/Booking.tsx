@@ -1,11 +1,16 @@
 import { useState, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { TextField } from './form/TextField';
+import { FormSummary } from './form/FormSummary';
+import { clientDetailsSchema, type ClientDetails } from '../data/schemas';
 import {
   Scissors, Palette, Sparkles, Hand, Brush, Heart,
   Clock, Check, ChevronLeft, ChevronRight, Calendar, User,
   MessageCircle, Sparkle, AlertCircle,
 } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { useSlots, useCreateBooking, toBookingError, isValidPhone, type BookingErrorCode } from '../data/bookings';
+import { useSlots, useCreateBooking, toBookingError, type BookingErrorCode } from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
@@ -50,17 +55,21 @@ export function Booking() {
   const [selectedStylist, setSelectedStylist] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, submitCount },
+  } = useForm<ClientDetails>({
+    resolver: zodResolver(clientDetailsSchema),
+    mode: 'onTouched',
+    defaultValues: { clientName: '', clientPhone: '' },
+  });
   const [submitted, setSubmitted] = useState(false);
   const createBookingMutation = useCreateBooking();
   const [assignedStylistId, setAssignedStylistId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<Exclude<BookingErrorCode, 'slot_taken'> | null>(null);
   const [slotNotice, setSlotNotice] = useState<'booking.slotTaken' | 'booking.slotPassed' | null>(null);
-
-  const trimmedName = clientName.trim();
-  const nameValid = trimmedName.length >= 2 && trimmedName.length <= 80;
-  const phoneValid = isValidPhone(clientPhone);
 
   const upcomingDays = useMemo(() => {
     const days: Date[] = [];
@@ -105,8 +114,8 @@ export function Booking() {
     if (step === 0) return selectedService !== null;
     if (step === 1) return true;
     if (step === 2) return selectedDate !== null && selectedTime !== null;
-    if (step === 3) return nameValid && phoneValid;
-    return false;
+    // Step 3: the button stays enabled; pressing it validates and shows every error.
+    return step === 3;
   };
 
   const handleNext = () => { if (step < 3) setStep((s) => (s + 1) as Step); };
@@ -117,7 +126,7 @@ export function Booking() {
     ? stylists.find((s) => s.id === effectiveStylistId)?.name ?? ''
     : t('booking.noPreference');
 
-  const handleConfirm = () => {
+  const handleConfirm = ({ clientName, clientPhone }: ClientDetails) => {
     if (!selectedService || !selectedDate || !selectedTime) return;
     setSubmitError(null);
     createBookingMutation.mutate(
@@ -126,7 +135,7 @@ export function Booking() {
         stylistId: selectedStylist,
         date: selectedDate,
         time: selectedTime,
-        clientName: trimmedName,
+        clientName,
         clientPhone,
         lang,
       },
@@ -167,8 +176,7 @@ export function Booking() {
     setSelectedStylist(null);
     setSelectedDate(null);
     setSelectedTime(null);
-    setClientName('');
-    setClientPhone('');
+    reset();
     setAssignedStylistId(null);
     setSubmitError(null);
     setSlotNotice(null);
@@ -491,21 +499,29 @@ export function Booking() {
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="booking-name" className="label">{t('booking.clientName')}</label>
-                  <input id="booking-name" name="name" type="text" autoComplete="name" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder={t('booking.clientNamePlaceholder')} className="input" />
-                  {clientName !== '' && !nameValid && (
-                    <p className="text-xs text-rust-700 mt-1">{t('booking.error.invalidName')}</p>
-                  )}
-                </div>
-                <div>
-                  <label htmlFor="booking-phone" className="label">{t('booking.clientPhone')}</label>
-                  <input id="booking-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={t('booking.clientPhonePlaceholder')} className="input" dir="ltr" />
-                  {clientPhone !== '' && !phoneValid && (
-                    <p className="text-xs text-rust-700 mt-1">{t('booking.error.invalidPhone')}</p>
-                  )}
-                </div>
+                <TextField
+                  id="booking-name"
+                  label={t('booking.clientName')}
+                  type="text"
+                  autoComplete="name"
+                  placeholder={t('booking.clientNamePlaceholder')}
+                  error={errors.clientName?.message}
+                  {...register('clientName')}
+                />
+                <TextField
+                  id="booking-phone"
+                  label={t('booking.clientPhone')}
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder={t('booking.clientPhonePlaceholder')}
+                  dir="ltr"
+                  error={errors.clientPhone?.message}
+                  {...register('clientPhone')}
+                />
               </div>
+
+              {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
 
               {submitError && (
                 <div role="alert" className="rounded-2xl border border-rust-200 bg-rust-50 p-4 text-sm text-rust-700">
@@ -542,8 +558,8 @@ export function Booking() {
               </button>
             ) : (
               <button
-                onClick={handleConfirm}
-                disabled={!canProceed() || createBookingMutation.isPending}
+                onClick={handleSubmit(handleConfirm)}
+                disabled={createBookingMutation.isPending}
                 className="btn-primary"
               >
                 {createBookingMutation.isPending ? (
