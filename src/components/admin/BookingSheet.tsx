@@ -18,7 +18,8 @@ import { Sheet } from './Sheet';
 import { useSheetMotion } from './useSheetMotion';
 
 export type SheetState =
-  | { mode: 'add'; stylistId: string; date: Date; time: string }
+  // serviceId: pre-filled when the time was found for a service in the calendar.
+  | { mode: 'add'; stylistId: string; date: Date; time: string; serviceId?: string }
   | { mode: 'edit'; booking: AdminBooking };
 
 interface BookingSheetProps {
@@ -34,7 +35,7 @@ function initialForm(state: SheetState, lang: Lang): StaffBookingInput {
       clientName: b.clientName, clientPhone: b.clientPhone, lang: b.lang,
     };
   }
-  return { serviceId: '', stylistId: state.stylistId, date: state.date, time: state.time, clientName: '', clientPhone: '', lang };
+  return { serviceId: state.serviceId ?? '', stylistId: state.stylistId, date: state.date, time: state.time, clientName: '', clientPhone: '', lang };
 }
 
 const minutesOf = (b: AdminBooking) => Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000);

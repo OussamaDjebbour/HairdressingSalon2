@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, UserX } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { algiersToday, useAdminBookings } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
@@ -98,7 +98,7 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
 
   return (
     <Sheet title={t('admin.picker.title')} onRequestClose={() => motion.dismiss(onClose)} motion={motion.state}>
-      <div className="grid grid-cols-2 gap-2 mb-3">
+      <div className="grid sm:grid-cols-2 gap-2 mb-3">
         <div>
           <label htmlFor="picker-service" className="label">{t('admin.sheet.service')}</label>
           <select
@@ -204,10 +204,11 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
                   >
                     {room.starts.length}
                   </span>
-                ) : room && (room.kind === 'full' || room.kind === 'absent') ? (
-                  <span aria-hidden="true" className={`text-xs leading-4 font-medium ${isSelected ? 'text-cream-100' : 'text-cream-500'}`}>
-                    {roomLabel(room)}
-                  </span>
+                ) : room?.kind === 'full' ? (
+                  // The words are in the button's name; a 44 px cell only has room for a sign.
+                  <span data-testid="room-count" aria-hidden="true" className="px-1.5 rounded-full text-xs leading-4 bg-cream-200 text-rose-700">0</span>
+                ) : room?.kind === 'absent' ? (
+                  <UserX data-testid="room-absent" aria-hidden="true" className={`w-3.5 h-3.5 ${isSelected ? 'text-cream-100' : 'text-rose-500'}`} strokeWidth={1.8} />
                 ) : null
               ) : hours && (
                 <span className={`block h-1 w-6 rounded-full overflow-hidden ${isSelected ? 'bg-cream-50/25' : 'bg-cream-200'}`}>

@@ -97,6 +97,13 @@ describe('BookingSheet — add', () => {
     expect(stylists).toHaveLength(3);
   });
 
+  it('can open pre-filled with a service, coiffeuse and time (from the calendar)', () => {
+    renderSheet({ mode: 'add', stylistId: 'leila', date: tuesday, time: '11:00', serviceId: 'manucure' });
+    expect(screen.getByLabelText('Prestation')).toHaveValue('manucure');
+    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('leila');
+    expect(screen.getByLabelText('Heure')).toHaveValue('11:00');
+  });
+
   it('add sends a staff booking', () => {
     renderSheet(addState);
     fillClient('Rania', '0555 12 34 56');
