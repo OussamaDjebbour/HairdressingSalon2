@@ -7,12 +7,17 @@ import { adminBooking } from './fixtures';
 
 let monthBookings: AdminBooking[] = [];
 let bookingsLoading = false;
+let bookingsError = false;
+const refetchBookings = vi.fn();
 const rangeCalls: Array<[string, string]> = [];
 vi.mock('../../data/admin', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../data/admin')>()),
   useAdminBookings: (from: Date, to: Date) => {
     rangeCalls.push([toYmdLocal(from), toYmdLocal(to)]);
-    return { data: bookingsLoading ? undefined : monthBookings, isLoading: bookingsLoading, isError: false, refetch: vi.fn() };
+    return {
+      data: bookingsLoading || bookingsError ? undefined : monthBookings,
+      isLoading: bookingsLoading, isError: bookingsError, refetch: refetchBookings,
+    };
   },
 }));
 function toYmdLocal(d: Date) {
@@ -31,11 +36,12 @@ vi.mock('../../data/salonSettings', async () => {
 
 let servicesOverride: Service[] | undefined;
 let stylistsOverride: Stylist[] | undefined;
+let stylistsLoading = false;
 vi.mock('../../data/queries', async () => {
   const f = await import('./fixtures');
   return {
     useAllServices: () => ({ data: servicesOverride ?? f.services }),
-    useAllStylists: () => ({ data: stylistsOverride ?? f.stylists }),
+    useAllStylists: () => ({ data: stylistsLoading ? undefined : stylistsOverride ?? f.stylists }),
   };
 });
 
@@ -60,6 +66,9 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2030-01-08T07:00:00Z')); // Tuesday 8 Jan 2030, 08:00 in Algiers
   monthBookings = [];
   bookingsLoading = false;
+  bookingsError = false;
+  stylistsLoading = false;
+  refetchBookings.mockClear();
   rangeCalls.length = 0;
   daysOff = [];
   servicesOverride = undefined;
@@ -210,5 +219,29 @@ describe('DayPicker — room for a service and coiffeuse', () => {
     expect(screen.getByRole('button', { name: 'Mardi 8 janvier — 0%' })).toBeInTheDocument();
     expect(screen.queryAllByRole('button', { name: /absente/ })).toHaveLength(0);
     expect(screen.getByLabelText('Prestation')).toHaveValue('');
+  });
+});
+
+describe('DayPicker — loading and errors', () => {
+  it('a month that failed to load says so, offers a retry, and shows no day as empty', () => {
+    bookingsError = true;
+    renderPicker();
+    expect(screen.getByText('Impossible de charger le contenu.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }));
+    expect(refetchBookings).toHaveBeenCalled();
+    expect(screen.queryAllByRole('button', { name: /— 0%/ })).toHaveLength(0);
+  });
+
+  it('a month still loading shows no day as empty', () => {
+    bookingsLoading = true;
+    renderPicker();
+    expect(screen.queryAllByRole('button', { name: /— 0%/ })).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Mardi 8 janvier' })).toBeInTheDocument();
+  });
+
+  it('never says “complet” while the coiffeuses are still loading', () => {
+    stylistsLoading = true;
+    renderPicker({ serviceId: 'coupe-femme', stylistId: null });
+    expect(screen.queryAllByRole('button', { name: /complet/ })).toHaveLength(0);
   });
 });

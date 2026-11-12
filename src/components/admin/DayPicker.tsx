@@ -9,6 +9,7 @@ import { useAllServices, useAllStylists } from '../../data/queries';
 import { dayRoom, monthGrid, roomLevel, type DayRoom } from '../../data/roomFinder';
 import { useClosedDates, useSalonHours, useStylistDaysOff } from '../../data/salonSettings';
 import { dayOccupancy, salonDate } from '../../data/week';
+import { DataError } from '../DataError';
 import { Sheet } from './Sheet';
 import { useSheetMotion } from './useSheetMotion';
 
@@ -48,14 +49,19 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
   const bookings = bookingsQuery.data ?? [];
   const salonHours = useSalonHours().data;
   const closedDates = useClosedDates().data;
-  const daysOff = useStylistDaysOff().data ?? [];
+  const daysOffQuery = useStylistDaysOff();
+  const daysOff = daysOffQuery.data ?? [];
   const activeServices = (useAllServices().data ?? []).filter((s) => s.active);
-  const activeStylists = (useAllStylists().data ?? []).filter((s) => s.active);
+  const stylistsQuery = useAllStylists();
+  const activeStylists = (stylistsQuery.data ?? []).filter((s) => s.active);
 
   // A remembered choice that was hidden since counts as "Toutes".
   const service = activeServices.find((s) => s.id === filter.serviceId) ?? null;
   const stylist = activeStylists.find((s) => s.id === filter.stylistId) ?? null;
-  const ready = !!bookingsQuery.data && !!salonHours && !!closedDates;
+  // Until the month's bookings (and, for counts, the coiffeuses and days off) are in, no day is
+  // shown as empty or full: a wrong "0%" or "complet" is worse than none.
+  const bookingsReady = !!bookingsQuery.data;
+  const ready = bookingsReady && !!salonHours && !!closedDates && !!stylistsQuery.data && !!daysOffQuery.data;
   const [picked, setPicked] = useState<Date | null>(null);
 
   const now = new Date();
@@ -148,6 +154,8 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
         ))}
       </div>
 
+      {bookingsQuery.isError && !bookingsReady && <DataError onRetry={() => void bookingsQuery.refetch()} />}
+
       <div data-testid="month-grid" className="grid grid-cols-7 gap-1">
         {monthGrid(month).map(({ date, inMonth }) => {
           const ymd = toYmd(date);
@@ -175,7 +183,9 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
             ? t('schedule.closed')
             : service
             ? room && room.kind !== 'past' ? roomLabel(room) : ''
-            : `${pct}%`;
+            : bookingsReady
+            ? `${pct}%`
+            : '';
           return (
             <button
               key={ymd}
@@ -210,7 +220,7 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
                 ) : room?.kind === 'absent' ? (
                   <UserX data-testid="room-absent" aria-hidden="true" className={`w-3.5 h-3.5 ${isSelected ? 'text-cream-100' : 'text-rose-500'}`} strokeWidth={1.8} />
                 ) : null
-              ) : hours && (
+              ) : hours && bookingsReady && (
                 <span className={`block h-1 w-6 rounded-full overflow-hidden ${isSelected ? 'bg-cream-50/25' : 'bg-cream-200'}`}>
                   <span className="block h-full rounded-full bg-gold-500" style={{ width: `${pct}%` }} />
                 </span>
