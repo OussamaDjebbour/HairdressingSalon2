@@ -15,6 +15,11 @@ function isIos(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
+/** Chrome on Android may warn that a website notification is "possible spam" (an on-device check). */
+export function isAndroid(): boolean {
+  return /Android/i.test(navigator.userAgent);
+}
+
 function isStandalone(): boolean {
   return (
     (navigator as Navigator & { standalone?: boolean }).standalone === true ||

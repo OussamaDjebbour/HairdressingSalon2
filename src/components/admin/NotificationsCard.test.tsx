@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { PushState } from '../../lib/push';
 
@@ -110,4 +110,33 @@ describe('NotificationsCard edge states', () => {
       expect(disable).not.toHaveBeenCalled();
     }
   );
+});
+
+describe('NotificationsCard — Chrome on Android', () => {
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36';
+  const MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36';
+  const as = (ua: string) => vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(ua);
+  afterEach(() => vi.restoreAllMocks());
+
+  it('explains what to do if Chrome flags a notification as possible spam', () => {
+    as(ANDROID);
+    state = 'on';
+    renderCard();
+    expect(screen.getByText(/possible spam/)).toBeInTheDocument();
+    expect(screen.getByText(/toujours autoriser/)).toBeInTheDocument();
+  });
+
+  it('says nothing about it on other devices', () => {
+    as(MAC);
+    state = 'on';
+    renderCard();
+    expect(screen.queryByText(/possible spam/)).toBeNull();
+  });
+
+  it('says nothing about it while notifications are off', () => {
+    as(ANDROID);
+    state = 'off';
+    renderCard();
+    expect(screen.queryByText(/possible spam/)).toBeNull();
+  });
 });
