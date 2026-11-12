@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertCircle } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { formatDayName } from '../../data/formatters';
 import { toSettingsError, useSalonHours, useSetHours } from '../../data/salonSettings';
@@ -56,7 +55,7 @@ function HoursFormCard({ hours }: { hours: SalonHours }) {
   const {
     control, handleSubmit,
     formState: { errors, submitCount },
-  } = useForm<HoursForm>({ resolver: zodResolver(hoursSchema), defaultValues: toValues(hours) });
+  } = useForm<HoursForm>({ mode: 'onTouched', resolver: zodResolver(hoursSchema), defaultValues: toValues(hours) });
 
   const submit = handleSubmit((v) => {
     setError(null);
@@ -104,7 +103,7 @@ function HoursFormCard({ hours }: { hours: SalonHours }) {
                         />
                       </div>
                       {day.on ? (
-                        <div className="flex items-center gap-2 [&_label]:sr-only">
+                        <div className="flex flex-wrap items-start gap-2 [&_label]:sr-only">
                           <div className="w-28">
                             <SelectField
                               id={`hours-opens-${d}`}
@@ -116,7 +115,7 @@ function HoursFormCard({ hours }: { hours: SalonHours }) {
                             />
                           </div>
                           <span aria-hidden className="text-rose-600">–</span>
-                          <div className="w-28">
+                          <div className={rowError ? 'w-full' : 'w-28'}>
                             <SelectField
                               id={`hours-closes-${d}`}
                               label={`${name} · ${t('settings.hours.closes')}`}
@@ -124,6 +123,9 @@ function HoursFormCard({ hours }: { hours: SalonHours }) {
                               options={TIME_OPTIONS}
                               dirLtrValues
                               onValueChange={(closes) => field.onChange({ ...day, closes })}
+                              onBlur={field.onBlur}
+                              ref={field.ref}
+                              error={rowError}
                             />
                           </div>
                         </div>
@@ -131,12 +133,6 @@ function HoursFormCard({ hours }: { hours: SalonHours }) {
                         <span className="text-sm text-rose-600">{t('settings.hours.closed')}</span>
                       )}
                     </div>
-                    {rowError && (
-                      <p data-testid={`hours-error-${d}`} className="field-error mt-1.5">
-                        <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span>{t(rowError)}</span>
-                      </p>
-                    )}
                   </div>
                 );
               }}

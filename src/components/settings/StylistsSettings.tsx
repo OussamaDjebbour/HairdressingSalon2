@@ -85,7 +85,7 @@ function StylistFormCard({ draft, services, error, onFail, onStart, onSaved, onC
   const {
     register, control, handleSubmit, setError,
     formState: { errors, submitCount },
-  } = useForm<StylistForm>({ resolver: zodResolver(stylistSchema), defaultValues: draft.values });
+  } = useForm<StylistForm>({ mode: 'onTouched', resolver: zodResolver(stylistSchema), defaultValues: draft.values });
 
   const submit = handleSubmit((v) => {
     onStart();
@@ -184,7 +184,7 @@ function AddDayOff({ stylistId, onStart, onAdded, onFail }: { stylistId: string;
   const {
     control, handleSubmit, reset, setError,
     formState: { errors },
-  } = useForm<DayOffForm>({ resolver: zodResolver(dayOffSchema), defaultValues: { period: null } });
+  } = useForm<DayOffForm>({ mode: 'onTouched', resolver: zodResolver(dayOffSchema), defaultValues: { period: null } });
 
   const add = handleSubmit(({ period }) => {
     if (!period) return;

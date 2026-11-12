@@ -37,7 +37,7 @@ export function ClosedDatesSettings() {
   const {
     register, control, handleSubmit, reset,
     formState: { errors, submitCount },
-  } = useForm<ClosedForm>({ resolver: zodResolver(closedSchema), defaultValues: { period: null, label: '' } });
+  } = useForm<ClosedForm>({ mode: 'onTouched', resolver: zodResolver(closedSchema), defaultValues: { period: null, label: '' } });
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
 

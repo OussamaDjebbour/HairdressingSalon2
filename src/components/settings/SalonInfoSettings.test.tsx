@@ -65,6 +65,15 @@ describe('SalonInfoSettings', () => {
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_save_salon_info', expect.objectContaining({ p_whatsapp: '' })));
   });
 
+  it('shows the phone error on blur, before any Save', async () => {
+    renderIt();
+    const wa = screen.getByLabelText('WhatsApp');
+    fireEvent.change(wa, { target: { value: '12345' } });
+    fireEvent.blur(wa);
+    expect(await screen.findByText(/Numéro de mobile algérien invalide/)).toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it('blocks an invalid phone client-side', async () => {
     renderIt();
     fireEvent.change(screen.getByLabelText('WhatsApp'), { target: { value: '123' } });

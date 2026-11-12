@@ -43,7 +43,7 @@ function SalonInfoForm({ info }: { info: SalonInfo }) {
   const {
     register, handleSubmit, setError, getValues,
     formState: { errors, submitCount },
-  } = useForm<InfoForm>({ resolver: zodResolver(infoSchema), defaultValues: toValues(info) });
+  } = useForm<InfoForm>({ mode: 'onTouched', resolver: zodResolver(infoSchema), defaultValues: toValues(info) });
 
   const submit = handleSubmit((v) => {
     setSaved(false);

@@ -85,7 +85,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
   const {
     register, control, handleSubmit, setError,
     formState: { errors, submitCount },
-  } = useForm<ServiceForm>({ resolver: zodResolver(serviceSchema), defaultValues: draft.values });
+  } = useForm<ServiceForm>({ mode: 'onTouched', resolver: zodResolver(serviceSchema), defaultValues: draft.values });
 
   const submit = handleSubmit((values) => {
     setFormError(null);

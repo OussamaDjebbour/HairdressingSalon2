@@ -85,8 +85,11 @@ describe('HoursSettings', () => {
     pickOption('Mardi · Ouverture', '18:00');
     pickOption('Mardi · Fermeture', '09:00');
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-    await waitFor(() => expect(screen.getByTestId('hours-error-2')).toHaveTextContent('L’heure de fermeture doit être après l’ouverture.'));
-    expect(screen.queryByTestId('hours-error-3')).not.toBeInTheDocument();
+    const closes = screen.getByRole('combobox', { name: 'Mardi · Fermeture' });
+    await waitFor(() => expect(closes).toHaveAttribute('aria-invalid', 'true'));
+    expect(closes).toHaveAccessibleDescription('L’heure de fermeture doit être après l’ouverture.');
+    expect(closes).toHaveFocus();
+    expect(screen.getByRole('combobox', { name: 'Jeudi · Fermeture' })).toHaveAttribute('aria-invalid', 'false');
     expect(rpc).not.toHaveBeenCalledWith('admin_set_hours', expect.anything());
   });
 
