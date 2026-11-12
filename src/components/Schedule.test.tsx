@@ -108,7 +108,7 @@ describe('Schedule', () => {
     expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
   });
 
-  it('pending badge shows the count and jumps to that day', () => {
+  it('pending badge shows the count and opens the waiting list', () => {
     pendingBookings = [
       adminBooking({ id: 'p2', startIso: '2030-01-11T09:00:00Z' }),
       adminBooking({ id: 'p1', startIso: '2030-01-10T09:00:00Z' }),
@@ -116,7 +116,17 @@ describe('Schedule', () => {
     ];
     renderSchedule();
     fireEvent.click(screen.getByRole('button', { name: '2 en attente' }));
-    expect(screen.getAllByText('Jeudi 10 janvier').length).toBeGreaterThan(0);
+    expect(screen.getByRole('dialog', { name: '2 réservations à confirmer' })).toBeInTheDocument();
+  });
+
+  it('a card in the waiting list opens that booking', () => {
+    pendingBookings = [adminBooking({ id: 'p1', clientName: 'Nour', startIso: '2030-01-10T09:00:00Z' })];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '1 en attente' }));
+    fireEvent.click(within(screen.getByRole('listitem')).getByText('Nour'));
+    const dialog = screen.getByRole('dialog', { name: 'Rendez-vous' });
+    expect(within(dialog).getByText('Nour')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /à confirmer/ })).toBeNull();
   });
 
   it('hides the pending badge when nothing is waiting', () => {

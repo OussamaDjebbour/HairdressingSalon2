@@ -9,8 +9,11 @@ export type Notice = {
   booking: Pick<AdminBooking, 'clientName' | 'clientPhone' | 'startsAt' | 'serviceName' | 'lang'>;
 };
 
-/** Confirm or refuse/cancel a booking; on success, `notice` holds the message to offer the client. */
-export function useBookingActions() {
+/**
+ * Confirm or refuse/cancel a booking; on success, `notice` holds the message to offer the client
+ * and `onDone` (if given) hears which booking changed.
+ */
+export function useBookingActions(onDone?: (booking: AdminBooking, status: 'confirmed' | 'cancelled') => void) {
   const { t } = useLang();
   const setStatus = useSetBookingStatus();
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -26,6 +29,7 @@ export function useBookingActions() {
         onSuccess: () => {
           setPendingId(null);
           setNotice({ kind: status, booking: b });
+          onDone?.(b, status);
         },
         onError: (err) => {
           setPendingId(null);

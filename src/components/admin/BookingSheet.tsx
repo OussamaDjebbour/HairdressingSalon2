@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
@@ -14,6 +14,7 @@ import type { DayHours } from '../../data/types';
 import { BookingSummary } from './BookingSummary';
 import { MessageReady } from './MessageReady';
 import { useBookingActions, type Notice } from './useBookingActions';
+import { useSheetDialog } from './useSheetDialog';
 
 export type SheetState =
   | { mode: 'add'; stylistId: string; date: Date; time: string }
@@ -96,42 +97,6 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const stylist = allStylists.find((s) => s.id === form.stylistId);
   const stylistOff = !!stylist && !stylistWorks(stylist, daysOff, form.date);
 
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const requestCloseRef = useRef<() => void>(onClose);
-
-  // Focus moves into the sheet on open and returns where it was on close.
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
-    return () => previous?.focus?.();
-  }, []);
-
-  // Escape closes (asking first if something was typed); Tab stays inside the sheet.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        requestCloseRef.current();
-        return;
-      }
-      if (e.key !== 'Tab' || !dialogRef.current) return;
-      const focusables = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input, select, a[href]')
-      );
-      if (focusables.length === 0) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      } else if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
   const busy = create.isPending || update.isPending;
   const initial = initialForm(state, lang);
   const dirty =
@@ -148,7 +113,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     if (!notice && view === 'form' && dirty && !window.confirm(message)) return;
     onClose();
   };
-  requestCloseRef.current = requestClose;
+  const dialogRef = useSheetDialog(requestClose);
 
   const save = () => {
     const name = form.clientName.trim();

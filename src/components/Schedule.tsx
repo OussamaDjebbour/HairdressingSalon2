@@ -22,6 +22,7 @@ import { SalonGate } from './admin/SalonGate';
 import { WeekStrip } from './admin/WeekStrip';
 import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
+import { PendingSheet } from './admin/PendingSheet';
 
 // Online bookings are at most today + 13 days, but the owner can move a waiting one further out;
 // 30 days stays within admin_list_bookings' 31-day range cap.
@@ -85,6 +86,7 @@ function ScheduleBody() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [day, setDay] = useState(() => parseYmd(searchParams.get('day')) ?? algiersToday());
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [showWaiting, setShowWaiting] = useState(false);
   // Hidden stylists too: one with a booking that day still gets a column.
   const allStylists = useAllStylists().data ?? [];
   const stylists = allStylists.filter((s) => s.active);
@@ -181,7 +183,7 @@ function ScheduleBody() {
           <div className="flex justify-center mb-4">
             <button
               type="button"
-              onClick={() => setDay(salonDate(waiting[0].startsAt))}
+              onClick={() => setShowWaiting(true)}
               className="inline-flex items-center gap-2 rounded-full bg-amber-100 border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition-colors"
             >
               <BellRing className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
@@ -323,6 +325,16 @@ function ScheduleBody() {
         <Plus className="w-6 h-6" strokeWidth={2} />
       </button>
 
+      {showWaiting && (
+        <PendingSheet
+          bookings={waiting}
+          onOpen={(booking) => {
+            setShowWaiting(false);
+            setSheet({ mode: 'edit', booking });
+          }}
+          onClose={() => setShowWaiting(false)}
+        />
+      )}
       {sheet && <BookingSheet key={JSON.stringify(sheet)} state={sheet} onClose={() => setSheet(null)} />}
     </section>
   );
