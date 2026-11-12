@@ -15,7 +15,7 @@ import { dayOccupancy, minutesToTime, salonDate, salonMinutes, weekDays } from '
 import { DataError } from './DataError';
 import { Thread } from './Thread';
 import { Badge } from './Badge';
-import { SalonGate } from './admin/SalonGate';
+import { Blocked, SalonGate } from './admin/SalonGate';
 import { WeekStrip } from './admin/WeekStrip';
 import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
@@ -146,14 +146,14 @@ function ScheduleBody() {
   };
 
   if (weekQuery.isError && isNotAuthorized(weekQuery.error)) {
-    return <p className="text-center text-rose-600 py-20 px-4">{t('admin.notAuthorized')}</p>;
+    return <Blocked message={t('admin.notAuthorized')} />;
   }
 
   return (
     <section id="schedule" className="relative pb-10 lg:pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Day bar: stays at the top while the agenda scrolls */}
-        <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 lg:-mx-8 mb-4 px-4 sm:px-6 lg:px-8 py-2.5 bg-cream-50/95 backdrop-blur border-b border-cream-200">
+        <div className="sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 mb-4 px-4 sm:px-6 lg:px-8 py-2.5 bg-cream-50/95 backdrop-blur border-b border-cream-200">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <div className="flex items-center gap-1">
               <button onClick={() => shiftDay(-1)} className="btn-ghost btn-sm" aria-label={t('admin.prevDay')}>

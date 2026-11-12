@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AdminBooking } from '../data/admin';
 import type { SalonHours, Stylist, StylistDayOff } from '../data/types';
 import { adminBooking, eleganceHours, stylists } from './admin/fixtures';
@@ -57,11 +58,13 @@ import { Schedule } from './Schedule';
 
 function renderSchedule(url = '/admin') {
   render(
-    <MemoryRouter initialEntries={[url]}>
-      <LanguageProvider>
-        <Schedule userId="user-1" />
-      </LanguageProvider>
-    </MemoryRouter>
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[url]}>
+        <LanguageProvider>
+          <Schedule userId="user-1" />
+        </LanguageProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 
@@ -171,6 +174,12 @@ describe('Schedule — agenda first', () => {
     expect(screen.getByText('Aucun rendez-vous à venir')).toBeInTheDocument();
   });
 
+  it('the day bar stays above the agenda (its sticky hour column) when scrolling', () => {
+    renderSchedule();
+    // The hour column is sticky at z-30; the bar must sit above it or it covers "Jour précédent".
+    expect(screen.getByRole('button', { name: 'Jour précédent' }).closest('.sticky')).toHaveClass('z-40');
+  });
+
   it('the add button in the day bar opens the add sheet', () => {
     renderSchedule();
     const add = screen.getByRole('button', { name: 'Nouveau rendez-vous' });
@@ -218,6 +227,7 @@ describe('Schedule — salon ownership', () => {
     mySalon = { data: 'rival', isLoading: false, isError: false, error: null };
     renderSchedule();
     expect(screen.getByText('Ce compte appartient à un autre salon.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument(); // to sign in with the right account
     expect(screen.queryByText('Amina')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Nouveau rendez-vous' })).toBeNull();
   });
@@ -232,6 +242,7 @@ describe('Schedule — salon ownership', () => {
     mySalon = { data: undefined, isLoading: false, isError: true, error: { message: 'not_authorized' } };
     renderSchedule();
     expect(screen.getByText('Ce compte n’a pas accès à l’espace salon.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument();
     expect(screen.queryByText('Amina')).toBeNull();
   });
 
@@ -239,6 +250,7 @@ describe('Schedule — salon ownership', () => {
     mySalon = { data: undefined, isLoading: false, isError: true, error: new Error('network'), refetch: vi.fn() };
     renderSchedule();
     expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument();
     expect(screen.queryByText('Amina')).toBeNull();
   });
 
