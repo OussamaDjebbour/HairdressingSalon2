@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useLang } from '../../context/LanguageContext';
 import { isNotAuthorized, useMySalon } from '../../data/admin';
-import { SALON_ID } from '../../data/salon';
+import { currentSalonId } from '../../data/salon';
 import { DataError } from '../DataError';
 
 /**
@@ -20,7 +20,7 @@ export function SalonGate({ userId, children }: { userId: string; children: Reac
     if (mySalon.isError) return <DataError onRetry={() => void mySalon.refetch()} />;
     return <div className="py-20" aria-busy="true" />;
   }
-  if (mySalon.data !== SALON_ID) {
+  if (mySalon.data !== currentSalonId()) {
     return <p className="text-center text-rose-600 py-20 px-4">{t('admin.otherSalon')}</p>;
   }
   return <>{children}</>;

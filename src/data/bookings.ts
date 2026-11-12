@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Lang } from '../context/LanguageContext';
-import { SALON_ID } from './salon';
+import { currentSalonId } from './salon';
 
 export interface Slot {
   slot: string;
@@ -58,7 +58,7 @@ export function isValidPhone(input: string): boolean {
 
 export async function fetchSlots(date: Date, serviceId: string, stylistId: string | null): Promise<Slot[]> {
   const { data, error } = await supabase.rpc('get_slots', {
-    p_salon_id: SALON_ID,
+    p_salon_id: currentSalonId(),
     p_date: toYmd(date),
     p_service_id: serviceId,
     p_stylist_id: stylistId,
@@ -93,7 +93,7 @@ export interface CreatedBooking {
 
 export async function createBooking(input: CreateBookingInput): Promise<CreatedBooking> {
   const { data, error } = await supabase.rpc('create_booking', {
-    p_salon_id: SALON_ID,
+    p_salon_id: currentSalonId(),
     p_service_id: input.serviceId,
     p_stylist_id: input.stylistId,
     p_date: toYmd(input.date),

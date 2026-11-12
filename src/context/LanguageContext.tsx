@@ -276,6 +276,10 @@ const translations: Record<Lang, Record<string, string>> = {
     'data.error': 'Impossible de charger le contenu.',
     'data.retry': 'Réessayer',
     'data.loading': 'Chargement…',
+    'salon.notFound.title': 'Salon introuvable',
+    'salon.notFound.body': 'Aucun salon n’est associé à cette adresse. Vérifiez le lien que vous avez reçu.',
+    'salon.loadError.title': 'Connexion impossible',
+    'salon.loadError.body': 'Le site n’a pas pu se charger. Vérifiez votre connexion internet puis réessayez.',
   },
   ar: {
     'nav.home': 'الرئيسية',
@@ -534,6 +538,10 @@ const translations: Record<Lang, Record<string, string>> = {
     'data.error': 'تعذّر تحميل المحتوى.',
     'data.retry': 'إعادة المحاولة',
     'data.loading': 'جارٍ التحميل…',
+    'salon.notFound.title': 'الصالون غير موجود',
+    'salon.notFound.body': 'لا يوجد صالون مرتبط بهذا العنوان. تحقّقي من الرابط الذي وصلك.',
+    'salon.loadError.title': 'تعذّر الاتصال',
+    'salon.loadError.body': 'تعذّر تحميل الموقع. تحقّقي من اتصالك بالإنترنت ثم أعيدي المحاولة.',
   },
 };
 
