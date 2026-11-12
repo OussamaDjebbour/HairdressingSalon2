@@ -37,7 +37,7 @@ export function Sheet({ title, lead, onRequestClose, children }: SheetProps) {
             <h2 id={titleId} className="flex items-center gap-2.5 font-display text-xl font-semibold text-rose-900">{title}</h2>
             {lead && <p className="mt-1 text-sm text-rose-600">{lead}</p>}
           </div>
-          <button type="button" onClick={onRequestClose} className="btn-ghost btn-sm -me-2 shrink-0" aria-label={t('admin.sheet.close')}>
+          <button type="button" onClick={onRequestClose} className="btn-ghost btn-sm tap -me-2 -mt-2 shrink-0" aria-label={t('admin.sheet.close')}>
             <X className="w-4 h-4" strokeWidth={2} />
           </button>
         </div>

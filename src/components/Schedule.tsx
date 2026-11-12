@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Clock, Check, X, Phone, ArrowRight, ChevronLeft, ChevronRight, Plus, BellRing } from 'lucide-react';
+import { Clock, Check, X, Phone, ChevronLeft, ChevronRight, Plus, BellRing } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import { toYmd } from '../data/bookings';
 import {
@@ -163,17 +163,17 @@ function ScheduleBody() {
         <div className="sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 mb-4 px-4 sm:px-6 lg:px-8 py-2.5 bg-cream-50/95 backdrop-blur border-b border-cream-200">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <div className="flex items-center gap-1">
-              <button onClick={() => shiftDay(-1)} className="btn-ghost btn-sm" aria-label={t('admin.prevDay')}>
+              <button onClick={() => shiftDay(-1)} className="btn-ghost btn-sm tap" aria-label={t('admin.prevDay')}>
                 <ChevronLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               </button>
               <span className="font-display text-lg font-semibold text-rose-900 text-center whitespace-nowrap sm:min-w-[11rem]">{formatLongDate(day, lang)}</span>
-              <button onClick={() => shiftDay(1)} className="btn-ghost btn-sm" aria-label={t('admin.nextDay')}>
+              <button onClick={() => shiftDay(1)} className="btn-ghost btn-sm tap" aria-label={t('admin.nextDay')}>
                 <ChevronRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               </button>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 ms-auto">
               {!isToday && (
-                <button onClick={() => setDay(algiersToday())} className="btn-secondary btn-sm px-3.5">
+                <button onClick={() => setDay(algiersToday())} className="btn-secondary btn-sm tap px-3.5">
                   {t('schedule.today')}
                 </button>
               )}
@@ -181,7 +181,7 @@ function ScheduleBody() {
                 <button
                   type="button"
                   onClick={() => setShowWaiting(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-200 px-3 py-1.5 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition-colors"
+                  className="tap inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-100 border border-amber-200 px-3 py-1.5 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition-colors"
                 >
                   <BellRing className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
                   {isToday ? (
@@ -196,7 +196,7 @@ function ScheduleBody() {
                 </button>
               )}
               {/* Add a booking (WhatsApp, phone, walk-in) */}
-              <button type="button" onClick={openAdd} aria-label={t('admin.sheet.addTitle')} className="btn-primary btn-sm px-4">
+              <button type="button" onClick={openAdd} aria-label={t('admin.sheet.addTitle')} className="btn-primary btn-sm tap px-4">
                 <Plus className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
                 {t('schedule.addShort')}
               </button>
@@ -224,10 +224,11 @@ function ScheduleBody() {
           </div>
         ) : (
           <div>
-            <div className="grid lg:grid-cols-3 gap-6">
-              {/* Day: one column per stylist, then the day in one line */}
+            {/* Phones: the day, then its summary line. Large screens: the day on the left; the summary
+                and the day's list stacked on the right. */}
+            <div className="grid lg:grid-cols-3 lg:grid-rows-[auto_1fr] gap-x-6 gap-y-3 lg:gap-y-6">
               {/* min-w-0: a wide day (many stylists) scrolls inside its card, not the whole page */}
-              <div className="lg:col-span-2 min-w-0">
+              <div className="lg:col-span-2 lg:row-span-2 min-w-0">
                 <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-3 sm:p-6">
                   <DayColumns
                     day={day}
@@ -239,7 +240,9 @@ function ScheduleBody() {
                     onBookingTap={(booking) => setSheet({ mode: 'edit', booking })}
                   />
                 </div>
-                <div className="mt-3 px-1 text-sm text-rose-700 space-y-0.5">
+              </div>
+
+              <div className="self-start px-1 text-sm text-rose-700 space-y-0.5 lg:col-start-3 lg:row-start-1 lg:px-5 lg:py-4 lg:bg-white lg:rounded-3xl lg:shadow-card lg:border lg:border-cream-200">
                   <p className="flex flex-wrap gap-x-2">
                     <span>{countText(t, lang, 'schedule.summary.count', active.length)}</span>
                     <span aria-hidden="true">·</span>
@@ -252,11 +255,10 @@ function ScheduleBody() {
                   ) : (
                     isToday && <p className="text-rose-600">{t('schedule.noUpcoming')}</p>
                   )}
-                </div>
               </div>
 
               {/* Side list, large screens only (includes cancelled bookings, which can be restored from the sheet) */}
-              <div className="hidden lg:block">
+              <div className="hidden lg:block self-start lg:col-start-3 lg:row-start-2">
                 <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-5">
                   <h3 className="font-display text-base font-semibold text-rose-800 mb-4">{formatLongDate(day, lang)}</h3>
                   {all.length === 0 ? (
@@ -272,7 +274,7 @@ function ScheduleBody() {
                         >
                           <span className="flex flex-col items-center justify-center w-12 flex-shrink-0">
                             <span className="text-sm font-semibold text-rose-700">{formatAlgiersTime(b.startsAt)}</span>
-                            <span className="text-[10px] text-rose-600">{formatDuration(durationMinutes(b), lang)}</span>
+                            <span className="text-xs text-rose-600">{formatDuration(durationMinutes(b), lang)}</span>
                           </span>
                           <Thread variant="connector" className="h-10 text-rose-300" />
                           <span className="flex-1 min-w-0">
@@ -293,13 +295,6 @@ function ScheduleBody() {
                     </div>
                   )}
 
-                  <a
-                    href="/#booking"
-                    className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-cream-200 text-sm font-medium text-rose-600 hover:text-rose-800 transition-colors"
-                  >
-                    {t('nav.booking')}
-                    <ArrowRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
-                  </a>
                 </div>
               </div>
             </div>

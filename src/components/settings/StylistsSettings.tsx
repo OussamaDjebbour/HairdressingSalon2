@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { toYmd } from '../../data/bookings';
 import { formatDayName, formatLongDate } from '../../data/formatters';
@@ -258,17 +258,20 @@ export function StylistsSettings() {
       </button>
       <ul className="space-y-2">
         {ordered.map((s) => (
-          <li key={s.id} className={`card flex items-center gap-2 ps-4 pe-2 py-2 ${s.active ? '' : 'opacity-70'}`}>
-            <button type="button" className="flex-1 min-w-0 text-start py-1" onClick={() => open(toDraft(s))}>
-              <span data-testid="stylist-name" className="block font-medium text-rose-800 truncate">{s.name}</span>
-              <span className="block text-sm text-rose-600">
-                {s.role[lang]}
-                {!s.active && <span className="ms-2 text-xs font-semibold text-amber-800">{t('settings.stylists.hidden')}</span>}
+          <li key={s.id} className={`card relative flex items-center gap-2 ps-4 pe-3 py-2 ${s.active ? '' : 'opacity-70'}`}>
+            <button type="button" className="flex-1 min-w-0 text-start py-1 after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" onClick={() => open(toDraft(s))}>
+              <span className="flex-1 min-w-0">
+                <span data-testid="stylist-name" className="block font-medium text-rose-800 break-words">{s.name}</span>
+                <span className="block text-sm text-rose-600">
+                  {s.role[lang]}
+                  {!s.active && <span className="ms-2 text-xs font-semibold text-amber-800">{t('settings.stylists.hidden')}</span>}
+                </span>
               </span>
             </button>
-            <button type="button" className="btn-ghost btn-sm shrink-0" disabled={setActive.isPending} onClick={() => toggleActive(s)}>
+            <button type="button" className="btn-ghost btn-sm tap relative z-10 shrink-0" disabled={setActive.isPending} onClick={() => toggleActive(s)}>
               {t(s.active ? 'settings.services.hide' : 'settings.services.show')}
             </button>
+            <ChevronRight className="w-4 h-4 shrink-0 text-gold-600 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
           </li>
         ))}
       </ul>

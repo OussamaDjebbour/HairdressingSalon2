@@ -86,8 +86,13 @@
   }
 
   .btn-whatsapp {
-    @apply btn bg-[#25D366] text-white px-7 py-3.5
-           hover:bg-[#1FB855] hover:shadow-lift;
+    @apply btn bg-whatsapp text-white px-7 py-3.5
+           hover:bg-whatsapp-dark hover:shadow-lift;
+  }
+
+  /* A full-size tap area (44 × 44 px minimum) for small controls used on phones. */
+  .tap {
+    @apply min-h-11 min-w-11;
   }
 
   .btn-sm {

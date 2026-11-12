@@ -87,7 +87,7 @@ describe('BookingSheet — add', () => {
   it('add prefills stylist, date and time and lists every service', () => {
     renderSheet(addState);
     expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Styliste')).toHaveValue('sara');
+    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('sara');
     expect(screen.getByLabelText('Date')).toHaveValue('2030-01-08');
     expect(screen.getByLabelText('Heure')).toHaveValue('10:00');
     const serviceSelect = screen.getByLabelText('Prestation');
@@ -271,6 +271,28 @@ describe('BookingSheet — summary first', () => {
     expect(screen.queryByRole('link', { name: /Envoyer sur WhatsApp/ })).toBeNull();
   });
 
+  it('says “Coiffeuse”, like the rest of the admin', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    expect(screen.getByText('Coiffeuse')).toBeInTheDocument();
+    expect(screen.queryByText('Styliste')).toBeNull();
+  });
+
+  it('shows cancelling and refusing as destructive, apart from the main action', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'confirmed' }) });
+    expect(screen.getByRole('button', { name: 'Annuler le rendez-vous' })).toHaveClass('text-rust-700', 'w-full');
+  });
+
+  it('refusing a request is shown as destructive too', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ status: 'pending' }) });
+    expect(screen.getByRole('button', { name: 'Refuser' })).toHaveClass('text-rust-700');
+  });
+
+  it('gives every control in the sheet a full-size tap area', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    for (const name of ['Fermer', 'Modifier ou déplacer']) expect(screen.getByRole('button', { name })).toHaveClass('tap');
+    for (const name of ['Appeler', 'WhatsApp']) expect(screen.getByRole('link', { name })).toHaveClass('tap');
+  });
+
   it('lays the client name out in its own direction', () => {
     renderSheet({ mode: 'edit', booking: adminBooking({ clientName: 'Lina M.' }) });
     expect(screen.getByText('Lina M.')).toHaveAttribute('dir', 'auto');
@@ -346,7 +368,7 @@ describe('BookingSheet — salon settings', () => {
     daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
     renderSheet(addState);
     expect(screen.queryByText(/ne travaille pas ce jour-là/)).toBeNull();
-    fireEvent.change(screen.getByLabelText('Styliste'), { target: { value: 'amina' } });
+    fireEvent.change(screen.getByLabelText('Coiffeuse'), { target: { value: 'amina' } });
     expect(screen.getByText('Amina ne travaille pas ce jour-là')).toBeInTheDocument();
   });
 
@@ -368,7 +390,7 @@ describe('BookingSheet — salon settings', () => {
     stylistsOverride = stylists.map((s) => (s.id === 'sara' ? s : { ...s, active: false }));
     renderSheet({ mode: 'edit', booking: adminBooking() }); // Amina, now hidden
     openForm();
-    const select = screen.getByLabelText('Styliste');
+    const select = screen.getByLabelText('Coiffeuse');
     expect(select).toHaveValue('amina');
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Amina', 'Sara']);
   });

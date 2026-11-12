@@ -37,7 +37,8 @@ describe('AdminPage header', () => {
     const header = screen.getByRole('banner');
     expect(within(header).queryByRole('button', { name: /Se déconnecter/ })).toBeNull();
     expect(within(header).getByRole('button', { name: 'Toggle language' })).toBeInTheDocument();
-    expect(within(header).getByRole('link', { name: 'Réglages' })).toBeInTheDocument();
+    expect(within(header).getByRole('link', { name: 'Réglages' })).toHaveClass('tap');
+    expect(within(header).getByRole('button', { name: 'Toggle language' })).toHaveClass('tap');
   });
 });
 

@@ -180,3 +180,13 @@ describe('DayColumns names', () => {
     expect(screen.getByText('Lina M.')).toHaveAttribute('dir', 'auto');
   });
 });
+
+describe('DayColumns legibility', () => {
+  it('writes booking names, services and hours at 12px at least', () => {
+    renderColumns([adminBooking({ clientName: 'Lina M.' })]);
+    expect(screen.getByText('Lina M.')).toHaveClass('text-xs');
+    expect(screen.getByText('Coupe & Brushing')).toHaveClass('text-xs');
+    expect(screen.getByText('10:00')).toHaveClass('text-xs');
+    expect(document.querySelector('[class*="text-[10px]"], [class*="text-[11px]"]')).toBeNull();
+  });
+});

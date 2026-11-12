@@ -47,7 +47,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     'admin.sheet.name': 'Nom de la cliente',
     'admin.sheet.phone': 'Téléphone',
     'admin.sheet.service': 'Prestation',
-    'admin.sheet.stylist': 'Styliste',
+    'admin.sheet.stylist': 'Coiffeuse',
     'admin.sheet.date': 'Date',
     'admin.sheet.time': 'Heure',
     'admin.sheet.lang': 'Langue de la cliente',

@@ -81,7 +81,7 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
             {/* Bookings scroll under the hours, which stay on the start side. */}
             <div data-testid="day-columns-gutter" className="sticky start-0 z-30 bg-white">
               {hourLabels.map((h) => (
-                <span key={h} className="absolute start-0 -mt-2 text-[11px] text-rose-600" style={{ top: topPx(h * 60) }}>
+                <span key={h} className="absolute start-0 -mt-2 text-xs text-rose-600" style={{ top: topPx(h * 60) }}>
                   {minutesToTime(h * 60)}
                 </span>
               ))}
@@ -151,13 +151,13 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
                       >
                         {/* Two lines only (three when outside the hours), so a 45-minute booking shows everything; the source is an icon. */}
                         <span className="flex items-center gap-1">
-                          <span dir="auto" className="flex-1 min-w-0 text-start text-[11px] font-semibold text-rose-800 truncate">{b.clientName}</span>
+                          <span dir="auto" className="flex-1 min-w-0 text-start text-xs leading-tight font-semibold text-rose-800 truncate">{b.clientName}</span>
                           <SourceIcon className="w-2.5 h-2.5 flex-shrink-0 text-rose-500" strokeWidth={2} aria-hidden="true" />
                           <span className="sr-only">{t(b.source === 'staff' ? 'schedule.source.staff' : 'schedule.source.online')}</span>
                         </span>
                         {/* Outside the hours, the marker takes the second line: it matters more than the service. */}
-                        {outside && <span className="block text-[10px] font-semibold text-rust-700 truncate">{t('schedule.outsideHours')}</span>}
-                        <span className="block text-[10px] text-rose-600 truncate">{b.serviceName[lang]}</span>
+                        {outside && <span className="block text-xs leading-tight font-semibold text-rust-700 truncate">{t('schedule.outsideHours')}</span>}
+                        <span className="block text-xs leading-tight text-rose-600 truncate">{b.serviceName[lang]}</span>
                       </button>
                     );
                   })}

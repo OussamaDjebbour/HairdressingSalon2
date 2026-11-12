@@ -28,7 +28,7 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
             </span>
             <span className="flex flex-col leading-none">
               <span className="font-display italic text-lg font-semibold text-cream-50">{salon.name[lang]}</span>
-              <span className="text-[10px] uppercase tracking-[0.28em] text-gold-300 mt-0.5">
+              <span className="text-xs uppercase tracking-[0.2em] text-gold-300 mt-0.5">
                 {t('admin.label')}
               </span>
             </span>
@@ -37,7 +37,7 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
           <div className="flex items-center gap-1.5 sm:gap-4">
             <button
               onClick={toggleLang}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
+              className="tap flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
               aria-label="Toggle language"
             >
               <Globe className="hidden sm:block w-4 h-4" strokeWidth={1.8} />
@@ -50,7 +50,7 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
               <Link
                 to="/admin/settings"
                 aria-label={t('settings.title')}
-                className="flex items-center justify-center w-9 h-9 rounded-full text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
+                className="tap flex items-center justify-center rounded-full text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
               >
                 <Settings className="w-4 h-4" strokeWidth={1.8} />
               </Link>

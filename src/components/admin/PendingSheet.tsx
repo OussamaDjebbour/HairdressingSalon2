@@ -79,7 +79,7 @@ export function PendingSheet({ bookings, answered, onAnswered, onOpen, onClose }
                 </p>
               </div>
               {messageLink(item) && (
-                <a href={messageLink(item)!} target="_blank" rel="noopener noreferrer" className="btn-whatsapp btn-sm shrink-0">
+                <a href={messageLink(item)!} target="_blank" rel="noopener noreferrer" className="btn-whatsapp btn-sm tap shrink-0">
                   <MessageCircle className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
                   {t('admin.summary.whatsapp')}
                 </a>
@@ -109,7 +109,7 @@ export function PendingSheet({ bookings, answered, onAnswered, onOpen, onClose }
                   <Check className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
                   {t('admin.confirm')}
                 </button>
-                <button type="button" disabled={busy} onClick={() => actions.refuse(item.booking)} className="btn-ghost btn-sm h-11">
+                <button type="button" disabled={busy} onClick={() => actions.refuse(item.booking)} className="btn-ghost btn-sm h-11 text-rust-700 hover:bg-rust-50">
                   {t('admin.summary.refuse')}
                 </button>
               </div>

@@ -58,6 +58,12 @@ beforeEach(() => {
 });
 
 describe('StylistsSettings', () => {
+  it('shows with a chevron that a stylist opens for editing', () => {
+    renderIt();
+    const row = screen.getAllByTestId('stylist-name')[0].closest('li')!;
+    expect(row.querySelector('.lucide-chevron-right')).not.toBeNull();
+  });
+
   it('lists active stylists first, hidden ones marked', () => {
     renderIt();
     expect(screen.getAllByTestId('stylist-name').map((n) => n.textContent)).toEqual(['Amina', 'Hidden one']);

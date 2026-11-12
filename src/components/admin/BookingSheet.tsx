@@ -198,7 +198,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
           }}
         >
           {editing && (
-            <button type="button" onClick={backToSummary} className="inline-flex items-center gap-1.5 text-sm text-rose-700 hover:text-rose-900">
+            <button type="button" onClick={backToSummary} className="tap -ms-1 inline-flex items-center gap-1.5 px-1 text-sm text-rose-700 hover:text-rose-900">
               <ArrowLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
               {t('admin.sheet.backToSummary')}
             </button>

@@ -224,6 +224,19 @@ describe('Schedule — agenda first', () => {
     expect(screen.getByRole('button', { name: 'Jour précédent' }).closest('.sticky')).toHaveClass('z-40');
   });
 
+  it('gives the day bar controls a full-size tap area', () => {
+    pendingBookings = [adminBooking({ id: 'p1', startIso: '2030-01-10T09:00:00Z' })];
+    renderSchedule();
+    for (const name of ['Jour précédent', 'Jour suivant', 'Nouveau rendez-vous', '1 en attente']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('tap');
+    }
+  });
+
+  it('offers no link to the public booking page (the owner adds bookings with “+ Rendez-vous”)', () => {
+    renderSchedule();
+    expect(document.querySelector('a[href="/#booking"]')).toBeNull();
+  });
+
   it('the add button in the day bar opens the add sheet', () => {
     renderSchedule();
     const add = screen.getByRole('button', { name: 'Nouveau rendez-vous' });
@@ -339,6 +352,6 @@ describe('Schedule — salon settings', () => {
     daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
     renderSchedule();
     fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
-    expect(screen.getByLabelText('Styliste')).toHaveValue('leila');
+    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('leila');
   });
 });

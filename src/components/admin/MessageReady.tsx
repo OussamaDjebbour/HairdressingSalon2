@@ -37,7 +37,7 @@ export function MessageReady({ notice, onSend, onLater }: MessageReadyProps) {
           {t('admin.sheet.notifyWhatsapp')}
         </a>
       )}
-      <button type="button" onClick={onLater} className="block mx-auto text-sm text-rose-700 underline underline-offset-4 hover:text-rose-900">
+      <button type="button" onClick={onLater} className="tap flex items-center mx-auto px-3 text-sm text-rose-700 underline underline-offset-4 hover:text-rose-900">
         {t('admin.ready.later')}
       </button>
     </div>

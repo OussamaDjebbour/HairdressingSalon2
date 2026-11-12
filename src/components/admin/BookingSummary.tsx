@@ -49,13 +49,13 @@ export function BookingSummary({ booking: b, onConfirm, onRefuse, onMessage, onC
         <p className="mt-0.5 text-sm text-rose-700" dir="ltr">{formatPhone(b.clientPhone)}</p>
         <div className="mt-3 flex gap-2">
           {!demo && (
-            <a href={`tel:${b.clientPhone}`} className="btn-secondary btn-sm flex-1">
+            <a href={`tel:${b.clientPhone}`} className="btn-secondary btn-sm tap flex-1">
               <Phone className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
               {t('admin.summary.call')}
             </a>
           )}
           {chatNumber && (
-            <a href={waLink(chatNumber)} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm flex-1">
+            <a href={waLink(chatNumber)} target="_blank" rel="noopener noreferrer" className="btn-secondary btn-sm tap flex-1">
               <MessageCircle className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
               {t('admin.summary.whatsapp')}
             </a>
@@ -76,11 +76,11 @@ export function BookingSummary({ booking: b, onConfirm, onRefuse, onMessage, onC
       <div className="flex flex-wrap gap-2">
         {b.status === 'confirmed' ? (
           <>
-            <button type="button" disabled={busy} onClick={onMessage} className="btn-whatsapp flex-1">
+            <button type="button" disabled={busy} onClick={onMessage} className="btn-whatsapp w-full">
               <MessageCircle className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
               {t('admin.summary.message')}
             </button>
-            <button type="button" disabled={busy} onClick={onCancel} className="btn-ghost">
+            <button type="button" disabled={busy} onClick={onCancel} className="btn-ghost tap w-full text-rust-700 hover:bg-rust-50">
               {t('admin.summary.cancel')}
             </button>
           </>
@@ -91,7 +91,7 @@ export function BookingSummary({ booking: b, onConfirm, onRefuse, onMessage, onC
               {t('admin.confirm')}
             </button>
             {b.status === 'pending' && (
-              <button type="button" disabled={busy} onClick={onRefuse} className="btn-ghost">
+              <button type="button" disabled={busy} onClick={onRefuse} className="btn-ghost tap text-rust-700 hover:bg-rust-50">
                 <X className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
                 {t('admin.summary.refuse')}
               </button>
@@ -100,7 +100,7 @@ export function BookingSummary({ booking: b, onConfirm, onRefuse, onMessage, onC
         )}
       </div>
 
-      <button type="button" onClick={onEdit} className="block mx-auto text-sm text-rose-700 underline underline-offset-4 hover:text-rose-900">
+      <button type="button" onClick={onEdit} className="tap flex items-center mx-auto px-3 text-sm text-rose-700 underline underline-offset-4 hover:text-rose-900">
         {t('admin.summary.edit')}
       </button>
     </div>

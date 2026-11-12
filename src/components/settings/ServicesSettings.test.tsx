@@ -60,6 +60,12 @@ describe('ServicesSettings while the list is not in', () => {
 });
 
 describe('ServicesSettings', () => {
+  it('shows with a chevron that a service opens for editing', () => {
+    renderIt();
+    const row = screen.getAllByTestId('service-name')[0].closest('li')!;
+    expect(row.querySelector('.lucide-chevron-right')).not.toBeNull();
+  });
+
   it('lists active services first, then hidden ones marked Masquée', () => {
     renderIt();
     const names = screen.getAllByTestId('service-name').map((n) => n.textContent);
