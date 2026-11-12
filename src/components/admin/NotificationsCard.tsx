@@ -3,7 +3,7 @@ import { BellRing, BellOff, Smartphone } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { useMyRole } from '../../data/admin';
 import { useSalon } from '../../data/salon';
-import { usePushState } from '../../lib/push';
+import { isAndroid, usePushState } from '../../lib/push';
 
 /** Lets the owner turn on booking notifications for this device (with iPhone guidance). */
 export function NotificationsCard() {
@@ -84,6 +84,8 @@ export function NotificationsCard() {
             </div>
           )}
 
+          {/* Chrome's own check can flag our notifications; the only fix is on the phone, once. */}
+          {state === 'on' && isAndroid() && <p className="mt-2 text-xs text-rose-600">{t('admin.push.androidSpamHint')}</p>}
           {state === 'denied' && <p className="mt-1 text-rose-700">{t('admin.push.denied')}</p>}
           {state === 'unsupported' && <p className="mt-1 text-rose-700">{t('admin.push.unsupported')}</p>}
           {state === 'not-configured' && <p className="mt-1 text-rose-700">{t('admin.push.notConfigured')}</p>}
