@@ -134,3 +134,81 @@ describe('DayPicker — the month', () => {
   });
 });
 
+
+describe('DayPicker — room for a service and coiffeuse', () => {
+  const coupe = { serviceId: 'coupe-femme', stylistId: null };
+  const withAmina = { serviceId: 'coupe-femme', stylistId: 'amina' };
+
+  it('offers active services and coiffeuses only, with “Toutes”', async () => {
+    const f = await import('./fixtures');
+    servicesOverride = [...f.services, { ...f.services[0], id: 'old', name: { fr: 'Ancienne', ar: 'قديمة' }, active: false }];
+    stylistsOverride = [...f.stylists, { ...f.stylists[0], id: 'gone', name: 'Partie', active: false }];
+    renderPicker();
+    const service = screen.getByLabelText('Prestation');
+    expect(within(service).getAllByRole('option').map((o) => o.textContent)).toEqual(['Toutes', 'Coupe & Brushing', 'Manucure']);
+    const stylist = screen.getByLabelText('Coiffeuse');
+    expect(within(stylist).getAllByRole('option').map((o) => o.textContent)).toEqual(['Toutes', 'Amina', 'Leila', 'Sara']);
+  });
+
+  it('reports the chosen service', () => {
+    const { onFilterChange } = renderPicker();
+    fireEvent.change(screen.getByLabelText('Prestation'), { target: { value: 'coupe-femme' } });
+    expect(onFilterChange).toHaveBeenCalledWith({ serviceId: 'coupe-femme', stylistId: null });
+  });
+
+  it('counts the start times that fit each day', () => {
+    renderPicker(coupe);
+    const tuesday8 = screen.getByRole('button', { name: /^Mardi 8 janvier — \d+ créneaux$/ });
+    expect(within(tuesday8).getByTestId('room-count')).toHaveClass('bg-sage-100');
+  });
+
+  it('few start times read amber', () => {
+    // Amina busy all day except 16:00–17:00 (one 60-min start)
+    monthBookings = [
+      adminBooking({ id: 'x1', startIso: '2030-01-09T08:00:00Z', stylistId: 'amina', status: 'confirmed' }),
+      adminBooking({ id: 'x2', startIso: '2030-01-09T16:00:00Z', stylistId: 'amina', status: 'confirmed' }),
+    ].map((b, i) => ({ ...b, endsAt: new Date(b.startsAt.getTime() + (i === 0 ? 420 : 60) * 60000) }));
+    renderPicker(withAmina);
+    const wednesday = screen.getByRole('button', { name: 'Mercredi 9 janvier — 1 créneau' });
+    expect(within(wednesday).getByTestId('room-count')).toHaveClass('bg-amber-100');
+  });
+
+  it('says why a day has no room: her day off, or fully booked', () => {
+    daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-09', to: '2030-01-09' }];
+    monthBookings = [{ ...adminBooking({ startIso: '2030-01-10T08:00:00Z', stylistId: 'amina', status: 'confirmed' }), endsAt: new Date('2030-01-10T17:00:00Z') }];
+    renderPicker(withAmina);
+    expect(screen.getByRole('button', { name: 'Mercredi 9 janvier — absente' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Jeudi 10 janvier — complet' })).toBeInTheDocument();
+  });
+
+  it('a tapped day lists its free times; a tapped time is picked', () => {
+    const { onJump, onPickTime } = renderPicker(withAmina);
+    fireEvent.click(screen.getByRole('button', { name: /^Jeudi 10 janvier — / }));
+    expect(onJump).not.toHaveBeenCalled();
+    expect(screen.getByText('Libre le Jeudi 10 janvier à :')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '11:00' }));
+    expect(onPickTime).toHaveBeenCalledTimes(1);
+    const pick = onPickTime.mock.calls[0][0];
+    expect({ ...pick, date: toYmd(pick.date) }).toEqual({ date: '2030-01-10', time: '11:00', stylistId: 'amina', serviceId: 'coupe-femme' });
+  });
+
+  it('“Voir la journée” jumps to the tapped day', () => {
+    const { onJump } = renderPicker(withAmina);
+    fireEvent.click(screen.getByRole('button', { name: /^Jeudi 10 janvier — / }));
+    fireEvent.click(screen.getByRole('button', { name: 'Voir la journée' }));
+    expect(toYmd(onJump.mock.calls[0][0])).toBe('2030-01-10');
+  });
+
+  it('never says “complet” while the month is loading', () => {
+    bookingsLoading = true;
+    renderPicker(withAmina);
+    expect(screen.queryAllByRole('button', { name: /complet/ })).toHaveLength(0);
+  });
+
+  it('a remembered choice that was hidden since counts as “Toutes”', () => {
+    renderPicker({ serviceId: 'gone', stylistId: 'hidden-one' });
+    expect(screen.getByRole('button', { name: 'Mardi 8 janvier — 0%' })).toBeInTheDocument();
+    expect(screen.queryAllByRole('button', { name: /absente/ })).toHaveLength(0);
+    expect(screen.getByLabelText('Prestation')).toHaveValue('');
+  });
+});
