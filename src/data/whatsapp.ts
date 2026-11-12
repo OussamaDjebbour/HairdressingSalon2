@@ -1,5 +1,6 @@
 import type { Lang } from '../context/LanguageContext';
 import { formatAlgiersTime, type AdminBooking } from './admin';
+import { currentSalon } from './salon';
 import { normalizePhone } from './bookings';
 import { formatLongDate } from './formatters';
 import { salonDate } from './week';
@@ -15,24 +16,24 @@ export function waLink(number: string, text?: string): string {
 
 export type ClientMessageKind = 'confirmed' | 'cancelled' | 'moved';
 
-type Vars = { name: string; date: string; time: string; service: string };
+type Vars = { salon: string; name: string; date: string; time: string; service: string };
 
 const templates: Record<Lang, Record<ClientMessageKind, (v: Vars) => string>> = {
   fr: {
     confirmed: (v) =>
-      `Bonjour ${v.name}, votre rendez-vous du ${v.date} à ${v.time} (${v.service}) chez Élégance est confirmé. À bientôt !`,
+      `Bonjour ${v.name}, votre rendez-vous du ${v.date} à ${v.time} (${v.service}) chez ${v.salon} est confirmé. À bientôt !`,
     cancelled: (v) =>
-      `Bonjour ${v.name}, nous sommes désolés : votre rendez-vous du ${v.date} à ${v.time} (${v.service}) chez Élégance est annulé. Répondez à ce message pour choisir un autre créneau.`,
+      `Bonjour ${v.name}, nous sommes désolés : votre rendez-vous du ${v.date} à ${v.time} (${v.service}) chez ${v.salon} est annulé. Répondez à ce message pour choisir un autre créneau.`,
     moved: (v) =>
-      `Bonjour ${v.name}, votre rendez-vous chez Élégance a été déplacé au ${v.date} à ${v.time} (${v.service}). À bientôt !`,
+      `Bonjour ${v.name}, votre rendez-vous chez ${v.salon} a été déplacé au ${v.date} à ${v.time} (${v.service}). À bientôt !`,
   },
   ar: {
     confirmed: (v) =>
-      `مرحباً ${v.name}، تم تأكيد موعدكِ يوم ${v.date} على الساعة ${v.time} (${v.service}) في صالون Élégance. نراكِ قريباً!`,
+      `مرحباً ${v.name}، تم تأكيد موعدكِ يوم ${v.date} على الساعة ${v.time} (${v.service}) في صالون ${v.salon}. نراكِ قريباً!`,
     cancelled: (v) =>
-      `مرحباً ${v.name}، نعتذر منكِ: تم إلغاء موعدكِ يوم ${v.date} على الساعة ${v.time} (${v.service}) في صالون Élégance. ردّي على هذه الرسالة لاختيار موعد آخر.`,
+      `مرحباً ${v.name}، نعتذر منكِ: تم إلغاء موعدكِ يوم ${v.date} على الساعة ${v.time} (${v.service}) في صالون ${v.salon}. ردّي على هذه الرسالة لاختيار موعد آخر.`,
     moved: (v) =>
-      `مرحباً ${v.name}، تم تغيير موعدكِ في صالون Élégance إلى يوم ${v.date} على الساعة ${v.time} (${v.service}). نراكِ قريباً!`,
+      `مرحباً ${v.name}، تم تغيير موعدكِ في صالون ${v.salon} إلى يوم ${v.date} على الساعة ${v.time} (${v.service}). نراكِ قريباً!`,
   },
 };
 
@@ -42,6 +43,7 @@ export function clientMessage(
   b: Pick<AdminBooking, 'clientName' | 'startsAt' | 'serviceName' | 'lang'>
 ): string {
   return templates[b.lang][kind]({
+    salon: currentSalon().name[b.lang],
     name: b.clientName,
     date: formatLongDate(salonDate(b.startsAt), b.lang),
     time: formatAlgiersTime(b.startsAt),

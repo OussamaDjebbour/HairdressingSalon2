@@ -52,3 +52,9 @@ on conflict do nothing;
 insert into stylist_workdays (salon_id, stylist_id, weekday)
 select 'elegance', s, d from unnest(array['amina', 'leila', 'sara']) s cross join generate_series(2, 6) d
 on conflict do nothing;
+
+-- Local dev hosts open Élégance.
+insert into public.salon_domains (domain, salon_id) values
+  ('localhost', 'elegance'),
+  ('127.0.0.1', 'elegance')
+on conflict do nothing;

@@ -28,3 +28,14 @@ dist-ssr
 
 # Local edge function secrets
 supabase/functions/.env
+
+# Cloudflare: local Pages Functions secrets, wrangler state
+.dev.vars
+.wrangler/
+
+# pnpm new-salon: local secrets, salon configs (owner's email/phone) and photos stay on the
+# product owner's machine; only the example config is committed.
+.env.admin
+salons/*.json
+!salons/example.json
+salons/*/photos/

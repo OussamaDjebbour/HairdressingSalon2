@@ -24,7 +24,7 @@ Code:
 
 Prerequisites:
 - PR #5 and the notifications PR are merged.
-- The site is deployed on Vercel over HTTPS. Push only works over HTTPS.
+- The site is deployed on Cloudflare Pages over HTTPS. Push only works over HTTPS.
 
 Run the commands from the repo root.
 
@@ -62,7 +62,7 @@ Run the commands from the repo root.
 
    Until both secrets exist, nothing is sent and bookings work normally.
 
-6. **Set up Vercel.** Add the env var `VITE_VAPID_PUBLIC_KEY=<public key>` to the project, then redeploy.
+6. **Set up the site build.** `VITE_VAPID_PUBLIC_KEY` is read when the site is built (not by the Cloudflare Pages project at runtime): add `VITE_VAPID_PUBLIC_KEY=<public key>` as a secret of the GitHub Actions deploy workflow that builds the site and uploads it to Cloudflare Pages, then redeploy.
 
 7. **On the owner's phone:**
    - Open `https://<site>/admin` and log in.
@@ -82,7 +82,7 @@ Run the commands from the repo root.
   - `401`: `NOTIFY_SECRET` and the Vault secret don't match.
   - No rows: the Vault secrets are missing, or no device is subscribed.
 - **Function logs:** Supabase dashboard → Edge Functions → `notify-booking` → Logs.
-- **Card says "pas encore configurées sur ce site":** `VITE_VAPID_PUBLIC_KEY` is missing from the deployed build. Set it on Vercel and redeploy.
+- **Card says "pas encore configurées sur ce site":** `VITE_VAPID_PUBLIC_KEY` is missing from the deployed build. Set it for the build that deploys to Cloudflare Pages (step 6) and redeploy.
 - **"Envoyer un test" answers "Aucun envoi":** the server sent nothing. Either the two Vault secrets are missing (step 5), or this device isn't registered (tap **Désactiver** → **Activer**).
 - **Logging out** also turns notifications off on that device, so client names don't reach a logged-out phone. After logging back in, tap **Activer** again.
 - **Notifications blocked on the phone:** the card says so. Re-allow them in the browser or iOS settings for the site.

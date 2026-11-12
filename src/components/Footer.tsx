@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { Phone, MapPin, Clock, Instagram, Facebook } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
+import { useSalon } from '../data/salon';
 import { useSalonHours, useSalonInfo } from '../data/salonSettings';
 import { groupHours } from '../data/hours';
-import { formatDayName, formatPhone } from '../data/formatters';
+import { formatDayName, formatPhone, salonSubtitle } from '../data/formatters';
 import { minutesToTime } from '../data/week';
 import { toWaNumber } from '../data/whatsapp';
 import type { Weekday } from '../data/types';
@@ -16,6 +17,7 @@ const socialLink =
 
 export function Footer() {
   const { t, lang } = useLang();
+  const salon = useSalon();
   const info = useSalonInfo().data;
   const hours = useSalonHours().data;
 
@@ -26,9 +28,9 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           <div className="lg:col-span-1">
-            <h3 className="font-display italic text-2xl font-semibold text-cream-50 mb-1">Élégance</h3>
+            <h3 className="font-display italic text-2xl font-semibold text-cream-50 mb-1">{salon.name[lang]}</h3>
             <p className="text-[0.7rem] uppercase tracking-[0.28em] text-gold-400 font-semibold mb-4">{info?.city[lang]}</p>
-            <p className="text-sm text-cream-200/80 leading-relaxed max-w-xs">{t('hero.subtitle')}</p>
+            <p className="text-sm text-cream-200/80 leading-relaxed max-w-xs">{salonSubtitle(t, lang, info?.city[lang])}</p>
           </div>
 
           <div>
@@ -98,7 +100,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 pt-6 border-t border-rose-800/50 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-          <p className="text-xs text-cream-300/70">© 2026 Élégance Salon. Tous droits réservés.</p>
+          <p className="text-xs text-cream-300/70">© {new Date().getFullYear()} {salon.name[lang]}. {t('footer.rights')}</p>
           <span className="hidden sm:inline text-cream-300/40" aria-hidden>·</span>
           <Link
             to="/admin"

@@ -70,3 +70,26 @@ export function formatPhone(phone: string): string {
   const m = /^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(phone.replace(/\s/g, ''));
   return m ? m.slice(1).join(' ') : phone;
 }
+
+/** A plain number in the language's own digits and separators ("2 500", "4,9", "٢٤٠"). */
+export function formatNumber(n: number, lang: Lang = 'fr'): string {
+  return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'fr-FR').replace(/\s/g, ' ');
+}
+
+/**
+ * A salon claim (years open, clients, rating) as the site has always shown it, in both
+ * languages: French digits and separators ("15", "2 500", "4,9"). Counts use formatNumber.
+ */
+export function formatClaim(n: number): string {
+  return formatNumber(n, 'fr');
+}
+
+/** The hero/footer sentence naming the city, with French elision ("au cœur d’Alger", "au cœur de Blida"). */
+export function salonSubtitle(t: (key: string) => string, lang: Lang, city: string | undefined): string {
+  const name = city?.trim();
+  if (!name) return t('hero.subtitleNoCity');
+  const text = t('hero.subtitle');
+  if (lang === 'ar') return text.replace('{city}', name);
+  const vowelOrH = /^[aeiouyh]/i.test(name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  return text.replace('de {city}', vowelOrH ? `d\u2019${name}` : `de ${name}`);
+}

@@ -9,6 +9,14 @@ export default defineConfig({
     port: 5173,
   },
   test: {
+    // The app, the Supabase edge function's shared code, the Cloudflare Pages Functions and the
+    // product owner's scripts.
+    include: [
+      'src/**/*.test.{ts,tsx}',
+      'supabase/functions/**/*.test.ts',
+      'functions/**/*.test.ts',
+      'scripts/**/*.test.ts',
+    ],
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',

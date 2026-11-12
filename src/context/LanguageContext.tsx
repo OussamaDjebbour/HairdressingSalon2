@@ -17,7 +17,7 @@ interface LanguageContextValue {
   t: (key: string) => string;
 }
 
-const translations: Record<Lang, Record<string, string>> = {
+export const translations: Record<Lang, Record<string, string>> = {
   fr: {
     'nav.home': 'Accueil',
     'nav.services': 'Services',
@@ -79,10 +79,13 @@ const translations: Record<Lang, Record<string, string>> = {
     'admin.push.iosTitle': 'Sur iPhone : ajoutez d’abord le site à l’écran d’accueil',
     'admin.push.iosStep1': 'Touchez le bouton Partager dans Safari.',
     'admin.push.iosStep2': 'Choisissez « Sur l’écran d’accueil ».',
-    'admin.push.iosStep3': 'Ouvrez Élégance depuis la nouvelle icône, puis revenez ici.',
+    'admin.push.iosStep3': 'Ouvrez {salon} depuis la nouvelle icône, puis revenez ici.',
     'hero.tagline': 'Votre beauté, notre savoir-faire',
     'hero.subtitle':
-      'Un salon de coiffure et beauté au cœur d\u2019Alger, où chaque visite est un moment de soin et de détente.',
+      'Un salon de coiffure et beauté au cœur de {city}, où chaque visite est un moment de soin et de détente.',
+    'hero.subtitleNoCity':
+      'Un salon de coiffure et beauté, où chaque visite est un moment de soin et de détente.',
+    'footer.rights': 'Tous droits réservés.',
     'hero.cta': 'Prendre rendez-vous',
     'hero.secondary': 'Voir les services',
     'services.title': 'Nos services',
@@ -94,14 +97,10 @@ const translations: Record<Lang, Record<string, string>> = {
     'trust.clients': 'clientes satisfaites',
     'trust.stylists': 'coiffeuses expertes',
     'trust.reviews': 'avis clients',
+    'hero.reviews': '{count} avis vérifiés',
     'trust.kicker': 'En quelques chiffres',
     'services.kicker': 'Le savoir-faire',
     'philosophy.kicker': 'La maison',
-    'philosophy.quote': '« La beauté n’est pas un luxe. C’est un rituel. »',
-    'philosophy.body':
-      'Depuis quinze ans au cœur d’Alger, nous recevons chaque cliente comme une invitée : un moment suspendu, des gestes précis, et le soin d’un métier transmis.',
-    'philosophy.author': 'Amina',
-    'philosophy.role': 'Fondatrice & coiffeuse',
     'booking.kicker': 'Réservation',
     'schedule.kicker': 'Le carnet du jour',
     'booking.title': 'Prendre rendez-vous',
@@ -276,6 +275,10 @@ const translations: Record<Lang, Record<string, string>> = {
     'data.error': 'Impossible de charger le contenu.',
     'data.retry': 'Réessayer',
     'data.loading': 'Chargement…',
+    'salon.notFound.title': 'Salon introuvable',
+    'salon.notFound.body': 'Aucun salon n’est associé à cette adresse. Vérifiez le lien que vous avez reçu.',
+    'salon.loadError.title': 'Connexion impossible',
+    'salon.loadError.body': 'Le site n’a pas pu se charger. Vérifiez votre connexion internet puis réessayez.',
   },
   ar: {
     'nav.home': 'الرئيسية',
@@ -338,9 +341,11 @@ const translations: Record<Lang, Record<string, string>> = {
     'admin.push.iosTitle': 'على الآيفون: أضيفي الموقع أولاً إلى الشاشة الرئيسية',
     'admin.push.iosStep1': 'اضغطي على زر المشاركة في سفاري.',
     'admin.push.iosStep2': 'اختاري «إضافة إلى الشاشة الرئيسية».',
-    'admin.push.iosStep3': 'افتحي Élégance من الأيقونة الجديدة ثم عودي إلى هنا.',
+    'admin.push.iosStep3': 'افتحي {salon} من الأيقونة الجديدة ثم عودي إلى هنا.',
     'hero.tagline': 'جمالكِ، خبرتنا',
-    'hero.subtitle': 'صالون تجميل وحلاقة في قلب الجزائر العاصمة، حيث كل زيارة لحظة عناية وراحة.',
+    'hero.subtitle': 'صالون تجميل وحلاقة في قلب {city}، حيث كل زيارة لحظة عناية وراحة.',
+    'hero.subtitleNoCity': 'صالون تجميل وحلاقة، حيث كل زيارة لحظة عناية وراحة.',
+    'footer.rights': 'جميع الحقوق محفوظة.',
     'hero.cta': 'حجز موعد',
     'hero.secondary': 'تصفحي الخدمات',
     'services.title': 'خدماتنا',
@@ -352,14 +357,10 @@ const translations: Record<Lang, Record<string, string>> = {
     'trust.clients': 'عميلة سعيدة',
     'trust.stylists': 'خبيرة تجميل',
     'trust.reviews': 'تقييم العملاء',
+    'hero.reviews': '{count} تقييم',
     'trust.kicker': 'بالأرقام',
     'services.kicker': 'خبرتنا',
     'philosophy.kicker': 'الدار',
-    'philosophy.quote': '«الجمالُ ليس رفاهية، بل طقسٌ يومي.»',
-    'philosophy.body':
-      'منذ خمسة عشر عامًا في قلب الجزائر العاصمة، نستقبل كل عميلة كضيفة عزيزة: لحظة من الهدوء، لمسات دقيقة، وعناية حرفةٍ متوارثة.',
-    'philosophy.author': 'أمينة',
-    'philosophy.role': 'المؤسِّسة وخبيرة التصفيف',
     'booking.kicker': 'الحجز',
     'schedule.kicker': 'كناش اليوم',
     'booking.title': 'حجز موعد',
@@ -534,6 +535,10 @@ const translations: Record<Lang, Record<string, string>> = {
     'data.error': 'تعذّر تحميل المحتوى.',
     'data.retry': 'إعادة المحاولة',
     'data.loading': 'جارٍ التحميل…',
+    'salon.notFound.title': 'الصالون غير موجود',
+    'salon.notFound.body': 'لا يوجد صالون مرتبط بهذا العنوان. تحقّقي من الرابط الذي وصلك.',
+    'salon.loadError.title': 'تعذّر الاتصال',
+    'salon.loadError.body': 'تعذّر تحميل الموقع. تحقّقي من اتصالك بالإنترنت ثم أعيدي المحاولة.',
   },
 };
 

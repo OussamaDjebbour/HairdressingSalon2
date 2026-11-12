@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Service, Stylist, Weekday } from './types';
-import { SALON_ID } from './salon';
+import { currentSalonId } from './salon';
 
 interface ServiceRow {
   id: string;
@@ -34,7 +34,7 @@ export async function fetchServices(includeInactive = false): Promise<Service[]>
   let query = supabase
     .from('services')
     .select('id, category, name, description, price, duration, image, icon, sort_order, active')
-    .eq('salon_id', SALON_ID);
+    .eq('salon_id', currentSalonId());
   if (!includeInactive) query = query.eq('active', true);
   const { data, error } = await query.order('sort_order');
   if (error) throw error;
@@ -56,7 +56,7 @@ export async function fetchStylists(includeInactive = false): Promise<Stylist[]>
   let query = supabase
     .from('stylists')
     .select('id, name, role, specialties, image, sort_order, active, stylist_services(service_id), stylist_workdays(weekday)')
-    .eq('salon_id', SALON_ID);
+    .eq('salon_id', currentSalonId());
   if (!includeInactive) query = query.eq('active', true);
   const { data, error } = await query.order('sort_order');
   if (error) throw error;

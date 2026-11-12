@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Menu, X, Scissors, CalendarPlus, Globe } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
+import { useSalon } from '../data/salon';
 import { useSalonInfo } from '../data/salonSettings';
 
 export function Navbar() {
   const { lang, toggleLang, t } = useLang();
+  const salon = useSalon();
   const city = useSalonInfo().data?.city[lang];
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -37,7 +39,7 @@ export function Navbar() {
             </span>
             <span className="flex flex-col leading-none">
               <span className="font-display italic text-xl font-semibold text-rose-900 tracking-tight">
-                Élégance
+                {salon.name[lang]}
               </span>
               <span className="text-[10px] uppercase tracking-[0.28em] text-gold-700 font-semibold mt-0.5">
                 {city}

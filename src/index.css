@@ -4,6 +4,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand-50: 251 241 243;
+  --brand-100: 247 224 229;
+  --brand-200: 239 193 204;
+  --brand-300: 226 159 177;
+  --brand-400: 209 125 147;
+  --brand-500: 184 95 118;
+  --brand-600: 157 75 95;
+  --brand-700: 126 59 76;
+  --brand-800: 95 45 58;
+  --brand-900: 66 31 40;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;

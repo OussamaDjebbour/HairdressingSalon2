@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { algiersToday } from './admin';
 import { toYmd } from './bookings';
 import { minutesToTime } from './week';
-import { SALON_ID } from './salon';
+import { currentSalonId } from './salon';
 import type {
   AffectedBooking,
   AffectedReason,
@@ -38,7 +38,7 @@ export async function fetchSalonInfo(): Promise<SalonInfo> {
   const { data, error } = await supabase
     .from('salons')
     .select('address, city, whatsapp, instagram_url, facebook_url')
-    .eq('id', SALON_ID)
+    .eq('id', currentSalonId())
     .single();
   if (error) throw error;
   const r = data as SalonRow;
@@ -65,7 +65,7 @@ export async function fetchSalonHours(): Promise<SalonHours> {
   const { data, error } = await supabase
     .from('salon_hours')
     .select('weekday, opens, closes')
-    .eq('salon_id', SALON_ID);
+    .eq('salon_id', currentSalonId());
   if (error) throw error;
   const hours = Object.fromEntries(WEEKDAYS.map((w) => [w, null])) as SalonHours;
   for (const r of (data ?? []) as HoursRow[]) {
@@ -92,7 +92,7 @@ export async function fetchClosedDates(): Promise<ClosedDates[]> {
   const { data, error } = await supabase
     .from('salon_closed_dates')
     .select('id, starts_on, ends_on, label')
-    .eq('salon_id', SALON_ID)
+    .eq('salon_id', currentSalonId())
     .gte('ends_on', toYmd(algiersToday()))
     .order('starts_on');
   if (error) throw error;
@@ -115,7 +115,7 @@ export async function fetchStylistDaysOff(): Promise<StylistDayOff[]> {
   const { data, error } = await supabase
     .from('stylist_days_off')
     .select('id, stylist_id, starts_on, ends_on')
-    .eq('salon_id', SALON_ID)
+    .eq('salon_id', currentSalonId())
     .order('starts_on');
   if (error) throw error;
   return ((data ?? []) as DayOffRow[]).map((r) => ({
