@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { BellRing, BellOff, Smartphone } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
+import { useSalon } from '../../data/salon';
 import { usePushState } from '../../lib/push';
 
 /** Lets the owner turn on booking notifications for this device (with iPhone guidance). */
 export function NotificationsCard() {
   const { lang, t } = useLang();
+  const salon = useSalon();
   const { state, enable, disable, test, busy, error } = usePushState();
   const [testResult, setTestResult] = useState<'sent' | 'nothing' | null>(null);
 
@@ -37,7 +39,7 @@ export function NotificationsCard() {
             <ol className="mt-1 list-decimal ps-5 space-y-0.5 text-rose-700">
               <li>{t('admin.push.iosStep1')}</li>
               <li>{t('admin.push.iosStep2')}</li>
-              <li>{t('admin.push.iosStep3')}</li>
+              <li>{t('admin.push.iosStep3').replace('{salon}', salon.name[lang])}</li>
             </ol>
           )}
 

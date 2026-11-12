@@ -70,3 +70,8 @@ export function formatPhone(phone: string): string {
   const m = /^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(phone.replace(/\s/g, ''));
   return m ? m.slice(1).join(' ') : phone;
 }
+
+/** A plain number in the language's own digits and separators ("2 500", "4,9", "٢٤٠"). */
+export function formatNumber(n: number, lang: Lang = 'fr'): string {
+  return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'fr-FR').replace(/\s/g, ' ');
+}

@@ -27,6 +27,11 @@ export function setCurrentSalon(salon: CurrentSalon | null): void {
   current = salon;
 }
 
+/** The current salon outside React (message templates, etc.). */
+export function currentSalon(): CurrentSalon {
+  return getCurrentSalon();
+}
+
 function getCurrentSalon(): CurrentSalon {
   if (!current) throw new Error('The current salon is not set (resolveSalon must run before rendering).');
   return current;

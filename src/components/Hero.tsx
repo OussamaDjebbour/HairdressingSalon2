@@ -1,6 +1,9 @@
-import { CalendarPlus, ArrowRight, Star } from 'lucide-react';
+import { CalendarPlus, ArrowRight, Star, Scissors } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import { SmartImage } from './SmartImage';
+import { useSalon } from '../data/salon';
+import { useSalonInfo } from '../data/salonSettings';
+import { formatNumber } from '../data/formatters';
 
 // Brand tagline held in both scripts so the hero can show the pairing at once,
 // independent of the active language.
@@ -10,6 +13,8 @@ const TAGLINE_AR = 'جمالكِ، خبرتنا';
 export function Hero() {
   const { t, lang } = useLang();
   const isAr = lang === 'ar';
+  const salon = useSalon();
+  const city = useSalonInfo().data?.city[lang] ?? '';
 
   const primaryTagline = isAr ? TAGLINE_AR : TAGLINE_FR;
   const counterTagline = isAr ? TAGLINE_FR : TAGLINE_AR;
@@ -55,7 +60,7 @@ export function Hero() {
             </p>
 
             <p className="rise rise-4 mt-6 text-lg text-rose-700/80 leading-relaxed max-w-md text-pretty">
-              {t('hero.subtitle')}
+              {t('hero.subtitle').replace('{city}', city)}
             </p>
 
             <div className="rise rise-5 flex flex-wrap items-center gap-4 mt-8">
@@ -70,18 +75,20 @@ export function Hero() {
             </div>
 
             {/* One credential, editorial — not a floating glass card */}
-            <div className="rise rise-6 flex items-center gap-3 mt-10">
-              <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-gold-400 text-gold-400" />
-                ))}
+            {salon.rating !== null && salon.reviewCount !== null && (
+              <div className="rise rise-6 flex items-center gap-3 mt-10">
+                <div className="flex gap-0.5">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-gold-400 text-gold-400" />
+                  ))}
+                </div>
+                <span className="text-sm text-rose-600">
+                  <span className="font-display font-semibold text-rose-900">{formatNumber(salon.rating, lang)}</span>
+                  {' · '}
+                  <span>{t('hero.reviews').replace('{count}', formatNumber(salon.reviewCount, lang))}</span>
+                </span>
               </div>
-              <span className="text-sm text-rose-600">
-                <span className="font-display font-semibold text-rose-900">4,9</span>
-                {' · '}
-                {isAr ? '٢٤٠ تقييم' : '240 avis vérifiés'}
-              </span>
-            </div>
+            )}
           </div>
 
           {/* ---- The signature: arched portal portrait ---- */}
@@ -89,12 +96,23 @@ export function Hero() {
             <div className="relative mx-auto max-w-sm lg:max-w-none">
               {/* gilt keyline mat */}
               <div className="arch border border-gold-300/70 p-2.5 bg-cream-50/60 shadow-lift">
-                <SmartImage
-                  src="https://images.pexels.com/photos/3993449/pexels-photo-3993449.jpeg?auto=compress&cs=tinysrgb&w=900"
-                  alt={isAr ? 'صالون الحلاقة والتجميل' : 'Salon de coiffure et beauté'}
-                  aspect="aspect-[4/5]"
-                  rounded="arch"
-                />
+                {salon.heroImage ? (
+                  <SmartImage
+                    src={salon.heroImage}
+                    alt={isAr ? 'صالون الحلاقة والتجميل' : 'Salon de coiffure et beauté'}
+                    aspect="aspect-[4/5]"
+                    rounded="arch"
+                  />
+                ) : (
+                  // A salon without a hero photo yet: a quiet icon tile instead of an endless shimmer.
+                  <div
+                    role="img"
+                    aria-label={salon.name[lang]}
+                    className="aspect-[4/5] arch flex items-center justify-center bg-cream-100"
+                  >
+                    <Scissors className="w-16 h-16 text-gold-500" strokeWidth={1.2} aria-hidden="true" />
+                  </div>
+                )}
               </div>
               {/* keystone dot at the crown of the arch */}
               <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-gold-500 ring-4 ring-cream-50" />

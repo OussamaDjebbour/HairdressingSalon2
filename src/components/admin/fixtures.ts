@@ -18,7 +18,7 @@ export const services: Service[] = [
   { id: 'manucure', category: 'beaute', name: { fr: 'Manucure', ar: 'مانيكير' }, description: { fr: '', ar: '' }, price: 1500, duration: 60, image: '', icon: 'hand', active: true, sortOrder: 2 },
 ];
 
-/** Élégance's hours: closed Monday and Sunday, 09:00-18:00 otherwise. */
+/** The seeded salon's hours: closed Monday and Sunday, 09:00-18:00 otherwise. */
 export const eleganceHours: SalonHours = {
   1: null,
   2: { opens: 540, closes: 1080 },

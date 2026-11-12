@@ -1,7 +1,11 @@
 import { useLang } from '../context/LanguageContext';
+import { useSalon } from '../data/salon';
 
 export function Philosophy() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const salon = useSalon();
+
+  if (!salon.story) return null;
 
   return (
     <section className="relative py-24 lg:py-32 bg-rose-900 text-cream-100 overflow-hidden">
@@ -20,20 +24,22 @@ export function Philosophy() {
         </p>
 
         <blockquote className="font-display italic font-medium text-cream-50 text-[clamp(1.75rem,4vw,3rem)] leading-[1.15] text-balance">
-          {t('philosophy.quote')}
+          {salon.story[lang]}
         </blockquote>
 
-        <p className="mt-8 text-cream-200/70 text-lg leading-relaxed text-pretty max-w-2xl mx-auto">
-          {t('philosophy.body')}
-        </p>
+        {salon.storyIntro && (
+          <p className="mt-8 text-cream-200/70 text-lg leading-relaxed text-pretty max-w-2xl mx-auto">
+            {salon.storyIntro[lang]}
+          </p>
+        )}
 
-        <div className="mt-10 flex items-center justify-center gap-3 text-sm">
-          <span className="w-10 hairline" />
-          <span className="font-display italic font-semibold text-cream-50">
-            {t('philosophy.author')}
-          </span>
-          <span className="text-cream-300/70">· {t('philosophy.role')}</span>
-        </div>
+        {salon.founderName && (
+          <div className="mt-10 flex items-center justify-center gap-3 text-sm">
+            <span className="w-10 hairline" />
+            <span className="font-display italic font-semibold text-cream-50">{salon.founderName[lang]}</span>
+            {salon.founderRole && <span className="text-cream-300/70">· {salon.founderRole[lang]}</span>}
+          </div>
+        )}
       </div>
     </section>
   );

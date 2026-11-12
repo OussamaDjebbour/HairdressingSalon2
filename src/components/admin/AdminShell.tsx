@@ -5,11 +5,13 @@ import { useLang } from '../../context/LanguageContext';
 import { useSession } from '../../lib/auth';
 import { useLogout } from '../../lib/useLogout';
 import { useAdminManifest } from '../../lib/manifest';
+import { useSalon } from '../../data/salon';
 import { LoginForm } from '../LoginForm';
 
 /** Back-office chrome shared by /admin and the settings pages: header, loading state, login form when logged out. */
 export function AdminShell({ children }: { children: (userId: string) => ReactNode }) {
   const { lang, toggleLang, t } = useLang();
+  const salon = useSalon();
   const { session, loading } = useSession();
   const handleLogout = useLogout();
   useAdminManifest();
@@ -25,7 +27,7 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
               <Scissors className="w-4 h-4 text-cream-50" strokeWidth={1.6} />
             </span>
             <span className="flex flex-col leading-none">
-              <span className="font-display italic text-lg font-semibold text-cream-50">Élégance</span>
+              <span className="font-display italic text-lg font-semibold text-cream-50">{salon.name[lang]}</span>
               <span className="text-[10px] uppercase tracking-[0.28em] text-gold-300 mt-0.5">
                 {t('admin.label')}
               </span>
