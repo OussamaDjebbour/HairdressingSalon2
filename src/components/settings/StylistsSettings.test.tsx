@@ -180,6 +180,21 @@ describe('StylistsSettings', () => {
     );
   });
 
+  it('a retried save that works leaves no stale error behind', async () => {
+    let calls = 0;
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === 'admin_save_stylist' && calls++ === 0) return { data: null, error: { message: 'unknown_service' } };
+      return { data: fn === 'admin_affected_bookings' ? [] : null, error: null };
+    });
+    renderIt();
+    fireEvent.click(screen.getByText('Amina'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Une prestation choisie');
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ajouter' })).toBeInTheDocument());
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('an empty first name is refused before any call', async () => {
     renderIt();
     fireEvent.click(screen.getByRole('button', { name: 'Ajouter' }));

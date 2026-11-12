@@ -74,11 +74,12 @@ interface FormProps {
   services: Service[];
   error: string | null;
   onFail(err: unknown): void;
+  onStart(): void;
   onSaved(): void;
   onCancel(): void;
 }
 
-function StylistFormCard({ draft, services, error, onFail, onSaved, onCancel }: FormProps) {
+function StylistFormCard({ draft, services, error, onFail, onStart, onSaved, onCancel }: FormProps) {
   const { t, lang } = useLang();
   const save = useSaveStylist();
   const {
@@ -87,6 +88,7 @@ function StylistFormCard({ draft, services, error, onFail, onSaved, onCancel }: 
   } = useForm<StylistForm>({ resolver: zodResolver(stylistSchema), defaultValues: draft.values });
 
   const submit = handleSubmit((v) => {
+    onStart();
     save.mutate(
       {
         id: draft.id,
@@ -176,7 +178,7 @@ function StylistFormCard({ draft, services, error, onFail, onSaved, onCancel }: 
   );
 }
 
-function AddDayOff({ stylistId, onAdded, onFail }: { stylistId: string; onAdded(): void; onFail(err: unknown): void }) {
+function AddDayOff({ stylistId, onStart, onAdded, onFail }: { stylistId: string; onStart(): void; onAdded(): void; onFail(err: unknown): void }) {
   const { t } = useLang();
   const addOff = useAddStylistDaysOff();
   const {
@@ -186,6 +188,7 @@ function AddDayOff({ stylistId, onAdded, onFail }: { stylistId: string; onAdded(
 
   const add = handleSubmit(({ period }) => {
     if (!period) return;
+    onStart();
     addOff.mutate(
       { stylistId, from: toYmd(period.from), to: toYmd(period.to) },
       {
@@ -270,7 +273,8 @@ export function StylistsSettings() {
           draft={draft}
           services={services}
           error={error}
-          onFail={(err) => { setError(null); fail(err); }}
+          onFail={fail}
+          onStart={() => setError(null)}
           onSaved={() => {
             setDraft(null);
             setShowAffected(true);
@@ -305,7 +309,7 @@ export function StylistsSettings() {
                 ))}
               </ul>
             )}
-            <AddDayOff stylistId={draft.id} onAdded={() => { setError(null); setShowAffected(true); }} onFail={fail} />
+            <AddDayOff stylistId={draft.id} onStart={() => setError(null)} onAdded={() => { setError(null); setShowAffected(true); }} onFail={fail} />
           </section>
         )}
       </div>
