@@ -4,18 +4,11 @@ Every merge to `main` runs the checks, updates the shared database, then publish
 that serves all salons (`.github/workflows/deploy.yml`). You set the accounts up **once**, below,
 in this order. After that, a new salon is one command.
 
-## Before the first deploy (go-live checklist)
+## Order of things
 
-- The live database must already have **all migrations**, including Part 2's `20261113*` files and
-  Part 3's `20261114100000`. The first deploy runs `supabase db push`, which applies any that are
-  missing; check it succeeds before trusting the site.
-- The live Élégance demo needs a row saying which address belongs to it, or the live site shows
-  "Salon introuvable". Until a demo domain is bought, use its `<project>.pages.dev` address
-  (replace `salons` if your Pages project has another name). In Supabase, SQL Editor:
-
-  ```sql
-  insert into public.salon_domains (domain, salon_id) values ('salons.pages.dev', 'elegance');
-  ```
+Do steps 1-5 below, then the one-time section "Before the first merge to main" (database
+migrations and the demo's address), and only then merge to `main` for the first time. Launching
+salons (step 6) comes last.
 
 ## 1. Supabase: upgrade to Pro
 
@@ -34,12 +27,17 @@ first real salon. Dashboard → Organization → Billing.
    ```
 
    (`salons` is the project name; the site is then `https://salons.pages.dev`.)
-3. In the dashboard: Workers & Pages → `salons` → Settings → Variables and Secrets → add, for
-   **Production**:
-   - `SUPABASE_URL` = your project URL (Supabase → Project Settings → API)
-   - `SUPABASE_PUBLISHABLE_KEY` = the publishable (anon) key from the same page
+3. Give the edge functions their two settings (each command asks you to paste the value):
 
-   The edge functions use them to put each salon's name and colours in the page.
+   ```bash
+   npx wrangler pages secret put SUPABASE_URL --project-name salons
+   npx wrangler pages secret put SUPABASE_PUBLISHABLE_KEY --project-name salons
+   ```
+
+   `SUPABASE_URL` is your project URL and `SUPABASE_PUBLISHABLE_KEY` the publishable (anon) key
+   (Supabase → Project Settings → API). Use these commands rather than the dashboard's
+   Variables page, which may not reach functions published with wrangler. The functions use them
+   to put each salon's name and colours in the page.
 
 ## 3. Cloudflare: the API token
 
@@ -88,6 +86,30 @@ Fill it in (every line is explained inside the file): `SUPABASE_URL`, `SUPABASE_
 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` (step 3), `CLOUDFLARE_PAGES_PROJECT=salons`.
 
 Node 22 is recommended locally (the deploy uses it); Node 20.12 or newer works.
+
+## Before the first merge to main (one time, after steps 1-5)
+
+The live database must have **all migrations** (Part 2's `20261113*` files and Part 3's
+`20261114100000`, which creates the `salon_domains` table) before the site goes out.
+
+```bash
+supabase login
+supabase link --project-ref <ref>     # <ref> = SUPABASE_PROJECT_REF from step 4
+supabase db push --dry-run            # lists what will be applied: expect the 20261113* and 20261114100000 files
+supabase db push
+```
+
+Then the live Élégance demo needs a row saying which address belongs to it, or the site shows
+"Salon introuvable". Use its real `pages.dev` address: copy it from the Cloudflare dashboard
+(Workers & Pages → `salons`); it gets a suffix (for example `salons-ab1.pages.dev`) if the name
+`salons` was already taken. In Supabase → SQL Editor:
+
+```sql
+insert into public.salon_domains (domain, salon_id) values ('salons.pages.dev', 'elegance');
+```
+
+After the first deploy (the merge), check it worked: view the page source of a salon's address. It shows
+that salon's `<title>` and a `<style>` with `--brand-*` values (`--brand-600: ...`).
 
 ## 6. Launching a salon
 
