@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
-import { useSheetDialog } from './useSheetDialog';
+import { isInPortal, useSheetDialog } from './useSheetDialog';
 import type { SheetMotionState } from './useSheetMotion';
 
 interface SheetProps {
@@ -32,7 +32,10 @@ export function Sheet({ title, lead, onRequestClose, motion, children }: SheetPr
       className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-rose-950/40 transition-opacity ${
         motion === 'closing' ? 'duration-200 ease-in pointer-events-none' : 'duration-300 ease-silk'
       } ${shown ? 'opacity-100' : 'opacity-0'}`}
-      onClick={onRequestClose}
+      onClick={(e) => {
+        // A tap inside an open menu or calendar (portalled, but a React child of the sheet) is not a backdrop tap.
+        if (!isInPortal(e.target)) onRequestClose();
+      }}
     >
       <div
         ref={dialogRef}

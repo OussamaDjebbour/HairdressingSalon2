@@ -10,6 +10,7 @@ import { dayRoom, monthGrid, roomLevel, type DayRoom } from '../../data/roomFind
 import { useClosedDates, useSalonHours, useStylistDaysOff } from '../../data/salonSettings';
 import { dayOccupancy, salonDate } from '../../data/week';
 import { DataError } from '../DataError';
+import { SelectField } from '../form/SelectField';
 import { Sheet } from './Sheet';
 import { useSheetMotion } from './useSheetMotion';
 
@@ -32,7 +33,10 @@ export interface DayPickerProps {
   onClose(): void;
 }
 
-const firstOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+/** The "Toutes" option's value (a Radix Select item can't have an empty value). */
+const ALL = '__all__';
+
+const firstOfMonth =(d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 
 /**
  * A month calendar to jump to any day, showing how full each day is. With a service chosen
@@ -105,37 +109,23 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
   return (
     <Sheet title={t('admin.picker.title')} onRequestClose={() => motion.dismiss(onClose)} motion={motion.state}>
       <div className="grid sm:grid-cols-2 gap-2 mb-3">
-        <div>
-          <label htmlFor="picker-service" className="label">{t('admin.sheet.service')}</label>
-          <select
-            id="picker-service"
-            className="input"
-            value={service?.id ?? ''}
-            onChange={(e) => {
-              setPicked(null);
-              onFilterChange({ serviceId: e.target.value || null, stylistId: stylist?.id ?? null });
-            }}
-          >
-            <option value="">{t('admin.picker.all')}</option>
-            {activeServices.map((s) => (
-              <option key={s.id} value={s.id}>{s.name[lang]}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="picker-stylist" className="label">{t('admin.sheet.stylist')}</label>
-          <select
-            id="picker-stylist"
-            className="input"
-            value={stylist?.id ?? ''}
-            onChange={(e) => onFilterChange({ serviceId: service?.id ?? null, stylistId: e.target.value || null })}
-          >
-            <option value="">{t('admin.picker.all')}</option>
-            {activeStylists.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          id="picker-service"
+          label={t('admin.sheet.service')}
+          value={service?.id ?? ALL}
+          options={[{ value: ALL, label: t('admin.picker.all') }, ...activeServices.map((s) => ({ value: s.id, label: s.name[lang] }))]}
+          onValueChange={(v) => {
+            setPicked(null);
+            onFilterChange({ serviceId: v === ALL ? null : v, stylistId: stylist?.id ?? null });
+          }}
+        />
+        <SelectField
+          id="picker-stylist"
+          label={t('admin.sheet.stylist')}
+          value={stylist?.id ?? ALL}
+          options={[{ value: ALL, label: t('admin.picker.all') }, ...activeStylists.map((s) => ({ value: s.id, label: s.name }))]}
+          onValueChange={(v) => onFilterChange({ serviceId: service?.id ?? null, stylistId: v === ALL ? null : v })}
+        />
       </div>
 
       <div className="flex items-center justify-between mb-2">

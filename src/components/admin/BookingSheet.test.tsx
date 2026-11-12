@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import type { StylistDayOff } from '../../data/types';
 import { services, stylists, adminBooking } from './fixtures';
+import { openSelect, optionNames, pickOption } from '../../test/select';
 
 let servicesOverride: typeof services | undefined;
 let stylistsOverride: typeof stylists | undefined;
@@ -63,6 +64,15 @@ function fillClient(name: string, phone: string) {
   fireEvent.change(screen.getByLabelText('Téléphone'), { target: { value: phone } });
 }
 
+/** Save, then let the form's (async) validation settle. */
+async function save() {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  });
+}
+
+const combo = (name: string) => screen.getByRole('combobox', { name });
+
 /** Existing bookings open on the summary; the form is one tap away. */
 function openForm() {
   fireEvent.click(screen.getByRole('button', { name: 'Modifier ou déplacer' }));
@@ -87,27 +97,27 @@ describe('BookingSheet — add', () => {
   it('add prefills stylist, date and time and lists every service', () => {
     renderSheet(addState);
     expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('sara');
-    expect(screen.getByLabelText('Date')).toHaveValue('2030-01-08');
-    expect(screen.getByLabelText('Heure')).toHaveValue('10:00');
-    const serviceSelect = screen.getByLabelText('Prestation');
+    expect(combo('Coiffeuse')).toHaveTextContent('Sara');
+    expect(screen.getByLabelText('Date')).toHaveTextContent('Mardi 8 janvier');
+    expect(combo('Heure')).toHaveTextContent('10:00');
+    const serviceOptions = optionNames('Prestation');
     for (const s of services) {
-      expect(within(serviceSelect).getByRole('option', { name: s.name.fr })).toBeInTheDocument();
+      expect(serviceOptions).toContain(s.name.fr);
     }
     expect(stylists).toHaveLength(3);
   });
 
   it('can open pre-filled with a service, coiffeuse and time (from the calendar)', () => {
     renderSheet({ mode: 'add', stylistId: 'leila', date: tuesday, time: '11:00', serviceId: 'manucure' });
-    expect(screen.getByLabelText('Prestation')).toHaveValue('manucure');
-    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('leila');
-    expect(screen.getByLabelText('Heure')).toHaveValue('11:00');
+    expect(combo('Prestation')).toHaveTextContent('Manucure');
+    expect(combo('Coiffeuse')).toHaveTextContent('Leila');
+    expect(combo('Heure')).toHaveTextContent('11:00');
   });
 
-  it('add sends a staff booking', () => {
+  it('add sends a staff booking', async () => {
     renderSheet(addState);
     fillClient('Rania', '0555 12 34 56');
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await save();
     expect(create).toHaveBeenCalledWith(
       {
         serviceId: 'coupe-femme', stylistId: 'sara', date: tuesday, time: '10:00',
@@ -117,30 +127,30 @@ describe('BookingSheet — add', () => {
     );
   });
 
-  it('invalid phone blocks save', () => {
+  it('invalid phone blocks save', async () => {
     renderSheet(addState);
     fillClient('Rania', '021 12 34 56');
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-    expect(screen.getByText('Numéro de mobile algérien invalide.')).toBeInTheDocument();
+    await save();
+    expect(screen.getByText(/Numéro de mobile algérien invalide/)).toBeInTheDocument();
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('shows slot_taken message and keeps the sheet open', () => {
+  it('shows slot_taken message and keeps the sheet open', async () => {
     create.mockImplementation((_input, opts) => opts.onError({ message: 'slot_taken' }));
     const onClose = renderSheet(addState);
     fillClient('Rania', '0555123456');
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Cette styliste a déjà un rendez-vous à cette heure.');
+    await save();
+    expect(screen.getByText('Cette styliste a déjà un rendez-vous à cette heure.')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Rania');
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('closes after a successful add', () => {
+  it('closes after a successful add', async () => {
     create.mockImplementation((_input, opts) => opts.onSuccess('new-id'));
     const onClose = renderSheet(addState);
     fillClient('Rania', '0555123456');
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await save();
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -173,22 +183,22 @@ describe('BookingSheet — edit', () => {
     expect(whatsappText()).toContain('est annulé');
   });
 
-  it('moving offers the moved message', () => {
+  it('moving offers the moved message', async () => {
     update.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet({ mode: 'edit', booking: adminBooking() });
     openForm();
-    fireEvent.change(screen.getByLabelText('Heure'), { target: { value: '11:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    pickOption('Heure', '11:00');
+    await save();
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ id: 'b1', time: '11:00' }), expect.anything());
     expect(whatsappText()).toContain('a été déplacé au Mardi 8 janvier à 11:00');
   });
 
-  it('a name-only edit just closes', () => {
+  it('a name-only edit just closes', async () => {
     update.mockImplementation((_input, opts) => opts.onSuccess());
     const onClose = renderSheet({ mode: 'edit', booking: adminBooking() });
     openForm();
     fireEvent.change(screen.getByLabelText('Nom de la cliente'), { target: { value: 'Yasmine B' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await save();
     expect(onClose).toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: /Envoyer sur WhatsApp/ })).toBeNull();
   });
@@ -337,9 +347,10 @@ describe('BookingSheet — polish', () => {
     servicesOverride = [{ ...services[0], duration: 120 }, ...services.slice(1)];
     renderSheet({ mode: 'edit', booking: adminBooking({ startIso: '2030-01-08T16:30:00Z' }) }); // 17:30 in Algiers
     openForm();
-    const options = within(screen.getByLabelText('Heure')).getAllByRole('option').map((o) => o.textContent);
+    expect(combo('Heure')).toHaveTextContent('17:30');
+    const options = optionNames('Heure');
+    expect(options).toContain('17:30');
     expect(options).toEqual([...options].sort());
-    expect(screen.getByLabelText('Heure')).toHaveValue('17:30');
     expect(screen.getByText('En dehors des horaires du salon ce jour-là.')).toBeInTheDocument();
   });
 
@@ -362,12 +373,12 @@ describe('BookingSheet — polish', () => {
 });
 
 describe('BookingSheet — salon settings', () => {
-  it("warns that Amina doesn't work that day, and still saves", () => {
+  it("warns that Amina doesn't work that day, and still saves", async () => {
     daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
     renderSheet({ ...addState, stylistId: 'amina' });
     expect(screen.getByText('Amina ne travaille pas ce jour-là')).toBeInTheDocument();
     fillClient('Rania', '0555123456');
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await save();
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ stylistId: 'amina' }), expect.anything());
   });
 
@@ -375,7 +386,7 @@ describe('BookingSheet — salon settings', () => {
     daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
     renderSheet(addState);
     expect(screen.queryByText(/ne travaille pas ce jour-là/)).toBeNull();
-    fireEvent.change(screen.getByLabelText('Coiffeuse'), { target: { value: 'amina' } });
+    pickOption('Coiffeuse', 'Amina');
     expect(screen.getByText('Amina ne travaille pas ce jour-là')).toBeInTheDocument();
   });
 
@@ -387,50 +398,48 @@ describe('BookingSheet — salon settings', () => {
     ];
     renderSheet({ mode: 'edit', booking: adminBooking({ serviceId: 'old-cut', serviceName: { fr: 'Ancienne coupe', ar: 'قص قديم' } }) });
     openForm();
-    const select = screen.getByLabelText('Prestation');
-    expect(select).toHaveValue('old-cut');
-    expect(within(select).getByRole('option', { name: 'Ancienne coupe' })).toBeInTheDocument();
-    expect(within(select).queryByRole('option', { name: 'Disparue' })).toBeNull();
+    expect(combo('Prestation')).toHaveTextContent('Ancienne coupe');
+    const options = optionNames('Prestation');
+    expect(options).toContain('Ancienne coupe');
+    expect(options).not.toContain('Disparue');
   });
 
   it("keeps a booking's hidden stylist in the picker, but offers no other hidden one", () => {
     stylistsOverride = stylists.map((s) => (s.id === 'sara' ? s : { ...s, active: false }));
     renderSheet({ mode: 'edit', booking: adminBooking() }); // Amina, now hidden
     openForm();
-    const select = screen.getByLabelText('Coiffeuse');
-    expect(select).toHaveValue('amina');
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Amina', 'Sara']);
+    expect(combo('Coiffeuse')).toHaveTextContent('Amina');
+    expect(optionNames('Coiffeuse')).toEqual(['Amina', 'Sara']);
   });
 
   it('a booking on a closed date keeps its own time to pick', () => {
     renderSheet({ mode: 'edit', booking: adminBooking({ startIso: '2030-01-07T09:00:00Z' }) }); // Monday: closed
     openForm();
-    const options = within(screen.getByLabelText('Heure')).getAllByRole('option').map((o) => o.textContent);
-    expect(options).toEqual(['10:00']);
-    expect(screen.getByLabelText('Heure')).toHaveValue('10:00');
+    expect(optionNames('Heure')).toEqual(['10:00']);
+    expect(combo('Heure')).toHaveTextContent('10:00');
   });
 });
 
 describe('BookingSheet — demo account', () => {
   const masked = '05•• •• •• 56';
 
-  it('saves the masked phone back exactly as received, without a phone error', () => {
+  it('saves the masked phone back exactly as received, without a phone error', async () => {
     role = 'demo';
     renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: masked }) });
     openForm();
     expect(screen.getByLabelText('Téléphone')).toHaveValue(masked);
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await save();
     expect(screen.queryByText(/numéro/i)).toBeNull();
     expect(update).toHaveBeenCalledTimes(1);
     expect(update.mock.calls[0][0].clientPhone).toBe(masked);
   });
 
-  it('still validates a phone the visitor typed', () => {
+  it('still validates a phone the visitor typed', async () => {
     role = 'demo';
     renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: masked }) });
     openForm();
     fireEvent.change(screen.getByLabelText('Téléphone'), { target: { value: '123' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await save();
     expect(update).not.toHaveBeenCalled();
   });
 
@@ -464,6 +473,57 @@ describe('BookingSheet — demo account', () => {
 });
 
 
+describe('BookingSheet — validation and Radix fields', () => {
+  it('an empty Save shows every error and a summary, and focuses the name', async () => {
+    renderSheet(addState);
+    await save();
+    expect(screen.getByText('2 champs à corriger.')).toBeInTheDocument();
+    expect(screen.getByText('Le nom est obligatoire.')).toBeInTheDocument();
+    expect(screen.getByText('Le numéro est obligatoire.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Nom de la cliente')).toHaveFocus();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('a slot taken shows under Heure, which is flagged invalid', async () => {
+    create.mockImplementation((_input, opts) => opts.onError({ message: 'slot_taken' }));
+    renderSheet(addState);
+    fillClient('Rania', '0555123456');
+    await save();
+    const time = combo('Heure');
+    expect(time).toHaveAttribute('aria-invalid', 'true');
+    const describedBy = time.getAttribute('aria-describedby')!.split(' ');
+    expect(describedBy.map((id) => document.getElementById(id)?.textContent).join(' ')).toContain(
+      'Cette styliste a déjà un rendez-vous à cette heure.'
+    );
+  });
+
+  it('a booking at 10:10 shows 10:10 on the Heure field', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ startIso: '2030-01-08T09:10:00Z' }) }); // 10:10 in Algiers
+    openForm();
+    expect(combo('Heure')).toHaveTextContent('10:10');
+  });
+
+  it('Escape closes the open Heure menu, not the sheet', () => {
+    const onClose = renderSheet(addState);
+    openSelect('Heure');
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('a date picked in the calendar is the one saved', async () => {
+    renderSheet(addState);
+    fireEvent.click(screen.getByLabelText('Date'));
+    fireEvent.click(screen.getByRole('button', { name: /jeudi 10 janvier 2030/ }));
+    expect(screen.getByLabelText('Date')).toHaveTextContent('Jeudi 10 janvier');
+    fillClient('Rania', '0555123456');
+    await save();
+    expect(create.mock.calls[0][0].date).toEqual(new Date(2030, 0, 10));
+  });
+});
+
 describe('BookingSheet — motion', () => {
   const realMatchMedia = window.matchMedia;
   const motion = (reduce: boolean) => {
@@ -495,13 +555,13 @@ describe('BookingSheet — motion', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('slides away after a save too, not only on ✕', () => {
+  it('slides away after a save too, not only on ✕', async () => {
     vi.useFakeTimers();
     motion(false);
     create.mockImplementation((_input, opts) => opts.onSuccess('new-id'));
     const onClose = renderSheet(addState);
     fillClient('Rania', '0555123456');
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await save();
     expect(onClose).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(250));
     expect(onClose).toHaveBeenCalledTimes(1);

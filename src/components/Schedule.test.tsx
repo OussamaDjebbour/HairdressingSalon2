@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AdminBooking } from '../data/admin';
 import type { SalonHours, Stylist, StylistDayOff } from '../data/types';
 import { adminBooking, eleganceHours, stylists } from './admin/fixtures';
+import { pickOption } from '../test/select';
 
 let stylistsOverride: Stylist[] | undefined;
 vi.mock('../data/queries', async () => {
@@ -266,23 +267,23 @@ describe('Schedule — finding a day', () => {
   it('a time found for a service opens a pre-filled new booking on that day', () => {
     renderSchedule();
     openPicker();
-    fireEvent.change(screen.getByLabelText('Prestation'), { target: { value: 'coupe-femme' } });
+    pickOption('Prestation', 'Coupe & Brushing');
     fireEvent.click(screen.getByRole('button', { name: /^Jeudi 10 janvier — \d+ créneaux/ }));
     fireEvent.click(screen.getByRole('button', { name: '10:00' }));
     const dialog = screen.getByRole('dialog', { name: 'Nouveau rendez-vous' });
-    expect(within(dialog).getByLabelText('Prestation')).toHaveValue('coupe-femme');
-    expect(within(dialog).getByLabelText('Date')).toHaveValue('2030-01-10');
-    expect(within(dialog).getByLabelText('Heure')).toHaveValue('10:00');
+    expect(within(dialog).getByRole('combobox', { name: 'Prestation' })).toHaveTextContent('Coupe & Brushing');
+    expect(within(dialog).getByLabelText('Date')).toHaveTextContent('Jeudi 10 janvier');
+    expect(within(dialog).getByRole('combobox', { name: 'Heure' })).toHaveTextContent('10:00');
     expect(screen.getAllByText('Jeudi 10 janvier').length).toBeGreaterThan(0);
   });
 
   it('remembers the chosen service when the calendar is opened again', () => {
     renderSchedule();
     openPicker();
-    fireEvent.change(screen.getByLabelText('Prestation'), { target: { value: 'coupe-femme' } });
+    pickOption('Prestation', 'Coupe & Brushing');
     fireEvent.keyDown(window, { key: 'Escape' });
     openPicker();
-    expect(screen.getByLabelText('Prestation')).toHaveValue('coupe-femme');
+    expect(screen.getByRole('combobox', { name: 'Prestation' })).toHaveTextContent('Coupe & Brushing');
   });
 });
 
@@ -309,7 +310,7 @@ describe('Schedule — polish', () => {
     renderSchedule();
     fireEvent.click(screen.getByRole('button', { name: 'Jour précédent' })); // Monday 7 Jan: closed
     fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
-    expect(screen.getByLabelText('Date')).toHaveValue('2030-01-08');
+    expect(screen.getByLabelText('Date')).toHaveTextContent('Mardi 8 janvier');
   });
 
   it('counts waiting bookings for the next 30 days (the owner can move them past 14)', () => {
@@ -392,6 +393,6 @@ describe('Schedule — salon settings', () => {
     daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
     renderSchedule();
     fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
-    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('leila');
+    expect(screen.getByRole('combobox', { name: 'Coiffeuse' })).toHaveTextContent('Leila');
   });
 });
