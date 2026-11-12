@@ -109,9 +109,20 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('link', { name: 'Retour' })).toHaveAttribute('href', '/admin');
   });
 
+  it('has no gear in the header on the settings pages (they have their own back arrow)', () => {
+    renderPage();
+    expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Réglages' })).toBeNull();
+  });
+
+  it('has no gear in the header on a section page either', () => {
+    mySalon = { data: 'rival', isLoading: false, isError: false, error: null }; // the shell alone is enough here
+    renderPage('/admin/settings/hours');
+    expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Réglages' })).toBeNull();
+  });
+
   it('stops notifications then signs out', async () => {
     renderPage();
-    fireEvent.click(screen.getAllByRole('button', { name: /Se déconnecter/ })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Se déconnecter/ }));
     await waitFor(() => expect(calls).toEqual(['disablePush', 'signOut']));
   });
 

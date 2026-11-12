@@ -41,6 +41,11 @@ export default {
           800: '#5F4C30',
           900: '#3D311F',
         },
+        // WhatsApp actions: a deeper green than WhatsApp's own #25D366, so white text reads (5.3:1).
+        whatsapp: {
+          DEFAULT: '#1F7A4D',
+          dark: '#18613D',
+        },
         sage: {
           50: '#F4F7F4',
           100: '#E6EFE6',

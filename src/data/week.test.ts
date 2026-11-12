@@ -11,6 +11,7 @@ function booking(startIso: string, minutes: number, status: AdminBooking['status
     id: startIso, startsAt, endsAt: new Date(startsAt.getTime() + minutes * 60000), status, price: 2500,
     clientName: 'Yasmine', clientPhone: '0555123456', lang: 'fr', serviceId: 'coupe-femme',
     serviceName: { fr: 'Coupe', ar: 'قص' }, stylistId: 'amina', stylistName: 'Amina', source: 'online',
+    createdAt: startsAt,
   };
 }
 

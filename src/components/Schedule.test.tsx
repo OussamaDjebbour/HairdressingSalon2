@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AdminBooking } from '../data/admin';
 import type { SalonHours, Stylist, StylistDayOff } from '../data/types';
 import { adminBooking, eleganceHours, stylists } from './admin/fixtures';
@@ -56,12 +57,14 @@ import { LanguageProvider } from '../context/LanguageContext';
 import { Schedule } from './Schedule';
 
 function renderSchedule(url = '/admin') {
-  render(
-    <MemoryRouter initialEntries={[url]}>
-      <LanguageProvider>
-        <Schedule userId="user-1" />
-      </LanguageProvider>
-    </MemoryRouter>
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[url]}>
+        <LanguageProvider>
+          <Schedule userId="user-1" />
+        </LanguageProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 
@@ -108,7 +111,7 @@ describe('Schedule', () => {
     expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
   });
 
-  it('pending badge shows the count and jumps to that day', () => {
+  it('pending badge shows the count and opens the waiting list', () => {
     pendingBookings = [
       adminBooking({ id: 'p2', startIso: '2030-01-11T09:00:00Z' }),
       adminBooking({ id: 'p1', startIso: '2030-01-10T09:00:00Z' }),
@@ -116,7 +119,61 @@ describe('Schedule', () => {
     ];
     renderSchedule();
     fireEvent.click(screen.getByRole('button', { name: '2 en attente' }));
-    expect(screen.getAllByText('Jeudi 10 janvier').length).toBeGreaterThan(0);
+    expect(screen.getByRole('dialog', { name: '2 réservations à confirmer' })).toBeInTheDocument();
+  });
+
+  it('the waiting list comes back, with its answered rows, after closing a booking opened from it', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    pendingBookings = [
+      adminBooking({ id: 'p1', clientName: 'Nour', startIso: '2030-01-10T09:00:00Z', createdAt: new Date('2030-01-07T09:00:00Z') }),
+      adminBooking({ id: 'p2', clientName: 'Sabrina', startIso: '2030-01-11T09:00:00Z', createdAt: new Date('2030-01-07T10:00:00Z') }),
+    ];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '2 en attente' }));
+    fireEvent.click(within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: 'Confirmer' }));
+    fireEvent.click(within(screen.getAllByRole('listitem')[1]).getByText('Sabrina'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Rendez-vous' })).getByRole('button', { name: 'Fermer' }));
+    expect(screen.getByRole('dialog', { name: '1 réservation à confirmer' })).toBeInTheDocument();
+    expect(screen.getByText('Nour confirmée')).toBeInTheDocument();
+  });
+
+  it('closing the waiting list itself forgets its answered rows', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    pendingBookings = [adminBooking({ id: 'p1', clientName: 'Nour', startIso: '2030-01-10T09:00:00Z' })];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '1 en attente' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fermer' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 en attente' })); // the mock still lists it as waiting
+    expect(screen.queryByText('Nour confirmée')).toBeNull();
+  });
+
+  it('an open booking follows fresh data (its status changed meanwhile)', () => {
+    weekBookings = [adminBooking({ status: 'pending' })];
+    const { rerender } = renderSchedule();
+    fireEvent.click(screen.getAllByRole('button', { name: /Yasmine/ })[0]);
+    expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+    weekBookings = [adminBooking({ status: 'confirmed' })];
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/admin']}>
+          <LanguageProvider>
+            <Schedule userId="user-1" />
+          </LanguageProvider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    expect(screen.getByRole('button', { name: 'Message WhatsApp' })).toBeInTheDocument();
+  });
+
+  it('a card in the waiting list opens that booking', () => {
+    pendingBookings = [adminBooking({ id: 'p1', clientName: 'Nour', startIso: '2030-01-10T09:00:00Z' })];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '1 en attente' }));
+    fireEvent.click(within(screen.getByRole('listitem')).getByText('Nour'));
+    const dialog = screen.getByRole('dialog', { name: 'Rendez-vous' });
+    expect(within(dialog).getByText('Nour')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /à confirmer/ })).toBeNull();
   });
 
   it('hides the pending badge when nothing is waiting', () => {
@@ -125,13 +182,79 @@ describe('Schedule', () => {
   });
 });
 
+describe('Schedule — agenda first', () => {
+  const end = (b: AdminBooking, minutes: number) => ({ ...b, endsAt: new Date(b.startsAt.getTime() + minutes * 60000) });
+
+  it('has no page heading and no floating add button', () => {
+    renderSchedule();
+    expect(screen.queryByText('Le carnet du jour')).toBeNull();
+    expect(screen.queryByText('Planning du jour')).toBeNull();
+    expect(document.querySelector('.fixed.bottom-6')).toBeNull();
+  });
+
+  it('sums up the day in one line', () => {
+    weekBookings = [
+      adminBooking({ id: 'a', price: 2500, startIso: '2030-01-08T09:00:00Z' }),
+      adminBooking({ id: 'b', price: 3000, stylistId: 'leila', stylistName: 'Leila', startIso: '2030-01-08T09:00:00Z' }),
+      end(adminBooking({ id: 'c', price: 4000, stylistId: 'sara', stylistName: 'Sara', startIso: '2030-01-08T09:00:00Z' }), 90),
+      end(adminBooking({ id: 'd', price: 6000, startIso: '2030-01-08T13:00:00Z' }), 90),
+      adminBooking({ id: 'x', price: 9999, status: 'cancelled', startIso: '2030-01-08T15:00:00Z' }),
+    ];
+    renderSchedule();
+    expect(screen.getByText('4 rendez-vous')).toBeInTheDocument();
+    expect(screen.getByText('15 500 DA')).toBeInTheDocument();
+    expect(screen.getByText('19 % occupé')).toBeInTheDocument();
+    expect(screen.getByText('Prochain : 10:00')).toBeInTheDocument();
+  });
+
+  it('today with nothing left: names the next booking on a later day', () => {
+    pendingBookings = [adminBooking({ status: 'confirmed', startIso: '2030-01-09T09:00:00Z' })];
+    renderSchedule();
+    expect(screen.getByText('Prochain : mer. 9 à 10:00')).toBeInTheDocument();
+  });
+
+  it('today with nothing coming at all says so', () => {
+    renderSchedule();
+    expect(screen.getByText('Aucun rendez-vous à venir')).toBeInTheDocument();
+  });
+
+  it('the day bar stays above the agenda (its sticky hour column) when scrolling', () => {
+    renderSchedule();
+    // The hour column is sticky at z-30; the bar must sit above it or it covers "Jour précédent".
+    expect(screen.getByRole('button', { name: 'Jour précédent' }).closest('.sticky')).toHaveClass('z-40');
+  });
+
+  it('gives the day bar controls a full-size tap area', () => {
+    pendingBookings = [adminBooking({ id: 'p1', startIso: '2030-01-10T09:00:00Z' })];
+    renderSchedule();
+    for (const name of ['Jour précédent', 'Jour suivant', 'Nouveau rendez-vous', '1 en attente']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('tap');
+    }
+  });
+
+  it('offers no link to the public booking page (the owner adds bookings with “+ Rendez-vous”)', () => {
+    renderSchedule();
+    expect(document.querySelector('a[href="/#booking"]')).toBeNull();
+  });
+
+  it('the add button in the day bar opens the add sheet', () => {
+    renderSchedule();
+    const add = screen.getByRole('button', { name: 'Nouveau rendez-vous' });
+    expect(add).toHaveTextContent('Rendez-vous');
+    fireEvent.click(add);
+    expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
+  });
+});
+
 describe('Schedule deep link (from a notification)', () => {
   it('deep link to another week opens that booking', () => {
     weekBookings = [adminBooking({ id: 'p9', clientName: 'Nour', startIso: '2030-01-17T09:00:00Z' })];
     renderSchedule('/admin?day=2030-01-17&booking=p9');
     expect(screen.getAllByText('Jeudi 17 janvier').length).toBeGreaterThan(0);
-    expect(screen.getByRole('dialog', { name: 'Rendez-vous' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Nour');
+    const dialog = screen.getByRole('dialog', { name: 'Rendez-vous' });
+    // It opens on the booking's summary, ready to confirm.
+    expect(within(dialog).getByText('Nour')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
   });
 
   it('unknown booking id just opens the day', () => {
@@ -161,6 +284,7 @@ describe('Schedule — salon ownership', () => {
     mySalon = { data: 'rival', isLoading: false, isError: false, error: null };
     renderSchedule();
     expect(screen.getByText('Ce compte appartient à un autre salon.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument(); // to sign in with the right account
     expect(screen.queryByText('Amina')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Nouveau rendez-vous' })).toBeNull();
   });
@@ -175,6 +299,7 @@ describe('Schedule — salon ownership', () => {
     mySalon = { data: undefined, isLoading: false, isError: true, error: { message: 'not_authorized' } };
     renderSchedule();
     expect(screen.getByText('Ce compte n’a pas accès à l’espace salon.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument();
     expect(screen.queryByText('Amina')).toBeNull();
   });
 
@@ -182,6 +307,7 @@ describe('Schedule — salon ownership', () => {
     mySalon = { data: undefined, isLoading: false, isError: true, error: new Error('network'), refetch: vi.fn() };
     renderSchedule();
     expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument();
     expect(screen.queryByText('Amina')).toBeNull();
   });
 
@@ -226,6 +352,6 @@ describe('Schedule — salon settings', () => {
     daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
     renderSchedule();
     fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
-    expect(screen.getByLabelText('Styliste')).toHaveValue('leila');
+    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('leila');
   });
 });

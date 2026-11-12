@@ -153,3 +153,40 @@ describe('DayColumns follows the day', () => {
     expect(screen.queryByText('09:00')).toBeNull();
   });
 });
+
+describe('DayColumns with many stylists', () => {
+  const five = [...stylists, { ...stylists[0], id: 'nadia', name: 'Nadia' }, { ...stylists[0], id: 'rym', name: 'Rym' }];
+  const grids = () => Array.from(document.querySelectorAll<HTMLElement>('.grid'));
+
+  it('keeps each column at least 7rem wide and scrolls sideways, with the hours fixed on the start side', () => {
+    renderColumns([], undefined, { stylists: five });
+    const scroller = screen.getByTestId('day-columns-scroll');
+    expect(scroller).toHaveClass('overflow-x-auto');
+    // gutter 2.5rem + 5 × (7rem + 0.25rem gap)
+    for (const grid of grids()) expect(grid.style.minWidth).toBe('38.75rem');
+    expect(screen.getByTestId('day-columns-gutter')).toHaveClass('sticky', 'start-0');
+  });
+
+  it('with three stylists, the columns just fill the width', () => {
+    renderColumns([]);
+    expect(screen.getByTestId('day-columns-scroll')).not.toHaveClass('overflow-x-auto');
+    for (const grid of grids()) expect(grid.style.minWidth).toBe('');
+  });
+});
+
+describe('DayColumns names', () => {
+  it('lays a client name out in its own direction (a Latin name in the Arabic page)', () => {
+    renderColumns([adminBooking({ clientName: 'Lina M.' })]);
+    expect(screen.getByText('Lina M.')).toHaveAttribute('dir', 'auto');
+  });
+});
+
+describe('DayColumns legibility', () => {
+  it('writes booking names, services and hours at 12px at least', () => {
+    renderColumns([adminBooking({ clientName: 'Lina M.' })]);
+    expect(screen.getByText('Lina M.')).toHaveClass('text-xs');
+    expect(screen.getByText('Coupe & Brushing')).toHaveClass('text-xs');
+    expect(screen.getByText('10:00')).toHaveClass('text-xs');
+    expect(document.querySelector('[class*="text-[10px]"], [class*="text-[11px]"]')).toBeNull();
+  });
+});
