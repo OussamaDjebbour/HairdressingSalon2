@@ -24,7 +24,7 @@ import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { generatePalette } from '../src/lib/palette';
-import { addDomain, ensureCname, findZone, pagesHostnames, pagesTarget, type Cloudflare } from './lib/cloudflare';
+import { addDomain, ensureCname, findZone, isRegisteredDomain, pagesHostnames, pagesTarget, type Cloudflare } from './lib/cloudflare';
 import { ConfigError, parseSalonConfig, type SalonConfig } from './lib/config';
 import { confirmContinue, existingSalonLines, type CurrentSalon } from './lib/existing';
 import { buildProvisionPayload, localPhotos, provisionErrorMessage, storagePath } from './lib/provision';
@@ -179,7 +179,7 @@ async function attachDomains(cf: Cloudflare, domains: string[]): Promise<{ todo:
         if (!zone) {
           warn(`${host}: its domain is not in this Cloudflare account`);
           todo.push(`At the domain's DNS provider: CNAME  ${host}  →  ${pagesTarget(cf)}` +
-            (host.split('.').length === 2 ? '  (a bare domain needs CNAME flattening/ALIAS, or move its nameservers to Cloudflare)' : ''));
+            (isRegisteredDomain(host) ? '  (a bare domain needs CNAME flattening/ALIAS, or move its nameservers to Cloudflare)' : ''));
           continue;
         }
         const dns = await ensureCname(cf, zone.id, host);

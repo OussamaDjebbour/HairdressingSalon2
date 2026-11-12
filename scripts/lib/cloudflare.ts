@@ -49,11 +49,28 @@ async function call<T>(cf: Cloudflare, path: string, init?: { method: string; bo
 export const pagesTarget = (cf: Pick<Cloudflare, 'project'>) => `${cf.project}.pages.dev`;
 
 /**
+ * Public suffixes of two labels a salon's domain may use (not the full Public Suffix List: the
+ * common ones in Algeria and the .co.uk style). Any other suffix is taken to be one label.
+ */
+const TWO_LABEL_SUFFIXES = new Set([
+  'com.dz', 'org.dz', 'net.dz', 'edu.dz', 'gov.dz', 'asso.dz',
+  'co.uk', 'org.uk', 'me.uk',
+  'com.tn',
+]);
+
+/** A registered (bare) domain such as `sara-salon.com` or `sara.com.dz`, not a subdomain of one. */
+export function isRegisteredDomain(host: string): boolean {
+  const labels = host.split('.');
+  const suffixLabels = labels.length >= 2 && TWO_LABEL_SUFFIXES.has(labels.slice(-2).join('.')) ? 2 : 1;
+  return labels.length === suffixLabels + 1;
+}
+
+/**
  * The host names to attach for a salon domain (stored without `www.`): a registered domain gets
  * both itself and `www.`; a subdomain (`rdv.sara-salon.com`) only itself.
  */
 export function pagesHostnames(domain: string): string[] {
-  return domain.split('.').length === 2 ? [domain, `www.${domain}`] : [domain];
+  return isRegisteredDomain(domain) ? [domain, `www.${domain}`] : [domain];
 }
 
 const ALREADY_ADDED = 8000018;

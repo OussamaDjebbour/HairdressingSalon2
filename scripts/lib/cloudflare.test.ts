@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { addDomain, CloudflareError, ensureCname, findZone, pagesHostnames, type Cloudflare } from './cloudflare';
+import { addDomain, CloudflareError, ensureCname, findZone, isRegisteredDomain, pagesHostnames, type Cloudflare } from './cloudflare';
 
 function api(...responses: Array<{ status?: number; body: unknown }>) {
   const fetch = vi.fn();
@@ -84,5 +84,24 @@ describe('pagesHostnames', () => {
   it('attaches the bare domain and www. for a registered domain, only itself for a subdomain', () => {
     expect(pagesHostnames('sara-salon.com')).toEqual(['sara-salon.com', 'www.sara-salon.com']);
     expect(pagesHostnames('rdv.sara-salon.com')).toEqual(['rdv.sara-salon.com']);
+  });
+
+  it('knows two-label public suffixes (Algeria, .co.uk-style)', () => {
+    for (const domain of ['sara.com.dz', 'sara.org.dz', 'sara.net.dz', 'sara.edu.dz', 'sara.gov.dz', 'sara.asso.dz', 'sara.co.uk', 'sara.com.tn']) {
+      expect(pagesHostnames(domain)).toEqual([domain, `www.${domain}`]);
+    }
+    expect(pagesHostnames('rdv.sara.com.dz')).toEqual(['rdv.sara.com.dz']);
+    expect(pagesHostnames('rdv.sara.co.uk')).toEqual(['rdv.sara.co.uk']);
+  });
+});
+
+describe('isRegisteredDomain', () => {
+  it('is true for a bare domain (needs CNAME flattening at another DNS provider), false for a subdomain', () => {
+    expect(isRegisteredDomain('sara-salon.com')).toBe(true);
+    expect(isRegisteredDomain('www.sara-salon.com')).toBe(false);
+    expect(isRegisteredDomain('sara.com.dz')).toBe(true);
+    expect(isRegisteredDomain('www.sara.com.dz')).toBe(false);
+    expect(isRegisteredDomain('sara.dz')).toBe(true);
+    expect(isRegisteredDomain('com.dz')).toBe(false);
   });
 });
