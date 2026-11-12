@@ -165,3 +165,30 @@ begin
   return private.post_push('test', null, private.my_salon(), auth.uid());
 end;
 $$;
+
+-- The demo account cannot change the salon's WhatsApp: in the demo, "message to the client" opens
+-- WhatsApp to that number (the product owner's). The passed value is ignored (the current one is
+-- kept, even if the passed one is empty or invalid); everything else is saved as for the owner.
+create or replace function public.admin_save_salon_info(
+  p_address jsonb, p_city jsonb, p_whatsapp text, p_instagram_url text, p_facebook_url text)
+returns void
+language plpgsql volatile security definer set search_path = ''
+as $$
+declare
+  v_salon    text := private.my_salon();
+  v_whatsapp text := p_whatsapp;
+  v_info     record;
+begin
+  if v_salon is null then
+    raise exception 'not_authorized' using errcode = 'P0001';
+  end if;
+  if private.my_role() = 'demo' then
+    select s.whatsapp into v_whatsapp from public.salons s where s.id = v_salon;
+  end if;
+  select * into v_info from private.clean_salon_info(p_address, p_city, v_whatsapp, p_instagram_url, p_facebook_url);
+  update public.salons s
+  set address = v_info.address, city = v_info.city, whatsapp = v_info.whatsapp,
+      instagram_url = v_info.instagram_url, facebook_url = v_info.facebook_url
+  where s.id = v_salon;
+end;
+$$;

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(65);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -153,6 +153,57 @@ set local role authenticated;
 select is((select client_phone from public.admin_list_bookings('2030-01-08', '2030-01-08') where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
   '0661223344', 'owner sees the real phone');
 select lives_ok($$ select public.admin_save_push_subscription('https://push.example/owner', 'p', 'a', 'fr') $$, 'owner can still subscribe');
+reset role;
+
+-- admin_save_salon_info: the demo account cannot change the salon's WhatsApp (the number the demo's
+-- "message to the client" opens); it still edits the rest. The owner's behaviour is unchanged.
+update public.salons set whatsapp = '0555001122', address = '{"fr": "", "ar": ""}' where id = 'elegance';
+select pg_temp.act_as('dddddddd-dddd-dddd-dddd-dddddddddddd');
+set local role authenticated;
+select lives_ok($$ select public.admin_save_salon_info('{"fr": "Rue Démo"}', '{"fr": "Alger"}', '0699999999', 'https://instagram.com/demo', null) $$,
+  'demo can save the salon info');
+reset role;
+select results_eq($$ select whatsapp, address ->> 'fr', city ->> 'fr', instagram_url from public.salons where id = 'elegance' $$,
+  $$ values ('0555001122'::text, 'Rue Démo'::text, 'Alger'::text, 'https://instagram.com/demo'::text) $$,
+  'demo: whatsapp kept, everything else saved');
+select pg_temp.act_as('dddddddd-dddd-dddd-dddd-dddddddddddd');
+set local role authenticated;
+select lives_ok($$ select public.admin_save_salon_info('{"fr": "Rue Démo"}', '{"fr": "Alger"}', 'not a phone', null, null) $$,
+  'demo: the passed whatsapp is ignored, even an invalid one');
+select lives_ok($$ select public.admin_save_salon_info('{"fr": "Rue Démo"}', '{"fr": "Alger"}', '', null, null) $$,
+  'demo: an emptied whatsapp is ignored too');
+reset role;
+select is((select whatsapp from public.salons where id = 'elegance'), '0555001122', 'demo never changes or clears the whatsapp');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select lives_ok($$ select public.admin_save_salon_info('{"fr": "Rue Réelle"}', '{"fr": "Alger"}', '0699 99 99 99', null, null) $$,
+  'owner saves the salon info');
+select throws_ok($$ select public.admin_save_salon_info('{"fr": "Rue Réelle"}', '{"fr": "Alger"}', 'not a phone', null, null) $$,
+  'P0001', 'invalid_phone', 'owner: an invalid whatsapp is still refused');
+reset role;
+select is((select whatsapp from public.salons where id = 'elegance'), '0699999999', 'owner changes the whatsapp');
+
+-- demo_preflight: what setup-demo shows before writing. Service role only.
+insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, source)
+values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', 'elegance', 'coupe-femme', 'amina', '2030-01-09 09:00+01', '2030-01-09 10:00+01', 2500, 'Client Staff', '0555123457', 'fr', 'staff'),
+       ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb3', 'elegance', 'coupe-femme', 'amina', '2020-01-07 09:00+01', '2020-01-07 10:00+01', 2500, 'Client Passée', '0555123458', 'fr', 'online');
+set local role anon;
+select throws_ok($$ select * from public.demo_preflight('elegance') $$, '42501', null, 'anon cannot call demo_preflight');
+reset role;
+set local role authenticated;
+select throws_ok($$ select * from public.demo_preflight('elegance') $$, '42501', null, 'authenticated cannot call demo_preflight');
+reset role;
+select ok(has_function_privilege('service_role', 'public.demo_preflight(text)', 'execute'), 'service_role can call demo_preflight');
+set local role service_role;
+select results_eq($$ select name, future_bookings, future_online_bookings, owner_staff, demo from public.demo_preflight('elegance') $$,
+  $$ values ('Élégance'::text, 2, 1, 1, true) $$, 'preflight counts future bookings (online ones apart), owners and the demo flag');
+select is((select count(*)::int from public.demo_preflight('nope')), 0, 'preflight returns no row for an unknown salon');
+reset role;
+update public.salons set demo = false where id = 'elegance';
+update private.staff set role = 'owner' where user_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+set local role service_role;
+select results_eq($$ select future_bookings, future_online_bookings, owner_staff, demo from public.demo_preflight('elegance') $$,
+  $$ values (2, 1, 2, false) $$, 'preflight reports a non-demo salon and every owner');
 reset role;
 
 select * from finish();

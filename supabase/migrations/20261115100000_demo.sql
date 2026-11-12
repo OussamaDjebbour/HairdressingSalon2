@@ -148,3 +148,23 @@ $$;
 
 revoke execute on function public.setup_demo(text, uuid, text, text) from public, anon, authenticated;
 grant execute on function public.setup_demo(text, uuid, text, text) to service_role;
+
+-- What pnpm setup-demo shows (and checks) before writing anything, so it is never pointed at a real
+-- salon by mistake: the salon's name, its future bookings (all, and online ones apart), how many
+-- owner accounts it has and whether it is already the demo. No row for an unknown salon.
+-- Service role only.
+create function public.demo_preflight(p_salon_id text)
+returns table (name text, future_bookings integer, future_online_bookings integer, owner_staff integer, demo boolean)
+language sql stable security definer set search_path = ''
+as $$
+  select s.name,
+         (select count(*)::int from private.bookings b where b.salon_id = s.id and b.starts_at >= now()),
+         (select count(*)::int from private.bookings b where b.salon_id = s.id and b.starts_at >= now() and b.source = 'online'),
+         (select count(*)::int from private.staff st where st.salon_id = s.id and st.role = 'owner'),
+         s.demo
+  from public.salons s
+  where s.id = p_salon_id
+$$;
+
+revoke execute on function public.demo_preflight(text) from public, anon, authenticated;
+grant execute on function public.demo_preflight(text) to service_role;
