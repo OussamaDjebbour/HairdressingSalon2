@@ -3,7 +3,7 @@ import { useLang } from '../context/LanguageContext';
 import { SmartImage } from './SmartImage';
 import { useSalon } from '../data/salon';
 import { useSalonInfo } from '../data/salonSettings';
-import { formatNumber } from '../data/formatters';
+import { formatNumber, salonSubtitle } from '../data/formatters';
 
 // Brand tagline held in both scripts so the hero can show the pairing at once,
 // independent of the active language.
@@ -60,7 +60,7 @@ export function Hero() {
             </p>
 
             <p className="rise rise-4 mt-6 text-lg text-rose-700/80 leading-relaxed max-w-md text-pretty">
-              {t('hero.subtitle').replace('{city}', city)}
+              {salonSubtitle(t, lang, city)}
             </p>
 
             <div className="rise rise-5 flex flex-wrap items-center gap-4 mt-8">

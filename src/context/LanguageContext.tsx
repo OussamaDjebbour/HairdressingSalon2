@@ -17,7 +17,7 @@ interface LanguageContextValue {
   t: (key: string) => string;
 }
 
-const translations: Record<Lang, Record<string, string>> = {
+export const translations: Record<Lang, Record<string, string>> = {
   fr: {
     'nav.home': 'Accueil',
     'nav.services': 'Services',
@@ -82,7 +82,9 @@ const translations: Record<Lang, Record<string, string>> = {
     'admin.push.iosStep3': 'Ouvrez {salon} depuis la nouvelle icône, puis revenez ici.',
     'hero.tagline': 'Votre beauté, notre savoir-faire',
     'hero.subtitle':
-      'Un salon de coiffure et beauté à {city}, où chaque visite est un moment de soin et de détente.',
+      'Un salon de coiffure et beauté au cœur de {city}, où chaque visite est un moment de soin et de détente.',
+    'hero.subtitleNoCity':
+      'Un salon de coiffure et beauté, où chaque visite est un moment de soin et de détente.',
     'footer.rights': 'Tous droits réservés.',
     'hero.cta': 'Prendre rendez-vous',
     'hero.secondary': 'Voir les services',
@@ -341,7 +343,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'admin.push.iosStep2': 'اختاري «إضافة إلى الشاشة الرئيسية».',
     'admin.push.iosStep3': 'افتحي {salon} من الأيقونة الجديدة ثم عودي إلى هنا.',
     'hero.tagline': 'جمالكِ، خبرتنا',
-    'hero.subtitle': 'صالون تجميل وحلاقة في {city}، حيث كل زيارة لحظة عناية وراحة.',
+    'hero.subtitle': 'صالون تجميل وحلاقة في قلب {city}، حيث كل زيارة لحظة عناية وراحة.',
+    'hero.subtitleNoCity': 'صالون تجميل وحلاقة، حيث كل زيارة لحظة عناية وراحة.',
     'footer.rights': 'جميع الحقوق محفوظة.',
     'hero.cta': 'حجز موعد',
     'hero.secondary': 'تصفحي الخدمات',

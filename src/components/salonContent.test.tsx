@@ -25,7 +25,8 @@ vi.mock('../data/queries', () => ({
 vi.mock('../lib/auth', () => ({ useSession: () => ({ session: null, loading: false }) }));
 vi.mock('./LoginForm', () => ({ LoginForm: () => null }));
 
-import { LanguageProvider } from '../context/LanguageContext';
+import { LanguageProvider, translations } from '../context/LanguageContext';
+import { salonSubtitle } from '../data/formatters';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { Hero } from './Hero';
@@ -81,7 +82,7 @@ describe('a salon without claims or story', () => {
 
   it('puts the salon city in the subtitle', () => {
     renderAll(<Hero />);
-    expect(screen.getByText(/à Oran/)).toBeInTheDocument();
+    expect(screen.getByText(/au cœur d\u2019Oran,/)).toBeInTheDocument();
   });
 
   it('shows only the stylist count, no rating line and no story', () => {
@@ -120,5 +121,27 @@ describe('Élégance', () => {
     expect(screen.getByText('Amina')).toBeInTheDocument();
     expect(screen.getByText(/Fondatrice & coiffeuse/)).toBeInTheDocument();
     expect(screen.getByText(/Depuis quinze ans/)).toBeInTheDocument();
+  });
+});
+
+describe('salonSubtitle', () => {
+  const FR = 'Un salon de coiffure et beauté au cœur d’Alger, où chaque visite est un moment de soin et de détente.';
+  const AR = 'صالون تجميل وحلاقة في قلب الجزائر العاصمة، حيث كل زيارة لحظة عناية وراحة.';
+  const tr = (lang: 'fr' | 'ar') => (k: string) => translations[lang][k];
+
+  it('equals the original Élégance copy in both languages', () => {
+    expect(salonSubtitle(tr('fr'), 'fr', 'Alger')).toBe(FR);
+    expect(salonSubtitle(tr('ar'), 'ar', 'الجزائر العاصمة')).toBe(AR);
+  });
+  it('elides before a vowel or h, not before a consonant', () => {
+    expect(salonSubtitle(tr('fr'), 'fr', 'Éloued')).toContain('au cœur d’Éloued,');
+    expect(salonSubtitle(tr('fr'), 'fr', 'Blida')).toContain('au cœur de Blida,');
+  });
+  it('drops the city while it is missing', () => {
+    expect(salonSubtitle(tr('fr'), 'fr', undefined)).toBe(
+      'Un salon de coiffure et beauté, où chaque visite est un moment de soin et de détente.'
+    );
+    expect(salonSubtitle(tr('fr'), 'fr', '')).not.toContain('de ,');
+    expect(salonSubtitle(tr('ar'), 'ar', undefined)).not.toContain('{city}');
   });
 });

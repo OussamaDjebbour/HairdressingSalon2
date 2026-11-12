@@ -75,3 +75,13 @@ export function formatPhone(phone: string): string {
 export function formatNumber(n: number, lang: Lang = 'fr'): string {
   return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'fr-FR').replace(/\s/g, ' ');
 }
+
+/** The hero/footer sentence naming the city, with French elision ("au cœur d’Alger", "au cœur de Blida"). */
+export function salonSubtitle(t: (key: string) => string, lang: Lang, city: string | undefined): string {
+  const name = city?.trim();
+  if (!name) return t('hero.subtitleNoCity');
+  const text = t('hero.subtitle');
+  if (lang === 'ar') return text.replace('{city}', name);
+  const vowelOrH = /^[aeiouyh]/i.test(name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  return text.replace('de {city}', vowelOrH ? `d\u2019${name}` : `de ${name}`);
+}

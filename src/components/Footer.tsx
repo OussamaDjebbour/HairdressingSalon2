@@ -4,7 +4,7 @@ import { useLang } from '../context/LanguageContext';
 import { useSalon } from '../data/salon';
 import { useSalonHours, useSalonInfo } from '../data/salonSettings';
 import { groupHours } from '../data/hours';
-import { formatDayName, formatPhone } from '../data/formatters';
+import { formatDayName, formatPhone, salonSubtitle } from '../data/formatters';
 import { minutesToTime } from '../data/week';
 import { toWaNumber } from '../data/whatsapp';
 import type { Weekday } from '../data/types';
@@ -30,7 +30,7 @@ export function Footer() {
           <div className="lg:col-span-1">
             <h3 className="font-display italic text-2xl font-semibold text-cream-50 mb-1">{salon.name[lang]}</h3>
             <p className="text-[0.7rem] uppercase tracking-[0.28em] text-gold-400 font-semibold mb-4">{info?.city[lang]}</p>
-            <p className="text-sm text-cream-200/80 leading-relaxed max-w-xs">{t('hero.subtitle').replace('{city}', info?.city[lang] ?? '')}</p>
+            <p className="text-sm text-cream-200/80 leading-relaxed max-w-xs">{salonSubtitle(t, lang, info?.city[lang])}</p>
           </div>
 
           <div>

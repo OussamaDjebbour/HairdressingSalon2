@@ -36,7 +36,8 @@ update public.salons set
   years_open = 15,
   client_count = 2500,
   rating = 4.9,
-  review_count = 240
+  review_count = 240,
+  city = jsonb_set(city, '{ar}', '"الجزائر العاصمة"')
 where id = 'elegance';
 
 -- Which salon a host name belongs to. Stored lowercase, without a port, trailing dot or leading www.
