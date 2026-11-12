@@ -97,4 +97,17 @@ describe('NotificationsCard edge states', () => {
     expect(screen.getByText('Les notifications sont désactivées dans la démo.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Activer' })).toBeNull();
   });
+
+  it.each<PushState>(['on', 'needs-install', 'denied', 'unsupported', 'not-configured'])(
+    'in the demo shows only the disabled message and no buttons when the push state is %s',
+    (s) => {
+      state = s;
+      role = 'demo';
+      renderCard();
+      expect(screen.getByText('Les notifications sont désactivées dans la démo.')).toBeInTheDocument();
+      expect(screen.queryAllByRole('button')).toHaveLength(0);
+      expect(screen.queryByText('Activées sur cet appareil.')).toBeNull();
+      expect(disable).not.toHaveBeenCalled();
+    }
+  );
 });

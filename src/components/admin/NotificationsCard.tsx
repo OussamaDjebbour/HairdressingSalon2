@@ -24,6 +24,24 @@ export function NotificationsCard() {
 
   if (state === 'loading') return null;
 
+  // The shared demo account never manages push: no enable/test/disable, whatever this device's
+  // state (a device already subscribed by the owner must not be unsubscribed from the demo).
+  if (role === 'demo') {
+    return (
+      <section aria-label={t('admin.push.title')} className="max-w-3xl mx-auto mb-4 rounded-2xl bg-white border border-cream-200 shadow-soft px-4 py-3">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex items-center justify-center w-8 h-8 rounded-full bg-cream-100 border border-gold-200/70 flex-shrink-0">
+            <BellOff className="w-4 h-4 text-gold-600" strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <div className="flex-1 min-w-0 text-sm">
+            <p className="font-semibold text-rose-800">{t('admin.push.title')}</p>
+            <p className="mt-1 text-rose-700">{t('admin.push.demoDisabled')}</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const Icon = state === 'on' ? BellRing : state === 'needs-install' ? Smartphone : BellOff;
 
   return (
@@ -45,9 +63,7 @@ export function NotificationsCard() {
             </ol>
           )}
 
-          {state === 'off' && role === 'demo' && <p className="mt-1 text-rose-700">{t('admin.push.demoDisabled')}</p>}
-
-          {state === 'off' && role !== 'demo' && (
+          {state === 'off' && (
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
               <p className="text-rose-700">{t('admin.push.offText')}</p>
               <button type="button" disabled={busy} onClick={() => enable(lang)} className="btn-primary btn-sm">

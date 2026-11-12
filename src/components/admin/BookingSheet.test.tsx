@@ -312,6 +312,17 @@ describe('BookingSheet — demo account', () => {
     expect(href.startsWith('https://wa.me/213555001122?text=')).toBe(true);
   });
 
+  it('hides the call shortcut (the number is masked)', () => {
+    role = 'demo';
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: masked }) });
+    expect(document.querySelector('a[href^="tel:"]')).toBeNull();
+  });
+
+  it('keeps the call shortcut for the owner', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    expect(document.querySelector('a[href^="tel:"]')).toHaveAttribute('href', 'tel:0555123456');
+  });
+
   it('keeps the client number for the owner', () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet({ mode: 'edit', booking: adminBooking() });

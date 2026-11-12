@@ -250,10 +250,13 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
                 <span className="text-xs text-rose-600">
                   {t(editing.source === 'staff' ? 'schedule.source.staff' : 'schedule.source.online')}
                 </span>
-                <a href={`tel:${editing.clientPhone}`} dir="ltr" className="ms-auto inline-flex items-center gap-1 text-sm text-rose-700 hover:text-rose-900">
-                  <Phone className="w-3.5 h-3.5" strokeWidth={1.8} />
-                  {editing.clientPhone}
-                </a>
+                {/* The demo account sees a masked number: no call shortcut, it would dial nonsense. */}
+                {!demo && (
+                  <a href={`tel:${editing.clientPhone}`} dir="ltr" className="ms-auto inline-flex items-center gap-1 text-sm text-rose-700 hover:text-rose-900">
+                    <Phone className="w-3.5 h-3.5" strokeWidth={1.8} />
+                    {editing.clientPhone}
+                  </a>
+                )}
               </div>
             )}
 
