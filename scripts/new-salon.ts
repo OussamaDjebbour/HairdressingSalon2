@@ -1,13 +1,16 @@
 /**
- * pnpm new-salon <slug> [--dry-run] [--yes]
+ * pnpm new-salon <slug> [--dry-run] [--reapply-settings [--yes]]
  *
  * Launches (or updates) the salon described by salons/<slug>.json: validates the config, makes
  * its colour palette, uploads its photos, creates the owner's login, provisions the salon in the
- * database and attaches its domains in Cloudflare. Safe to re-run: every step is idempotent.
+ * database and attaches its domains in Cloudflare. Safe to re-run: every step is idempotent, and on
+ * an existing salon only the product owner's keys are sent (the owner's Réglages edits are kept).
  * Secrets come from the git-ignored .env.admin (see .env.admin.example). See salons/README.md.
  *
- *   --dry-run  validate and print the provision payload; writes nothing
- *   --yes      re-run on an existing salon without asking (its listed values are re-applied)
+ *   --dry-run            validate and print the provision payload; writes nothing
+ *   --reapply-settings   existing salon: also overwrite hours, contact info, services and stylists
+ *                        with the file (asks first)
+ *   --yes                answer yes to that question
  */
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -56,13 +59,13 @@ const CONTENT_TYPES: Record<string, string> = {
 
 function parseArgs(argv: string[]) {
   const flags = new Set(argv.filter((a) => a.startsWith('--')));
-  const unknown = [...flags].filter((f) => f !== '--dry-run' && f !== '--yes');
+  const unknown = [...flags].filter((f) => !['--dry-run', '--yes', '--reapply-settings'].includes(f));
   const [slug, ...rest] = argv.filter((a) => !a.startsWith('--'));
   if (!slug || rest.length || unknown.length || !/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
-    console.error('Usage: pnpm new-salon <slug> [--dry-run] [--yes]   (reads salons/<slug>.json)');
+    console.error('Usage: pnpm new-salon <slug> [--dry-run] [--reapply-settings [--yes]]   (reads salons/<slug>.json)');
     process.exit(2);
   }
-  return { slug, dryRun: flags.has('--dry-run'), yes: flags.has('--yes') };
+  return { slug, dryRun: flags.has('--dry-run'), yes: flags.has('--yes'), reapply: flags.has('--reapply-settings') };
 }
 
 function loadEnv(required: boolean) {
@@ -112,23 +115,32 @@ function env(name: string): string {
   return v;
 }
 
-async function confirmRerun(slug: string, config: SalonConfig, yes: boolean) {
+/**
+ * On an existing salon, a re-run sends only the product owner's keys (name, colours, photo, story,
+ * claims, domains, owner). With --reapply-settings it also overwrites the owner's own settings,
+ * so it asks first (--yes answers for her).
+ */
+async function confirmExisting(slug: string, config: SalonConfig, reapply: boolean, yes: boolean) {
+  if (!reapply) {
+    ok(`Salon "${config.id}" already exists: updating name, colours, photo, story, claims, domains (when listed) and owner only; ` +
+      "hours, contact info, services and stylists keep the owner's edits (--reapply-settings to overwrite them)");
+    return;
+  }
   warn(
-    `Salon "${config.id}" already exists. Re-running re-applies every value salons/${slug}.json lists ` +
-      '(hours, address, WhatsApp, services and prices, stylists and their days, …) over the owner\'s own edits in Réglages. ' +
-      'Values the file leaves out are kept.',
+    `Salon "${config.id}" already exists. --reapply-settings overwrites the owner's own edits in Réglages with ` +
+      `salons/${slug}.json: hours, address, WhatsApp, links, services and prices, stylists and their days.`,
   );
   if (yes) return;
-  if (!process.stdin.isTTY) fail('Not re-applying without confirmation: run again with --yes');
+  if (!process.stdin.isTTY) fail('Not overwriting the owner\'s settings without confirmation: run again with --yes');
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const answer = await rl.question('Continue? [y/N] ');
   rl.close();
   if (!/^y(es)?$/i.test(answer.trim())) fail('Stopped: nothing was changed');
 }
 
-async function uploadPhotos(supabase: SupabaseClient, slug: string, config: SalonConfig) {
+async function uploadPhotos(supabase: SupabaseClient, slug: string, config: SalonConfig, settings: boolean) {
   const urls: Record<string, string> = {};
-  for (const ref of localPhotos(config)) {
+  for (const ref of localPhotos(config, { settings })) {
     const path = storagePath(config.id, ref);
     const { error } = await supabase.storage.from(BUCKET).upload(path, readFileSync(photoFile(slug, ref)), {
       upsert: true,
@@ -158,7 +170,8 @@ async function ensureOwner(supabase: SupabaseClient, email: string): Promise<{ i
   const password = randomBytes(12).toString('base64url');
   const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
   if (error || !data.user) fail(`Creating the owner login failed: ${error?.message ?? 'no user returned'}`);
-  ok(`Owner login ${email} created`);
+  // Printed now: if a later step fails, a re-run finds the login and can't show the password again.
+  ok(`Owner login ${email} created, password (shown once, give it to the owner): ${password}`);
   return { id: data.user.id, password };
 }
 
@@ -194,78 +207,97 @@ async function attachDomains(cf: Cloudflare, domains: string[]): Promise<{ todo:
   return { todo, failed };
 }
 
-async function main() {
-  const { slug, dryRun, yes } = parseArgs(process.argv.slice(2));
+function supabaseClient(url: string, key: string): SupabaseClient {
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    // Realtime is never used here; Node 20 has no global WebSocket for it to find.
+    realtime: { transport: NoRealtime as never },
+  });
+}
 
-  // 1. environment and config
+async function salonExists(supabase: SupabaseClient, id: string): Promise<boolean> {
+  const { data, error } = await supabase.from('salons').select('id').eq('id', id).maybeSingle();
+  if (error) fail(`Reading salons failed: ${error.message}`);
+  return data !== null;
+}
+
+async function main() {
+  const { slug, dryRun, yes, reapply } = parseArgs(process.argv.slice(2));
+
+  // 1. environment and config (every variable is checked before anything is written)
   loadEnv(!dryRun);
   const config = loadConfig(slug);
+  const token = process.env.CLOUDFLARE_API_TOKEN?.trim();
+  const cloudflare: Cloudflare | null =
+    dryRun || !token
+      ? null
+      : { accountId: env('CLOUDFLARE_ACCOUNT_ID'), apiToken: token, project: env('CLOUDFLARE_PAGES_PROJECT') };
+  const supabaseUrl = dryRun ? process.env.SUPABASE_URL?.trim() : env('SUPABASE_URL');
+  const serviceKey = dryRun ? process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() : env('SUPABASE_SERVICE_ROLE_KEY');
+  const supabase = supabaseUrl && serviceKey ? supabaseClient(supabaseUrl, serviceKey) : null;
 
   // 2. palette
   const { palette, warnings } = generatePalette(config.color);
   ok(`Palette from ${config.color.toUpperCase()}: ${Object.values(palette).join(' ')}`);
   for (const w of warnings) warn(w);
 
+  // A new salon gets everything; an existing one only the product owner's keys, unless asked.
+  const existing = supabase ? await salonExists(supabase, config.id) : false;
+  const settings = !existing || reapply;
+  if (existing) await confirmExisting(slug, config, reapply, yes || dryRun);
+
   if (dryRun) {
-    const base = process.env.SUPABASE_URL?.trim().replace(/\/+$/, '');
-    const urls = Object.fromEntries(localPhotos(config).map((ref) => [ref,
+    if (!supabase) warn('No database access (.env.admin): showing the payload for a new salon');
+    const base = supabaseUrl?.replace(/\/+$/, '');
+    const urls = Object.fromEntries(localPhotos(config, { settings }).map((ref) => [ref,
       base ? `${base}/storage/v1/object/public/${BUCKET}/${storagePath(config.id, ref)}` : `<upload of ${ref}>`]));
-    console.log(JSON.stringify(buildProvisionPayload(config, palette, urls), null, 2));
+    console.log(JSON.stringify(buildProvisionPayload(config, palette, urls, undefined, { settings }), null, 2));
     ok('Dry run: the payload above is valid (owner_user_id is added once the login exists); nothing was written');
     return;
   }
-
-  const supabaseUrl = env('SUPABASE_URL');
-  const supabase = createClient(supabaseUrl, env('SUPABASE_SERVICE_ROLE_KEY'), {
-    auth: { persistSession: false, autoRefreshToken: false },
-    // Realtime is never used here; Node 20 has no global WebSocket for it to find.
-    realtime: { transport: NoRealtime as never },
-  });
-  const { data: existing, error: existsError } = await supabase.from('salons').select('id').eq('id', config.id).maybeSingle();
-  if (existsError) fail(`Reading salons failed: ${existsError.message}`);
-  if (existing) await confirmRerun(slug, config, yes);
+  if (!supabase || !supabaseUrl) return fail('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set (in .env.admin)');
 
   // 3. photos
-  const photoUrls = await uploadPhotos(supabase, slug, config);
+  const photoUrls = await uploadPhotos(supabase, slug, config, settings);
 
   // 4. owner login
   const owner = await ensureOwner(supabase, config.owner.email);
 
   // 5. salon
-  const payload = buildProvisionPayload(config, palette, photoUrls, owner.id);
+  const payload = buildProvisionPayload(config, palette, photoUrls, owner.id, { settings });
+  const domains = payload.domains ?? [];
   const { error } = await supabase.rpc('provision_salon', { p: payload });
   if (error) {
     const code = error.message.trim();
     fail(`provision_salon: ${PROVISION_ERRORS[code] ? `${PROVISION_ERRORS[code]} (${code})` : error.message}`);
   }
-  ok(`Salon "${config.id}" ${existing ? 'updated' : 'created'} (${payload.domains.length} domains, ${payload.services.length} services, ${payload.stylists.length} stylists)`);
+  ok(existing
+    ? `Salon "${config.id}" updated: name, colours, photo, story, claims, ${domains.length ? 'domains, ' : ''}owner` +
+        (settings ? ', and hours, contact, services and stylists re-applied' : " (the owner's settings are kept)")
+    : `Salon "${config.id}" created (${domains.length} domains, ${config.services.length} services, ${config.stylists.length} stylists)`);
 
   // 6. domains
   let todo: string[] = [];
   let cfFailed = false;
-  const token = process.env.CLOUDFLARE_API_TOKEN?.trim();
-  if (!payload.domains.length) {
-    warn('No domains in the config: the salon has no web address yet');
-  } else if (!token) {
+  if (!domains.length) {
+    warn(existing ? 'No domains in the config: the salon keeps its current domains' : 'No domains in the config: the salon has no web address yet');
+  } else if (!cloudflare) {
     warn('Cloudflare step skipped: CLOUDFLARE_API_TOKEN is not set (domains not attached to the Pages project)');
   } else {
-    ({ todo, failed: cfFailed } = await attachDomains(
-      { accountId: env('CLOUDFLARE_ACCOUNT_ID'), apiToken: token, project: env('CLOUDFLARE_PAGES_PROJECT') },
-      payload.domains,
-    ));
+    ({ todo, failed: cfFailed } = await attachDomains(cloudflare, domains));
   }
 
   // 7. summary
   const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(supabaseUrl);
-  const sites = local ? [`http://localhost:5173/?salon=${config.id}`] : payload.domains.map((d) => `https://${d}`);
+  const sites = local ? [`http://localhost:5173/?salon=${config.id}`] : domains.map((d) => `https://${d}`);
   console.log('\nSummary');
   for (const s of sites) info(`Site:   ${s}`);
   if (sites.length) info(`Admin:  ${sites[0].replace(/\/?(\?.*)?$/, '/admin$1')}`);
   info(`Owner:  ${config.owner.email}`);
   if (owner.password) info(`Password (shown once, give it to the owner): ${owner.password}`);
   const left = [
-    ...(payload.domains.length ? [] : ['Buy the domain (Cloudflare Registrar), add it to "domains" and re-run']),
-    ...(payload.domains.length && !token ? ['Buy the domain if not done, set the Cloudflare variables in .env.admin and re-run to attach it'] : []),
+    ...(domains.length ? [] : ['Buy the domain (Cloudflare Registrar), add it to "domains" and re-run (the owner\'s settings are kept)']),
+    ...(domains.length && !cloudflare ? ['Buy the domain if not done, set the Cloudflare variables in .env.admin and re-run to attach it'] : []),
     ...todo,
     ...(cfFailed ? ['Fix the Cloudflare errors above and re-run'] : []),
   ];

@@ -1,8 +1,12 @@
 /**
  * Turns a validated salon config into the jsonb `public.provision_salon` takes (its shape is
  * documented at the top of the function in supabase/migrations/20261114100000_salon_branding.sql).
- * Keys the config leaves out are left out of the payload too, so the salon keeps their current
- * value (the owner's Réglages edits); every key the config lists is (re-)applied. Pure.
+ * A key left out of the payload keeps the salon's current value. Left out:
+ * - keys the config leaves out, and an empty `domains` list (it would remove every domain);
+ * - unless `settings` is true, the owner's own settings (hours, address/city/WhatsApp/socials,
+ *   services, stylists): sent when creating the salon, and on an existing salon only when the
+ *   product owner asks to re-apply them, so re-runs never undo the owner's Réglages edits.
+ * Pure.
  */
 import type { Palette } from '../../src/lib/palette';
 import { normalizeHost } from '../../src/lib/host';
@@ -43,16 +47,21 @@ export interface ProvisionPayload {
   client_count?: number;
   rating?: number;
   review_count?: number;
-  address: BilingualText;
-  city: BilingualText;
-  whatsapp: string;
+  address?: BilingualText;
+  city?: BilingualText;
+  whatsapp?: string;
   instagram_url?: string;
   facebook_url?: string;
-  domains: string[];
-  hours: Array<{ weekday: number; opens: string | null; closes: string | null }>;
-  services: ServicePayload[];
-  stylists: StylistPayload[];
+  domains?: string[];
+  hours?: Array<{ weekday: number; opens: string | null; closes: string | null }>;
+  services?: ServicePayload[];
+  stylists?: StylistPayload[];
   owner_user_id?: string;
+}
+
+/** The product owner's keys are always sent; `settings: true` also sends the owner's settings. */
+export interface PayloadOptions {
+  settings: boolean;
 }
 
 /** {fr, ar?} -> {fr, ar}: a missing Arabic text falls back to the French one. */
@@ -60,9 +69,10 @@ export function bilingual(b: Bilingual): BilingualText {
   return { fr: b.fr, ar: b.ar?.trim() ? b.ar : b.fr };
 }
 
-/** Every photo the config gives as a local file (under salons/<slug>/photos/), once each. */
-export function localPhotos(config: SalonConfig): string[] {
-  const refs = [config.heroPhoto, ...config.services.map((s) => s.photo), ...config.stylists.map((s) => s.photo)];
+/** Every photo the payload needs as a local file (under salons/<slug>/photos/), once each. */
+export function localPhotos(config: SalonConfig, { settings }: PayloadOptions = { settings: true }): string[] {
+  const refs = [config.heroPhoto];
+  if (settings) refs.push(...config.services.map((s) => s.photo), ...config.stylists.map((s) => s.photo));
   return [...new Set(refs.filter((r): r is string => r !== undefined && isLocalPhoto(r)))];
 }
 
@@ -76,6 +86,7 @@ export function buildProvisionPayload(
   palette: Palette,
   photoUrls: Record<string, string>,
   ownerUserId?: string,
+  { settings }: PayloadOptions = { settings: true },
 ): ProvisionPayload {
   const image = (ref: string | undefined) => {
     if (ref === undefined) return {};
@@ -86,6 +97,7 @@ export function buildProvisionPayload(
   };
   const optional = <T>(key: string, value: T | undefined) => (value === undefined ? {} : { [key]: value });
   const claims = config.claims ?? {};
+  const domains = [...new Set(config.domains.map(normalizeHost))];
 
   return {
     id: config.id,
@@ -101,33 +113,35 @@ export function buildProvisionPayload(
     ...optional('client_count', claims.clientCount),
     ...optional('rating', claims.rating),
     ...optional('review_count', claims.reviewCount),
-    address: bilingual(config.address),
-    city: bilingual(config.city),
-    whatsapp: config.whatsapp,
-    ...optional('instagram_url', config.instagram),
-    ...optional('facebook_url', config.facebook),
-    domains: [...new Set(config.domains.map(normalizeHost))],
-    hours: WEEKDAYS.map((day, i) => {
-      const range = parseHoursRange(config.hours[day]);
-      return { weekday: i + 1, opens: range?.[0] ?? null, closes: range?.[1] ?? null };
+    ...(settings && {
+      address: bilingual(config.address),
+      city: bilingual(config.city),
+      whatsapp: config.whatsapp,
+      ...optional('instagram_url', config.instagram),
+      ...optional('facebook_url', config.facebook),
+      hours: WEEKDAYS.map((day, i) => {
+        const range = parseHoursRange(config.hours[day]);
+        return { weekday: i + 1, opens: range?.[0] ?? null, closes: range?.[1] ?? null };
+      }),
+      services: config.services.map((s) => ({
+        id: s.id,
+        category: s.category,
+        name: bilingual(s.name),
+        ...(s.description && { description: bilingual(s.description) }),
+        price: s.price,
+        duration: s.duration,
+        ...image(s.photo),
+      })),
+      stylists: config.stylists.map((s) => ({
+        id: s.id,
+        name: s.name,
+        ...(s.role && { role: bilingual(s.role) }),
+        ...image(s.photo),
+        services: s.services,
+        ...(s.workdays && { weekdays: s.workdays.map((d) => WEEKDAYS.indexOf(d) + 1) }),
+      })),
     }),
-    services: config.services.map((s) => ({
-      id: s.id,
-      category: s.category,
-      name: bilingual(s.name),
-      ...(s.description && { description: bilingual(s.description) }),
-      price: s.price,
-      duration: s.duration,
-      ...image(s.photo),
-    })),
-    stylists: config.stylists.map((s) => ({
-      id: s.id,
-      name: s.name,
-      ...(s.role && { role: bilingual(s.role) }),
-      ...image(s.photo),
-      services: s.services,
-      ...(s.workdays && { weekdays: s.workdays.map((d) => WEEKDAYS.indexOf(d) + 1) }),
-    })),
+    ...(domains.length > 0 && { domains }),
     ...optional('owner_user_id', ownerUserId),
   } as ProvisionPayload;
 }

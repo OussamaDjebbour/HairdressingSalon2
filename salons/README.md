@@ -8,25 +8,33 @@ Each salon is described by one file, `salons/<slug>.json`, with its photos in
 cp .env.admin.example .env.admin        # once: Supabase service key + Cloudflare token
 cp salons/example.json salons/sara.json # then edit it, put the photos in salons/sara/photos/
 pnpm new-salon sara --dry-run           # check the file; prints what would be sent, writes nothing
-pnpm new-salon sara                     # launch
+pnpm new-salon sara                     # launch (or, later, update the branding/domains)
 ```
 
 The script, step by step (each line printed with ✓, ! for a warning, ✗ for a failure):
 
-1. loads `.env.admin` and checks `salons/<slug>.json` (every mistake is listed with its field);
+1. loads `.env.admin` (every variable it needs is checked before anything is written) and checks
+   `salons/<slug>.json` (every mistake is listed with its field);
 2. makes the colour shades from `color` and warns when a shade had to be darkened to stay readable;
 3. uploads the local photos to the `salon-photos` bucket, under `<salon id>/`;
 4. finds the owner's login by email, or creates it with a password **printed once**;
-5. creates or updates the salon (`provision_salon`): salon info, colours, domains, hours, services, stylists, owner;
+5. creates the salon (`provision_salon`) with everything in the file, or updates an existing one (see re-running below);
 6. attaches each domain to the Cloudflare Pages project (a bare domain also gets `www.`) and adds
    its DNS record when the domain is in the Cloudflare account; otherwise it prints the record to
    add at the domain's DNS provider. Skipped with a warning when `CLOUDFLARE_API_TOKEN` is empty;
 7. prints the site and `/admin` addresses, the owner's login and what's left to do by hand.
 
-**Re-running** is safe (nothing is duplicated), but it re-applies every value the file lists —
-hours, address, WhatsApp, services and prices, stylists and their days — over the owner's own
-edits in Réglages, so the script asks first (`--yes` skips the question). Keys left out of the
-file keep their current value. After the launch, the owner's Réglages are the source of truth.
+**Re-running** is safe (nothing is duplicated) and never undoes the owner's own edits: on an
+existing salon the script only sends the product owner's keys — `name`, `color`, `heroPhoto`,
+`story`, `storyIntro`, `founder`, `claims`, `domains` (when not empty) and the owner's login. Hours,
+address, city, WhatsApp, links, services and stylists are only written when the salon is created;
+after that they belong to the owner (Réglages). To overwrite them with the file anyway, run
+`pnpm new-salon <slug> --reapply-settings` (it asks first; `--yes` answers for you). An empty
+`domains` list is never sent, so it can't take a salon's site offline; keys left out of the file
+keep their current value.
+
+The owner's password is printed as soon as her login is created (and again in the summary): note
+it then, a later run can't show it again.
 
 ## The file
 

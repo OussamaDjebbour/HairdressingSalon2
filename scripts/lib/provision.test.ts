@@ -34,7 +34,7 @@ describe('buildProvisionPayload', () => {
 
   it('defaults a missing Arabic text to the French one', () => {
     const p = buildProvisionPayload(example(), palette, {});
-    const lina = p.stylists.find((s) => s.id === 'example-lina')!;
+    const lina = p.stylists!.find((s) => s.id === 'example-lina')!;
     expect(lina.role).toEqual({ fr: 'Esthéticienne', ar: 'Esthéticienne' });
     expect(p.founder_name).toEqual({ fr: 'Sara', ar: 'سارة' });
   });
@@ -57,7 +57,7 @@ describe('buildProvisionPayload', () => {
       owner_user_id: OWNER,
     });
     expect(p.hero_image).toMatch(/^https:\/\/images\.pexels\.com\//);
-    expect(p.services[0]).toEqual({
+    expect(p.services![0]).toEqual({
       id: 'example-coupe',
       category: 'coiffure',
       name: { fr: 'Coupe & brushing', ar: 'قص وتصفيف' },
@@ -66,7 +66,7 @@ describe('buildProvisionPayload', () => {
       duration: 60,
       image: expect.stringMatching(/^https:\/\//),
     });
-    expect(p.stylists[0]).toMatchObject({ services: ['example-coupe', 'example-couleur'], weekdays: [2, 3, 4, 6] });
+    expect(p.stylists![0]).toMatchObject({ services: ['example-coupe', 'example-couleur'], weekdays: [2, 3, 4, 6] });
   });
 
   it('leaves out what the config leaves out, so the owner keeps her edits', () => {
@@ -79,10 +79,10 @@ describe('buildProvisionPayload', () => {
     for (const key of ['story', 'founder_name', 'founder_role', 'years_open', 'rating', 'instagram_url', 'facebook_url', 'owner_user_id']) {
       expect(p).not.toHaveProperty(key);
     }
-    const couleur = p.services.find((s) => s.id === 'example-couleur')!;
+    const couleur = p.services!.find((s) => s.id === 'example-couleur')!;
     expect(couleur).not.toHaveProperty('description');
     expect(couleur).not.toHaveProperty('image');
-    expect(p.stylists.find((s) => s.id === 'example-lina')).not.toHaveProperty('weekdays');
+    expect(p.stylists!.find((s) => s.id === 'example-lina')).not.toHaveProperty('weekdays');
   });
 
   it('clears the Arabic name when the config has none (the site then uses the French name)', () => {
@@ -98,12 +98,47 @@ describe('buildProvisionPayload', () => {
     const urls = { 'hero.jpg': 'https://db.example.co/hero', 'lina.jpg': 'https://db.example.co/lina' };
     const p = buildProvisionPayload(parseSalonConfig(json), palette, urls);
     expect(p.hero_image).toBe('https://db.example.co/hero');
-    expect(p.stylists[1].image).toBe('https://db.example.co/lina');
+    expect(p.stylists![1].image).toBe('https://db.example.co/lina');
   });
 
   it('throws when a local photo has no uploaded URL', () => {
     const json = { ...exampleJson(), heroPhoto: 'hero.jpg' };
     expect(() => buildProvisionPayload(parseSalonConfig(json), palette, {})).toThrow(/hero\.jpg/);
+  });
+});
+
+describe('re-running on an existing salon', () => {
+  const SETTINGS = ['hours', 'address', 'city', 'whatsapp', 'instagram_url', 'facebook_url', 'services', 'stylists'];
+  const BRANDING = ['id', 'name', 'name_ar', 'palette', 'hero_image', 'story', 'story_intro', 'founder_name',
+    'founder_role', 'years_open', 'client_count', 'rating', 'review_count', 'domains', 'owner_user_id'];
+
+  it("sends only the product owner's keys, so the owner's Réglages edits are kept", () => {
+    const p = buildProvisionPayload(example(), palette, {}, OWNER, { settings: false });
+    for (const key of SETTINGS) expect(p).not.toHaveProperty(key);
+    for (const key of BRANDING) expect(p).toHaveProperty(key);
+  });
+
+  it('re-applies hours, contact, services and stylists when asked (--reapply-settings)', () => {
+    const json = { ...exampleJson(), facebook: 'https://facebook.com/salon.exemple' };
+    const p = buildProvisionPayload(parseSalonConfig(json), palette, {}, OWNER, { settings: true });
+    for (const key of [...SETTINGS, ...BRANDING]) expect(p).toHaveProperty(key);
+  });
+
+  it('only needs the photos it sends', () => {
+    const json = exampleJson();
+    json.heroPhoto = 'hero.jpg';
+    json.services[1].photo = 'couleur.jpg';
+    expect(localPhotos(parseSalonConfig(json), { settings: false })).toEqual(['hero.jpg']);
+    const p = buildProvisionPayload(parseSalonConfig(json), palette, { 'hero.jpg': 'https://x/hero' }, OWNER, { settings: false });
+    expect(p.hero_image).toBe('https://x/hero');
+  });
+});
+
+describe('domains', () => {
+  it('never sends an empty list (it would remove the salon\'s domains)', () => {
+    const json = { ...exampleJson(), domains: [] };
+    expect(buildProvisionPayload(parseSalonConfig(json), palette, {})).not.toHaveProperty('domains');
+    expect(buildProvisionPayload(parseSalonConfig(json), palette, {}, OWNER, { settings: false })).not.toHaveProperty('domains');
   });
 });
 
