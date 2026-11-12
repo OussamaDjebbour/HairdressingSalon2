@@ -103,20 +103,32 @@ $$;
 
 revoke execute on function private.salon_snapshot(text) from public, anon, authenticated;
 
--- Makes a salon the demo: flags it, makes p_user_id its demo staff account (staff_taken when that
--- user is staff of another salon), and stores the public login and a snapshot of the salon as it
--- is now. Re-running replaces the login and the snapshot. Service role only.
--- Raises (P0001): not_found (no such salon), staff_taken.
+-- Makes a salon the demo: flags it, makes p_user_id its demo staff account, and stores the public
+-- login and a snapshot of the salon as it is now. Only a new user or an existing 'demo' account can
+-- be (re)configured: an owner is never turned into the shared demo account. p_email must be that
+-- user's auth email (compared trimmed and case-insensitively; the auth email is what is stored).
+-- Re-running replaces the login and the snapshot. Service role only.
+-- Raises (P0001), checked in this order before any write: not_found (no such salon), staff_taken
+-- (staff of another salon), owner_account (an owner of this salon), email_mismatch.
 create function public.setup_demo(p_salon_id text, p_user_id uuid, p_email text, p_password text)
 returns void
 language plpgsql volatile security definer set search_path = ''
 as $$
+declare
+  v_email text;
 begin
   if not exists (select 1 from public.salons s where s.id = p_salon_id) then
     raise exception 'not_found' using errcode = 'P0001';
   end if;
   if exists (select 1 from private.staff s where s.user_id = p_user_id and s.salon_id <> p_salon_id) then
     raise exception 'staff_taken' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from private.staff s where s.user_id = p_user_id and s.role = 'owner') then
+    raise exception 'owner_account' using errcode = 'P0001';
+  end if;
+  select u.email into v_email from auth.users u where u.id = p_user_id;
+  if v_email is null or lower(v_email) <> lower(btrim(coalesce(p_email, ''))) then
+    raise exception 'email_mismatch' using errcode = 'P0001';
   end if;
 
   update public.salons s set demo = true where s.id = p_salon_id;
@@ -125,7 +137,7 @@ begin
   on conflict (user_id) do update set role = 'demo';
 
   insert into private.demo_settings (salon_id, login_email, login_password, snapshot)
-  values (p_salon_id, p_email, p_password, private.salon_snapshot(p_salon_id))
+  values (p_salon_id, v_email, p_password, private.salon_snapshot(p_salon_id))
   on conflict (salon_id) do update set
     login_email    = excluded.login_email,
     login_password = excluded.login_password,

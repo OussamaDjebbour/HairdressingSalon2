@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(41);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -36,8 +36,20 @@ select throws_ok($$ select public.setup_demo('elegance', 'dddddddd-dddd-dddd-ddd
 reset role;
 select ok(has_function_privilege('service_role', 'public.setup_demo(text, uuid, text, text)', 'execute'), 'service_role can call setup_demo');
 
+-- setup_demo never turns an owner into the demo account, and the login must be the account's email
 set local role service_role;
-select lives_ok($$ select public.setup_demo('elegance', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'demo@test.local', 'pw') $$, 'setup_demo runs');
+select throws_ok($$ select public.setup_demo('elegance', '11111111-1111-1111-1111-111111111111', 'owner@test.local', 'pw') $$,
+  'P0001', 'owner_account', 'the product owner''s account cannot become the demo account');
+select throws_ok($$ select public.setup_demo('elegance', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'other@test.local', 'pw') $$,
+  'P0001', 'email_mismatch', 'the login email must be the demo account''s email');
+reset role;
+select is((select string_agg(user_id || ' ' || role, ',' order by user_id) from private.staff), '11111111-1111-1111-1111-111111111111 owner',
+  'refused setups leave the staff unchanged (owner stays owner, no demo row)');
+select is((select demo from public.salons where id = 'elegance')::text || ' ' || (select count(*) from private.demo_settings),
+  'false 0', 'refused setups change nothing else');
+
+set local role service_role;
+select lives_ok($$ select public.setup_demo('elegance', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'Demo@Test.local ', 'pw') $$, 'setup_demo runs (email compared case-insensitively)');
 reset role;
 
 select is((select demo from public.salons where id = 'elegance'), true, 'elegance is now the demo salon');
@@ -86,6 +98,7 @@ reset role;
 
 -- re-running replaces login and snapshot
 update public.services set price = 9999 where id = 'coupe-femme';
+update auth.users set email = 'demo2@test.local' where id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 set local role service_role;
 select public.setup_demo('elegance', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'demo2@test.local', 'pw2');
 reset role;
