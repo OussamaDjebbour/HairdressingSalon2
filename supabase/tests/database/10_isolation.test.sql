@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(61);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -204,6 +204,22 @@ reset role;
 select is((select count(*)::int from public.salon_hours where salon_id = 'rival' and opens = '09:00' and closes = '18:00'), 5, 'rival hours unchanged');
 select is((select whatsapp || ' ' || instagram_url from public.salons where id = 'rival') || ' ' || (select count(*)::int from public.salon_closed_dates where salon_id = 'rival'),
           '0555000099 https://instagram.com/rival 1', 'rival salon info and closed dates unchanged');
+
+-- demo: setup never takes another salon's staff; admin_me and demo_login stay per salon
+set local role service_role;
+select throws_ok($$ select public.setup_demo('rival', '11111111-1111-1111-1111-111111111111', 'demo@test.local', 'pw') $$,
+  'P0001', 'staff_taken', 'setup_demo: elegance staff cannot become rival''s demo account');
+reset role;
+select is((select salon_id || ' ' || role from private.staff where user_id = '11111111-1111-1111-1111-111111111111') || ' ' ||
+          (select demo from public.salons where id = 'rival') || ' ' || (select count(*) from private.demo_settings),
+          'elegance owner false 0', 'a refused setup_demo changes nothing');
+select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
+set local role authenticated;
+select results_eq($$ select salon_id, role from public.admin_me() $$, $$ values ('rival', 'owner') $$, 'admin_me: rival staff see rival');
+reset role;
+set local role anon;
+select is((select count(*)::int from public.demo_login('rival')), 0, 'demo_login: no login for a salon that is not a demo');
+reset role;
 
 select * from finish();
 rollback;

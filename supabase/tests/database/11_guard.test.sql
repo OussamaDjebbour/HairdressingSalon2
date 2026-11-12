@@ -38,7 +38,7 @@ create function pg_temp.registered_api() returns text[] language sql as $$
     'admin_save_service', 'admin_set_service_active', 'admin_save_stylist', 'admin_set_stylist_active',
     'admin_add_stylist_days_off', 'admin_delete_stylist_days_off',
     'admin_set_hours', 'admin_add_closed_dates', 'admin_delete_closed_dates', 'admin_save_salon_info',
-    'admin_affected_bookings'] $$;
+    'admin_affected_bookings', 'admin_me', 'demo_login'] $$;
 
 -- Only inspects the public API schema.
 create function pg_temp.unregistered_api_functions() returns text[] language sql as $$
