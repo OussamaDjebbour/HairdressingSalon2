@@ -17,5 +17,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "references": [{ "path": "./functions" }]
+  "references": [{ "path": "./functions" }, { "path": "./scripts" }]
 }

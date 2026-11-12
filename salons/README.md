@@ -1,0 +1,56 @@
+# Launching a salon: `pnpm new-salon <slug>`
+
+Each salon is described by one file, `salons/<slug>.json`, with its photos in
+`salons/<slug>/photos/`. Both stay on the product owner's machine: they are git-ignored
+(the file holds the owner's email and phone); only `example.json` is committed.
+
+```bash
+cp .env.admin.example .env.admin        # once: Supabase service key + Cloudflare token
+cp salons/example.json salons/sara.json # then edit it, put the photos in salons/sara/photos/
+pnpm new-salon sara --dry-run           # check the file; prints what would be sent, writes nothing
+pnpm new-salon sara                     # launch
+```
+
+The script, step by step (each line printed with ✓, ! for a warning, ✗ for a failure):
+
+1. loads `.env.admin` and checks `salons/<slug>.json` (every mistake is listed with its field);
+2. makes the colour shades from `color` and warns when a shade had to be darkened to stay readable;
+3. uploads the local photos to the `salon-photos` bucket, under `<salon id>/`;
+4. finds the owner's login by email, or creates it with a password **printed once**;
+5. creates or updates the salon (`provision_salon`): salon info, colours, domains, hours, services, stylists, owner;
+6. attaches each domain to the Cloudflare Pages project (a bare domain also gets `www.`) and adds
+   its DNS record when the domain is in the Cloudflare account; otherwise it prints the record to
+   add at the domain's DNS provider. Skipped with a warning when `CLOUDFLARE_API_TOKEN` is empty;
+7. prints the site and `/admin` addresses, the owner's login and what's left to do by hand.
+
+**Re-running** is safe (nothing is duplicated), but it re-applies every value the file lists —
+hours, address, WhatsApp, services and prices, stylists and their days — over the owner's own
+edits in Réglages, so the script asks first (`--yes` skips the question). Keys left out of the
+file keep their current value. After the launch, the owner's Réglages are the source of truth.
+
+## The file
+
+See `example.json`. Texts shown on the site are `{"fr": "…", "ar": "…"}`; a missing `ar` uses the French text.
+
+| Key | Required | Notes |
+| --- | --- | --- |
+| `id` | yes | 2–40 lowercase letters, digits, `-`. Never changes. |
+| `name` | yes | `{fr, ar?}`; 2–80 characters. |
+| `color` | yes | Main colour, `#RRGGBB`; it becomes the buttons/header shade. |
+| `domains` | yes | List, may be empty until the domain is bought. `www.` is optional (stored without it). |
+| `address`, `city` | yes | `{fr, ar?}`. |
+| `whatsapp` | yes | Algerian mobile (`0555 12 34 56` or `+213 …`). |
+| `instagram`, `facebook` | no | `https://…` links. |
+| `story` | no | The quote of the "philosophy" section (hidden when absent). |
+| `storyIntro` | no | The paragraph above the quote. |
+| `founder` | no | `{"name": {fr, ar?}, "role": {fr, ar?}}` — signs the quote. |
+| `claims` | no | `{yearsOpen, clientCount, rating, reviewCount}`; each one left out is hidden. `rating` 1–5, one decimal. |
+| `hours` | yes | `monday` … `sunday`, each `"09:00-18:00"` (15-minute steps) or `"closed"`. |
+| `services[]` | yes | `{id, category: "coiffure" \| "beaute", name, description?, price (DA), duration (minutes, multiple of 15), photo?}`. |
+| `stylists[]` | yes | `{id, name, role?, services: [service ids], workdays?: ["tuesday", …], photo?}`. No `workdays`: the salon's open days. |
+| `owner` | yes | `{"email": "…"}` — the owner's `/admin` login. |
+| `heroPhoto` | no | The big photo at the top of the site. |
+
+Service and stylist ids are shared by all salons: start them with the salon id (`sara-coupe`).
+A photo is either a file name inside `salons/<slug>/photos/` (e.g. `"coupe.jpg"`, uploaded by the
+script) or an `https://` address used as is.

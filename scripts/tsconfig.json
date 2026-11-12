@@ -1,0 +1,26 @@
+{
+  // The product owner's Node scripts (run with tsx). Checked by `npx tsc -b` through the root
+  // tsconfig's reference; a referenced project must emit, so it emits declarations only, out of
+  // the way in node_modules/.tmp.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "..",
+    "outDir": "../node_modules/.tmp/scripts",
+    "tsBuildInfoFile": "../node_modules/.tmp/scripts/tsconfig.tsbuildinfo",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  // The app's dependency-free modules the script reuses.
+  "include": [".", "../src/lib/palette.ts", "../src/lib/host.ts"]
+}
