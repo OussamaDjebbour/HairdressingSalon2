@@ -3,7 +3,7 @@ import { useLang } from '../context/LanguageContext';
 import { SmartImage } from './SmartImage';
 import { useSalon } from '../data/salon';
 import { useSalonInfo } from '../data/salonSettings';
-import { formatNumber, salonSubtitle } from '../data/formatters';
+import { formatClaim, formatNumber, salonSubtitle } from '../data/formatters';
 
 // Brand tagline held in both scripts so the hero can show the pairing at once,
 // independent of the active language.
@@ -83,7 +83,7 @@ export function Hero() {
                   ))}
                 </div>
                 <span className="text-sm text-rose-600">
-                  <span className="font-display font-semibold text-rose-900">{formatNumber(salon.rating, lang)}</span>
+                  <span className="font-display font-semibold text-rose-900">{formatClaim(salon.rating)}</span>
                   {' · '}
                   <span>{t('hero.reviews').replace('{count}', formatNumber(salon.reviewCount, lang))}</span>
                 </span>

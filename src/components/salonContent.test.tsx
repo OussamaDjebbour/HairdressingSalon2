@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { eleganceHours } from './admin/fixtures';
@@ -121,6 +121,16 @@ describe('Élégance', () => {
     expect(screen.getByText('Amina')).toBeInTheDocument();
     expect(screen.getByText(/Fondatrice & coiffeuse/)).toBeInTheDocument();
     expect(screen.getByText(/Depuis quinze ans/)).toBeInTheDocument();
+  });
+
+  it('shows its claims in Arabic exactly as before: Latin "15+", "2 500+", "4,9"; Arabic digits for counts', () => {
+    renderAll(page);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Toggle language' })[0]);
+    expect(screen.getByText('15+')).toBeInTheDocument();
+    expect(screen.getByText('2 500+')).toBeInTheDocument();
+    expect(screen.getAllByText('4,9')).toHaveLength(2);
+    expect(screen.getByText('٢٤٠ تقييم')).toBeInTheDocument();
+    expect(screen.getByText('٢')).toBeInTheDocument();
   });
 });
 

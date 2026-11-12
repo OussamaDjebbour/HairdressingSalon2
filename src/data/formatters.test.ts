@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatPrice } from './formatters';
+import { formatClaim, formatNumber, formatPrice } from './formatters';
 
 const LRI = '⁦'; // LEFT-TO-RIGHT ISOLATE
 const PDI = '⁩'; // POP DIRECTIONAL ISOLATE
@@ -15,5 +15,18 @@ describe('formatPrice', () => {
 
   it('defaults to French', () => {
     expect(formatPrice(800)).toBe('800 DA');
+  });
+});
+
+describe('formatClaim / formatNumber', () => {
+  it('shows claims with French digits in both languages (Élégance AR as before)', () => {
+    expect(formatClaim(15)).toBe('15');
+    expect(formatClaim(2500)).toBe('2 500');
+    expect(formatClaim(4.9)).toBe('4,9');
+  });
+
+  it('shows counts in the language\'s own digits', () => {
+    expect(formatNumber(240, 'fr')).toBe('240');
+    expect(formatNumber(240, 'ar')).toBe('٢٤٠');
   });
 });

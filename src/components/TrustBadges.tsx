@@ -1,7 +1,7 @@
 import { useLang } from '../context/LanguageContext';
 import { useSalon } from '../data/salon';
 import { useStylists } from '../data/queries';
-import { formatNumber } from '../data/formatters';
+import { formatClaim, formatNumber } from '../data/formatters';
 
 export function TrustBadges() {
   const { t, lang } = useLang();
@@ -11,10 +11,10 @@ export function TrustBadges() {
 
   // Claims the salon left empty are left out; the stylist count is always the live number of active stylists.
   const stats: { value: string; label: string }[] = [];
-  if (salon.yearsOpen !== null) stats.push({ value: `${formatNumber(salon.yearsOpen, lang)}+`, label: t('trust.years') });
-  if (salon.clientCount !== null) stats.push({ value: `${formatNumber(salon.clientCount, lang)}+`, label: t('trust.clients') });
+  if (salon.yearsOpen !== null) stats.push({ value: `${formatClaim(salon.yearsOpen)}+`, label: t('trust.years') });
+  if (salon.clientCount !== null) stats.push({ value: `${formatClaim(salon.clientCount)}+`, label: t('trust.clients') });
   if (stylistCount > 0) stats.push({ value: formatNumber(stylistCount, lang), label: t('trust.stylists') });
-  if (salon.rating !== null) stats.push({ value: formatNumber(salon.rating, lang), label: t('trust.reviews') });
+  if (salon.rating !== null) stats.push({ value: formatClaim(salon.rating), label: t('trust.reviews') });
 
   if (stats.length === 0) return null;
 
