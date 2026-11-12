@@ -80,6 +80,19 @@ describe('HoursSettings', () => {
     expect(screen.getByRole('combobox', { name: 'Lundi · Fermeture' })).toHaveTextContent('18:00');
   });
 
+  it('lays each day out as one row: day name, then the switch, then the times', () => {
+    renderIt();
+    const name = screen.getByText('Mardi', { selector: 'label' });
+    const sw = screen.getByRole('switch', { name: 'Mardi' });
+    const opens = screen.getByRole('combobox', { name: 'Mardi · Ouverture' });
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(name, sw)).toBe(true);
+    expect(follows(sw, opens)).toBe(true);
+    // compact time triggers: small text, no drop-down arrow eating the row's width
+    expect(opens).toHaveClass('text-sm');
+    expect(opens.querySelector('svg')).toBeNull();
+  });
+
   it('opens >= closes shows the error under that day and skips the RPC', async () => {
     renderIt();
     pickOption('Mardi · Ouverture', '18:00');

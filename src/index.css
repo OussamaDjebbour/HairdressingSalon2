@@ -179,6 +179,12 @@
     --rdp-today-color: theme('colors.gold.700');
     color: theme('colors.rose.900');
   }
+  /* The palette's focus ring on the calendar's days and month arrows, not the browser's blue one. */
+  .rdp-root.salon-calendar .rdp-day_button:focus-visible,
+  .rdp-root.salon-calendar .rdp-button_previous:focus-visible,
+  .rdp-root.salon-calendar .rdp-button_next:focus-visible {
+    @apply outline-none ring-2 ring-gold-400;
+  }
   .salon-calendar .range-day {
     background-color: theme('colors.gold.200');
   }

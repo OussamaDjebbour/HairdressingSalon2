@@ -24,14 +24,22 @@ interface Props {
   onBlur?(): void;
   /** Called each time the popover opens. */
   onOpen?(): void;
+  /** The chosen value, compact enough for a phone-width field ("Jeu. 12 nov."). */
   text: string | null;
+  /** The same value in full, for screen readers ("Jeudi 12 novembre"). */
+  spoken: string | null;
   placeholder: string;
-  children: ReactNode;
+  /** The calendar; `close` shuts the popover once the choice is complete. */
+  children(close: () => void): ReactNode;
 }
 
-/** The input-looking button and the popover that holds a calendar. */
-export function CalendarPopover({ a11y, triggerRef, onBlur, onOpen, text, placeholder, children }: Props) {
+/**
+ * The input-looking button and the popover that holds a calendar. The button is named by the
+ * field's label and the full chosen value ("Date Jeudi 12 novembre"), like a Select announces its own.
+ */
+export function CalendarPopover({ a11y, triggerRef, onBlur, onOpen, text, spoken, placeholder, children }: Props) {
   const { dir } = useLang();
+  const valueId = `${a11y.id}-value`;
   const [open, setOpen] = useState(false);
   const change = (next: boolean) => {
     setOpen(next);
@@ -42,6 +50,7 @@ export function CalendarPopover({ a11y, triggerRef, onBlur, onOpen, text, placeh
     <Popover.Root open={open} onOpenChange={change}>
       <Popover.Trigger
         {...a11y}
+        aria-labelledby={`${a11y.id}-label ${valueId}`}
         ref={triggerRef}
         onBlur={() => {
           if (!open) onBlur?.();
@@ -50,7 +59,10 @@ export function CalendarPopover({ a11y, triggerRef, onBlur, onOpen, text, placeh
         className="input flex items-center gap-2 text-start"
       >
         <CalendarDays className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
-        <span className={`min-w-0 flex-1 truncate ${text ? '' : 'text-rose-500/70'}`}>{text ?? placeholder}</span>
+        <span id={valueId} className="sr-only">{spoken ?? placeholder}</span>
+        <span aria-hidden="true" className={`min-w-0 flex-1 truncate ${text ? '' : 'text-rose-500/70'}`}>
+          {text ?? placeholder}
+        </span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
@@ -59,7 +71,7 @@ export function CalendarPopover({ a11y, triggerRef, onBlur, onOpen, text, placeh
           dir={dir}
           className="z-[60] rounded-2xl border border-cream-300 bg-white p-3 shadow-lift"
         >
-          {children}
+          {children(() => change(false))}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

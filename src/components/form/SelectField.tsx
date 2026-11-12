@@ -21,6 +21,8 @@ interface SelectFieldProps {
   placeholder?: string;
   /** Render item text left-to-right (times such as 10:15 in an Arabic page). */
   dirLtrValues?: boolean;
+  /** A narrow trigger for short values (a time in an hours row): small text, no arrow. */
+  compact?: boolean;
 }
 
 /** Options plus the current value when it is not on the list (kept at its sorted place). */
@@ -33,7 +35,7 @@ function withCurrent(options: Option[], value: string): Option[] {
 }
 
 export const SelectField = forwardRef<HTMLButtonElement, SelectFieldProps>(function SelectField(
-  { id, label, value, options, onValueChange, onBlur, error, optional, help, placeholder, dirLtrValues },
+  { id, label, value, options, onValueChange, onBlur, error, optional, help, placeholder, dirLtrValues, compact },
   ref
 ) {
   const items = withCurrent(options, value);
@@ -50,21 +52,29 @@ export const SelectField = forwardRef<HTMLButtonElement, SelectFieldProps>(funct
           <Select.Trigger
             {...a11y}
             ref={ref}
-            className="input flex items-center gap-2 text-start"
+            className={
+              compact
+                ? 'input flex min-h-11 items-center justify-center px-2 py-2 text-sm'
+                : 'input flex items-center gap-2 text-start'
+            }
           >
-            <span className="min-w-0 flex-1 truncate" dir={dirLtrValues ? 'ltr' : undefined}>
+            <span className={compact ? 'whitespace-nowrap' : 'min-w-0 flex-1 truncate'} dir={dirLtrValues ? 'ltr' : undefined}>
               <Select.Value placeholder={placeholder} />
             </span>
-            <Select.Icon className="ms-auto shrink-0 text-rose-600">
-              <ChevronDown className="h-4 w-4" aria-hidden="true" />
-            </Select.Icon>
+            {!compact && (
+              <Select.Icon className="ms-auto shrink-0 text-rose-600">
+                <ChevronDown className="h-4 w-4" aria-hidden="true" />
+              </Select.Icon>
+            )}
           </Select.Trigger>
           <Select.Portal>
             <Select.Content
               position="popper"
               sideOffset={6}
               collisionPadding={12}
-              className="z-[60] max-h-[min(20rem,var(--radix-select-content-available-height))] w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-cream-300 bg-white shadow-lift"
+              className={`z-[60] max-h-[min(20rem,var(--radix-select-content-available-height))] ${
+                compact ? 'min-w-[var(--radix-select-trigger-width)]' : 'w-[var(--radix-select-trigger-width)]'
+              } overflow-hidden rounded-xl border border-cream-300 bg-white shadow-lift`}
             >
               <Select.Viewport className="p-1">
                 {items.map((o) => (

@@ -114,6 +114,24 @@ describe('SwitchField', () => {
     fireEvent.click(screen.getByText('Ouvert'));
     expect(sw).toHaveAttribute('aria-checked', 'true');
   });
+
+  it('keeps the track small and puts the 44 px tap area on its wrapper', () => {
+    function H() {
+      const [c, setC] = useState(false);
+      return <SwitchField id="w" label="Ouvert" checked={c} onCheckedChange={setC} />;
+    }
+    wrap(<H />);
+    const sw = screen.getByRole('switch', { name: 'Ouvert' });
+    expect(sw).not.toHaveClass('tap');
+    expect(sw).toHaveClass('h-6', 'w-11');
+    const area = sw.parentElement!;
+    expect(area).toHaveClass('tap');
+    // a tap beside the track, inside the 44 px area, toggles it; a tap on the track toggles it once
+    fireEvent.click(area);
+    expect(sw).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(sw);
+    expect(sw).toHaveAttribute('aria-checked', 'false');
+  });
 });
 
 describe('DateField', () => {
@@ -123,11 +141,36 @@ describe('DateField', () => {
     const onChange = vi.fn();
     wrap(<DateField id="d" label="Date" value={new Date(2030, 0, 8)} onChange={onChange} />);
     const trigger = screen.getByRole('button', { name: /Date/ });
-    expect(trigger).toHaveTextContent('Mardi 8 janvier');
+    expect(trigger).toHaveTextContent('Mar. 8 janv.');
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole('button', { name: /vendredi 11 janvier 2030/ }));
     const d = onChange.mock.calls[0][0] as Date;
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2030, 0, 11]);
+  });
+
+  it('announces the label and the full chosen date', () => {
+    wrap(<DateField id="d" label="Date" value={new Date(2030, 0, 8)} onChange={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Date Mardi 8 janvier' })).toBeInTheDocument();
+  });
+
+  it('announces the placeholder when no date is chosen', () => {
+    wrap(<DateField id="d" label="Date" value={null} onChange={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Date Choisir une date' })).toBeInTheDocument();
+  });
+
+  it('closes the calendar once a date is picked', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2030, 0, 8, 10));
+    function H() {
+      const [v, setV] = useState<Date | null>(new Date(2030, 0, 8));
+      return <DateField id="d" label="Date" value={v} onChange={setV} />;
+    }
+    wrap(<H />);
+    fireEvent.click(screen.getByRole('button', { name: /Date/ }));
+    expect(screen.getByRole('grid')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /vendredi 11 janvier 2030/ }));
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Date Vendredi 11 janvier' })).toHaveTextContent('Ven. 11 janv.');
   });
 });
 
@@ -177,6 +220,28 @@ describe('DateRangeField', () => {
     expect([last.from.getDate(), last.to.getDate(), last.from.getMonth()]).toEqual([2, 5, 4]);
   });
 
+  it('stays open after the first click and closes once the range is complete', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2030, 4, 1, 10));
+    wrap(<H onChange={() => {}} />);
+    open();
+    fireEvent.click(day(2));
+    expect(screen.getByRole('grid')).toBeInTheDocument();
+    fireEvent.click(day(5));
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+  });
+
+  it('shows the period compactly and announces it in full', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2030, 4, 1, 10));
+    wrap(<H onChange={() => {}} />);
+    open();
+    fireEvent.click(day(2));
+    fireEvent.click(day(5));
+    const trigger = screen.getByRole('button', { name: 'Période du Jeudi 2 mai au Dimanche 5 mai' });
+    expect(trigger).toHaveTextContent('Jeu. 2 → Dim. 5 mai');
+  });
+
   it('a single click makes a one-day period', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2030, 4, 1, 10));
@@ -208,6 +273,6 @@ describe('DateRangeField', () => {
     wrap(<H onChange={() => {}} arabic />);
     fireEvent.click(screen.getByText('lang'));
     fireEvent.click(screen.getByRole('button', { name: /اختيار فترة|Période|فترة/ }));
-    expect(screen.getByRole('grid').closest('[dir]')).toHaveAttribute('dir', 'rtl');
+    expect(document.querySelector('.rdp-root')).toHaveAttribute('dir', 'rtl');
   });
 });

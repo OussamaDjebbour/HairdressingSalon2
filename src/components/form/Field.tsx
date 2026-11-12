@@ -27,7 +27,7 @@ export function Field({ id, label, optional, help, error, children }: FieldProps
 
   return (
     <div>
-      <label htmlFor={id} className="label">
+      <label id={`${id}-label`} htmlFor={id} className="label">
         {label}
         {optional && <span className="ms-1.5 font-normal text-rose-600">({t('form.optional')})</span>}
       </label>

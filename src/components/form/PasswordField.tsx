@@ -13,10 +13,13 @@ export const PasswordField = forwardRef<HTMLInputElement | HTMLTextAreaElement, 
     return (
       <Field id={id} label={label} optional={optional} help={help} error={error}>
         {(a11y) => (
-          <div className="relative">
+          // A password reads left to right in both languages; the wrapper takes the same direction so the
+          // eye button (end-0) sits on the side the input's pe-12 padding keeps free.
+          <div className="relative" dir="ltr">
             <input
               {...control}
               {...a11y}
+              dir="ltr"
               ref={ref as React.Ref<HTMLInputElement>}
               type={shown ? 'text' : 'password'}
               className="input pe-12"

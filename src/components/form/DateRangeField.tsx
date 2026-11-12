@@ -1,7 +1,7 @@
 import { forwardRef, useState } from 'react';
 import { DayPicker } from 'react-day-picker';
 import { useLang } from '../../context/LanguageContext';
-import { formatLongDate } from '../../data/formatters';
+import { formatCompactRange, formatLongDate } from '../../data/formatters';
 import type { Period } from '../../data/period';
 import { Field } from './Field';
 import { CalendarPopover, useCalendarProps } from './calendarShared';
@@ -29,17 +29,21 @@ export const DateRangeField = forwardRef<HTMLButtonElement, Props>(function Date
   // true after the first click of a range, until the second one
   const [extending, setExtending] = useState(false);
 
-  const text = value
+  const text = value ? formatCompactRange(value.from, value.to, lang) : null;
+  const spoken = value
     ? sameDay(value.from, value.to)
       ? formatLongDate(value.from, lang)
-      : `${formatLongDate(value.from, lang)} → ${formatLongDate(value.to, lang)}`
+      : t('form.periodSpoken')
+          .replace('{from}', formatLongDate(value.from, lang))
+          .replace('{to}', formatLongDate(value.to, lang))
     : null;
 
-  const pick = (d: Date) => {
+  const pick = (d: Date, close: () => void) => {
     if (extending && value) {
       const [from, to] = d < value.from ? [d, value.from] : [value.from, d];
       onChange({ from, to });
       setExtending(false);
+      close(); // the range is complete
     } else {
       onChange({ from: d, to: d });
       setExtending(true);
@@ -55,15 +59,18 @@ export const DateRangeField = forwardRef<HTMLButtonElement, Props>(function Date
           onBlur={onBlur}
           onOpen={() => setExtending(false)}
           text={text}
+          spoken={spoken}
           placeholder={t('form.pickPeriod')}
         >
-          <DayPicker
-            {...calendar}
-            modifiers={value ? { range: { from: value.from, to: value.to }, rangeEdge: [value.from, value.to] } : undefined}
-            modifiersClassNames={{ range: 'range-day', rangeEdge: 'range-edge' }}
-            defaultMonth={value?.from}
-            onDayClick={pick}
-          />
+          {(close) => (
+            <DayPicker
+              {...calendar}
+              modifiers={value ? { range: { from: value.from, to: value.to }, rangeEdge: [value.from, value.to] } : undefined}
+              modifiersClassNames={{ range: 'range-day', rangeEdge: 'range-edge' }}
+              defaultMonth={value?.from}
+              onDayClick={(d) => pick(d, close)}
+            />
+          )}
         </CalendarPopover>
       )}
     </Field>

@@ -93,35 +93,35 @@ function HoursFormCard({ hours }: { hours: SalonHours }) {
                 const day = field.value;
                 return (
                   <div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 min-h-11">
-                      <div className="w-36">
-                        <SwitchField
-                          id={`hours-on-${d}`}
-                          label={name}
-                          checked={day.on}
-                          onCheckedChange={(on) => field.onChange({ ...day, on })}
-                        />
-                      </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-2 min-h-11">
+                      <SwitchField
+                        id={`hours-on-${d}`}
+                        label={name}
+                        labelFirst
+                        labelClassName="w-20 shrink-0 text-sm font-semibold"
+                        checked={day.on}
+                        onCheckedChange={(on) => field.onChange({ ...day, on })}
+                      />
                       {day.on ? (
-                        <div className="flex flex-wrap items-start gap-2 [&_label]:sr-only">
-                          <div className="w-28">
-                            <SelectField
-                              id={`hours-opens-${d}`}
-                              label={`${name} · ${t('settings.hours.opens')}`}
-                              value={day.opens}
-                              options={TIME_OPTIONS}
-                              dirLtrValues
-                              onValueChange={(opens) => field.onChange({ ...day, opens })}
-                            />
-                          </div>
-                          <span aria-hidden className="text-rose-600">–</span>
-                          <div className={rowError ? 'w-full' : 'w-28'}>
+                        <div className={`flex items-start gap-1.5 [&_label]:sr-only ${rowError ? 'w-full flex-wrap' : ''}`}>
+                          <SelectField
+                            id={`hours-opens-${d}`}
+                            label={`${name} · ${t('settings.hours.opens')}`}
+                            value={day.opens}
+                            options={TIME_OPTIONS}
+                            dirLtrValues
+                            compact
+                            onValueChange={(opens) => field.onChange({ ...day, opens })}
+                          />
+                          <span aria-hidden className="self-center text-rose-600">–</span>
+                          <div className={rowError ? 'min-w-0 flex-1' : undefined}>
                             <SelectField
                               id={`hours-closes-${d}`}
                               label={`${name} · ${t('settings.hours.closes')}`}
                               value={day.closes}
                               options={TIME_OPTIONS}
                               dirLtrValues
+                              compact
                               onValueChange={(closes) => field.onChange({ ...day, closes })}
                               onBlur={field.onBlur}
                               ref={field.ref}

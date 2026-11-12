@@ -36,7 +36,7 @@ export interface DayPickerProps {
 /** The "Toutes" option's value (a Radix Select item can't have an empty value). */
 const ALL = '__all__';
 
-const firstOfMonth =(d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+const firstOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 
 /**
  * A month calendar to jump to any day, showing how full each day is. With a service chosen

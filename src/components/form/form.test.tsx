@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { LanguageProvider } from '../../context/LanguageContext';
+import { LanguageProvider, useLang } from '../../context/LanguageContext';
 import { Field } from './Field';
 import { TextField } from './TextField';
 import { PasswordField } from './PasswordField';
@@ -80,6 +80,23 @@ describe('PasswordField', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Afficher le mot de passe' }));
     expect(input).toHaveAttribute('type', 'text');
     expect(screen.getByRole('button', { name: 'Masquer le mot de passe' })).toBeInTheDocument();
+  });
+
+  it('keeps the eye button on the padded side in Arabic (wrapper and input are both LTR)', () => {
+    function ToArabic() {
+      const { toggleLang } = useLang();
+      return <button onClick={toggleLang}>lang</button>;
+    }
+    wrap(
+      <>
+        <ToArabic />
+        <PasswordField id="p" label="Mot de passe" name="p" onChange={vi.fn()} onBlur={vi.fn()} />
+      </>
+    );
+    fireEvent.click(screen.getByText('lang'));
+    const eye = screen.getByRole('button', { name: 'إظهار كلمة المرور' });
+    expect(eye.parentElement).toHaveAttribute('dir', 'ltr');
+    expect(screen.getByLabelText('Mot de passe')).toHaveAttribute('dir', 'ltr');
   });
 });
 

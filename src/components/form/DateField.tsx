@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { DayPicker } from 'react-day-picker';
 import { useLang } from '../../context/LanguageContext';
-import { formatLongDate } from '../../data/formatters';
+import { formatCompactDate, formatLongDate } from '../../data/formatters';
 import { Field } from './Field';
 import { CalendarPopover, useCalendarProps } from './calendarShared';
 
@@ -27,16 +27,22 @@ export const DateField = forwardRef<HTMLButtonElement, Props>(function DateField
           a11y={a11y}
           triggerRef={ref}
           onBlur={onBlur}
-          text={value ? formatLongDate(value, lang) : null}
+          text={value ? formatCompactDate(value, lang) : null}
+          spoken={value ? formatLongDate(value, lang) : null}
           placeholder={t('form.pickDate')}
         >
-          <DayPicker
-            {...calendar}
-            mode="single"
-            selected={value ?? undefined}
-            defaultMonth={value ?? undefined}
-            onSelect={(d) => d && onChange(d)}
-          />
+          {(close) => (
+            <DayPicker
+              {...calendar}
+              mode="single"
+              selected={value ?? undefined}
+              defaultMonth={value ?? undefined}
+              onSelect={(d) => {
+                if (d) onChange(d);
+                close(); // picking the shown date again (d is undefined then) also closes
+              }}
+            />
+          )}
         </CalendarPopover>
       )}
     </Field>
