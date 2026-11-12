@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Lang } from '../context/LanguageContext';
 import { toYmd } from './bookings';
+import { useSession } from '../lib/auth';
 
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
 /** Where a booking came from: the public form, or added by the owner in /admin. */
@@ -82,6 +83,58 @@ export function useMySalon(userId: string | undefined) {
     enabled: !!userId,
     queryFn: fetchMySalon,
     staleTime: Infinity,
+  });
+}
+
+export type StaffRole = 'owner' | 'demo';
+
+/** The signed-in account's salon and role; `demo` sees masked phones and can't use notifications. */
+export async function fetchMe(): Promise<{ salonId: string; role: StaffRole }> {
+  const { data, error } = await supabase.rpc('admin_me');
+  if (error) throw error;
+  const row = (data as { salon_id: string; role: string }[] | null)?.[0];
+  if (!row) throw { message: 'not_authorized' };
+  return { salonId: row.salon_id, role: row.role === 'demo' ? 'demo' : 'owner' };
+}
+
+export function useMe(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['admin', 'me', userId],
+    enabled: !!userId,
+    queryFn: fetchMe,
+    staleTime: Infinity,
+  });
+}
+
+/** The signed-in account's role, or null while unknown. */
+export function useMyRole(): StaffRole | null {
+  const { session } = useSession();
+  return useMe(session?.user.id).data?.role ?? null;
+}
+
+/** Credentials for a demo salon's public demo account, or null when the salon isn't a demo. */
+export async function fetchDemoLogin(salonId: string): Promise<{ email: string; password: string } | null> {
+  const { data, error } = await supabase.rpc('demo_login', { p_salon_id: salonId });
+  if (error) throw error;
+  const row = (data as { email: string; password: string }[] | null)?.[0];
+  return row ? { email: row.email, password: row.password } : null;
+}
+
+export async function resetDemo(): Promise<void> {
+  const { error } = await supabase.rpc('admin_reset_demo');
+  if (error) throw error;
+}
+
+/** Owner-only: puts the demo salon back to its seeded state. */
+export function useResetDemo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: resetDemo,
+    onSettled: () => {
+      for (const key of ['admin', 'services', 'stylists', 'salon', 'slots']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    },
   });
 }
 

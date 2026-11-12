@@ -40,6 +40,7 @@ const SARA = {
   clientCount: 400,
   rating: 4.7,
   reviewCount: 52,
+  demo: false,
 };
 
 // A chainable query builder: records the table, the select, every .eq(), resolves on .maybeSingle().
@@ -113,7 +114,7 @@ describe('resolveSalon', () => {
     expect(salon).toEqual({
       ...SARA, name: { fr: 'Sara Beauté', ar: 'Sara Beauté' },
       founderName: null, founderRole: null, story: null, storyIntro: null,
-      yearsOpen: null, clientCount: null, rating: null, reviewCount: null,
+      yearsOpen: null, clientCount: null, rating: null, reviewCount: null, demo: false,
     });
   });
 

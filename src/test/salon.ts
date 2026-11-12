@@ -20,4 +20,5 @@ export const ELEGANCE: CurrentSalon = {
   clientCount: 2500,
   rating: 4.9,
   reviewCount: 240,
+  demo: false,
 };

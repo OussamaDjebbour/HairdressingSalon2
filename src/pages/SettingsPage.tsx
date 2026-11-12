@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, LogOut } from 'lucide-react';
+import { ChevronRight, LogOut, RotateCcw } from 'lucide-react';
 import { useLang, type Lang } from '../context/LanguageContext';
 import { useAllServices, useAllStylists } from '../data/queries';
 import { useClosedDates, useSalonHours } from '../data/salonSettings';
-import { algiersToday } from '../data/admin';
+import { algiersToday, useMyRole, useResetDemo } from '../data/admin';
 import { toYmd } from '../data/bookings';
 import { formatDayMonth } from '../data/formatters';
 import { groupHours } from '../data/hours';
 import { minutesToTime } from '../data/week';
 import type { ClosedDates, SalonHours, Weekday } from '../data/types';
+import { useSalon } from '../data/salon';
 import { useLogout } from '../lib/useLogout';
 import { SettingsLayout } from '../components/settings/SettingsLayout';
 import { NotificationsCard } from '../components/admin/NotificationsCard';
@@ -69,6 +70,10 @@ export function SettingsPage() {
   const hours = useSalonHours();
   const closed = useClosedDates();
   const handleLogout = useLogout();
+  const salon = useSalon();
+  const role = useMyRole();
+  const reset = useResetDemo();
+  const showReset = salon.demo && role === 'owner';
 
   return (
     <SettingsLayout title={t('settings.title')} backTo="/admin">
@@ -100,6 +105,23 @@ export function SettingsPage() {
 
       <Group title={t('settings.account')}>
         <NotificationsCard />
+        {showReset && (
+          <>
+            <button
+              type="button"
+              disabled={reset.isPending}
+              onClick={() => {
+                if (window.confirm(t('settings.resetDemoConfirm'))) reset.mutate();
+              }}
+              className="card w-full mb-3 flex items-center gap-3 px-4 py-3.5 min-h-[56px] text-start font-medium text-rose-800 hover:bg-cream-50 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
+              {t('settings.resetDemo')}
+            </button>
+            {reset.isSuccess && <p role="status" className="-mt-1 mb-3 px-1 text-sm text-sage-700">{t('settings.resetDemoDone')}</p>}
+            {reset.isError && <p role="alert" className="-mt-1 mb-3 px-1 text-sm text-rust-700">{t('admin.error.unknown')}</p>}
+          </>
+        )}
         <button
           type="button"
           onClick={handleLogout}

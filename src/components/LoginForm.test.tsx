@@ -2,12 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../lib/auth', () => ({ signIn: vi.fn() }));
+vi.mock('../data/admin', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../data/admin')>()),
+  fetchDemoLogin: vi.fn(),
+}));
 
 import { signIn } from '../lib/auth';
+import { fetchDemoLogin } from '../data/admin';
+import { setCurrentSalon } from '../data/salon';
+import { ELEGANCE } from '../test/salon';
 import { LanguageProvider } from '../context/LanguageContext';
 import { LoginForm } from './LoginForm';
 
 const signInMock = signIn as ReturnType<typeof vi.fn>;
+const demoLoginMock = fetchDemoLogin as ReturnType<typeof vi.fn>;
 
 function setup() {
   render(
@@ -20,7 +28,10 @@ function setup() {
   fireEvent.click(screen.getByRole('button', { name: 'Se connecter' }));
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  setCurrentSalon(ELEGANCE);
+});
 
 describe('LoginForm', () => {
   it('signs in with the trimmed email', async () => {
@@ -34,5 +45,29 @@ describe('LoginForm', () => {
     signInMock.mockRejectedValue(new Error('Invalid login credentials'));
     setup();
     expect(await screen.findByRole('alert')).toHaveTextContent('E-mail ou mot de passe incorrect.');
+  });
+
+  it('shows no demo button for an ordinary salon', () => {
+    render(<LanguageProvider><LoginForm /></LanguageProvider>);
+    expect(screen.queryByRole('button', { name: 'Essayer la démo' })).toBeNull();
+  });
+
+  it('signs in with the fetched demo credentials on a demo salon', async () => {
+    setCurrentSalon({ ...ELEGANCE, demo: true });
+    demoLoginMock.mockResolvedValue({ email: 'demo@x.dz', password: 'pw' });
+    signInMock.mockResolvedValue(undefined);
+    render(<LanguageProvider><LoginForm /></LanguageProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Essayer la démo' }));
+    await waitFor(() => expect(signInMock).toHaveBeenCalledWith('demo@x.dz', 'pw'));
+    expect(demoLoginMock).toHaveBeenCalledWith('elegance');
+  });
+
+  it('shows the login error when the demo login is unavailable', async () => {
+    setCurrentSalon({ ...ELEGANCE, demo: true });
+    demoLoginMock.mockResolvedValue(null);
+    render(<LanguageProvider><LoginForm /></LanguageProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Essayer la démo' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('E-mail ou mot de passe incorrect.');
+    expect(signInMock).not.toHaveBeenCalled();
   });
 });

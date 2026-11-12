@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BellRing, BellOff, Smartphone } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
+import { useMyRole } from '../../data/admin';
 import { useSalon } from '../../data/salon';
 import { usePushState } from '../../lib/push';
 
@@ -8,6 +9,7 @@ import { usePushState } from '../../lib/push';
 export function NotificationsCard() {
   const { lang, t } = useLang();
   const salon = useSalon();
+  const role = useMyRole();
   const { state, enable, disable, test, busy, error } = usePushState();
   const [testResult, setTestResult] = useState<'sent' | 'nothing' | null>(null);
 
@@ -43,7 +45,9 @@ export function NotificationsCard() {
             </ol>
           )}
 
-          {state === 'off' && (
+          {state === 'off' && role === 'demo' && <p className="mt-1 text-rose-700">{t('admin.push.demoDisabled')}</p>}
+
+          {state === 'off' && role !== 'demo' && (
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
               <p className="text-rose-700">{t('admin.push.offText')}</p>
               <button type="button" disabled={busy} onClick={() => enable(lang)} className="btn-primary btn-sm">

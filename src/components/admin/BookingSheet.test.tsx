@@ -25,6 +25,7 @@ vi.mock('../../data/salonSettings', async () => {
     useSalonHours: () => ({ data: f.eleganceHours }),
     useClosedDates: () => ({ data: [] }),
     useStylistDaysOff: () => ({ data: daysOff }),
+    useSalonInfo: () => ({ data: { whatsapp: '0555 00 11 22' } }),
   };
 });
 
@@ -32,11 +33,13 @@ const create = vi.fn();
 const update = vi.fn();
 const setStatus = vi.fn();
 let pending = false;
+let role: 'owner' | 'demo' | null = 'owner';
 vi.mock('../../data/admin', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../data/admin')>()),
   useCreateStaffBooking: () => ({ mutate: create, isPending: pending }),
   useUpdateStaffBooking: () => ({ mutate: update, isPending: pending }),
   useSetBookingStatus: () => ({ mutate: setStatus, isPending: pending }),
+  useMyRole: () => role,
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
@@ -67,6 +70,7 @@ function whatsappText(): string {
 beforeEach(() => {
   vi.clearAllMocks();
   pending = false;
+  role = 'owner';
   servicesOverride = undefined;
   stylistsOverride = undefined;
   daysOff = [];
@@ -277,3 +281,43 @@ describe('BookingSheet — salon settings', () => {
     expect(screen.getByLabelText('Heure')).toHaveValue('10:00');
   });
 });
+
+describe('BookingSheet — demo account', () => {
+  const masked = '05•• •• •• 56';
+
+  it('saves the masked phone back exactly as received, without a phone error', () => {
+    role = 'demo';
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: masked }) });
+    expect(screen.getByLabelText('Téléphone')).toHaveValue(masked);
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(screen.queryByText(/numéro/i)).toBeNull();
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0].clientPhone).toBe(masked);
+  });
+
+  it('still validates a phone the visitor typed', () => {
+    role = 'demo';
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: masked }) });
+    fireEvent.change(screen.getByLabelText('Téléphone'), { target: { value: '123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('opens WhatsApp to the salon number, not the client', () => {
+    role = 'demo';
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: adminBooking({ clientPhone: masked }) });
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer/ }));
+    const href = screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')!;
+    expect(href.startsWith('https://wa.me/213555001122?text=')).toBe(true);
+  });
+
+  it('keeps the client number for the owner', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer/ }));
+    const href = screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')!;
+    expect(href.startsWith('https://wa.me/213555123456?text=')).toBe(true);
+  });
+});
+

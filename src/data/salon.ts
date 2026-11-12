@@ -19,6 +19,8 @@ export interface CurrentSalon {
   clientCount: number | null;
   rating: number | null;
   reviewCount: number | null;
+  /** A showcase salon prospects can try with the one-tap demo login. */
+  demo: boolean;
 }
 
 let current: CurrentSalon | null = null;

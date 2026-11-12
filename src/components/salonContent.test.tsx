@@ -47,6 +47,7 @@ const YASMINE: CurrentSalon = {
   clientCount: null,
   rating: null,
   reviewCount: null,
+  demo: false,
 };
 
 const renderAll = (ui: React.ReactNode) =>
