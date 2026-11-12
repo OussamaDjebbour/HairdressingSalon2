@@ -1,12 +1,27 @@
 import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Trash2 } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
+import { toYmd } from '../../data/bookings';
 import { formatLongDate } from '../../data/formatters';
 import { toSettingsError, useAddClosedDates, useClosedDates, useDeleteClosedDates } from '../../data/salonSettings';
+import { periodSchema } from '../../data/schemas';
+import type { Period } from '../../data/period';
+import { TextField } from '../form/TextField';
+import { DateRangeField } from '../form/DateRangeField';
+import { FormSummary } from '../form/FormSummary';
 import { AffectedBookings } from './AffectedBookings';
 import { QueryFallback, queriesReady } from './QueryFallback';
 
 const ERROR_KEYS = ['invalid_dates', 'not_authorized'];
+
+const closedSchema = z.object({
+  period: periodSchema,
+  label: z.string().trim().max(60, 'form.error.labelLength'),
+});
+type ClosedForm = { period: Period | null; label: string };
 
 const parseYmd = (ymd: string) => {
   const [y, m, d] = ymd.split('-').map(Number);
@@ -19,9 +34,10 @@ export function ClosedDatesSettings() {
   const closed = closedQuery.data ?? [];
   const add = useAddClosedDates();
   const del = useDeleteClosedDates();
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [label, setLabel] = useState('');
+  const {
+    register, control, handleSubmit, reset,
+    formState: { errors, submitCount },
+  } = useForm<ClosedForm>({ resolver: zodResolver(closedSchema), defaultValues: { period: null, label: '' } });
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
 
@@ -32,23 +48,21 @@ export function ClosedDatesSettings() {
     setError(t(`settings.error.${ERROR_KEYS.includes(code) ? code : 'unknown'}`));
   };
 
-  const submit = () => {
+  const submit = handleSubmit(({ period, label }) => {
+    if (!period) return;
     setShowAffected(false);
-    if (!from) return setError(t('settings.error.invalid_dates'));
     setError(null);
     add.mutate(
-      { from, to: to || from, label: label.trim() || null },
+      { from: toYmd(period.from), to: toYmd(period.to), label: label.trim() || null },
       {
         onSuccess: () => {
-          setFrom('');
-          setTo('');
-          setLabel('');
+          reset({ period: null, label: '' });
           setShowAffected(true);
         },
         onError: fail,
       }
     );
-  };
+  });
 
   return (
     <div className="space-y-5">
@@ -86,34 +100,31 @@ export function ClosedDatesSettings() {
         )}
       </section>
 
-      <form
-        className="card p-4 space-y-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="closed-from" className="label">{t('settings.closed.from')}</label>
-            <input id="closed-from" type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div>
-            <label htmlFor="closed-to" className="label">{t('settings.closed.to')}</label>
-            <input id="closed-to" type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-        </div>
-        <div>
-          <label htmlFor="closed-label" className="label">{t('settings.closed.label')}</label>
-          <input
-            id="closed-label"
-            className="input"
-            maxLength={60}
-            placeholder={t('settings.closed.placeholder')}
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-          />
-        </div>
+      <form className="card p-4 space-y-3" noValidate onSubmit={submit}>
+        <Controller
+          control={control}
+          name="period"
+          render={({ field }) => (
+            <DateRangeField
+              id="closed-period"
+              label={t('settings.closed.period')}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              ref={field.ref}
+              error={errors.period?.message}
+            />
+          )}
+        />
+        <TextField
+          id="closed-label"
+          label={t('settings.closed.label')}
+          optional
+          placeholder={t('settings.closed.placeholder')}
+          error={errors.label?.message}
+          {...register('label')}
+        />
+        {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
         {error && <p role="alert" className="text-sm text-rust-600">{error}</p>}
         <button type="submit" className="btn-primary w-full" disabled={add.isPending}>{t('settings.closed.add')}</button>
       </form>

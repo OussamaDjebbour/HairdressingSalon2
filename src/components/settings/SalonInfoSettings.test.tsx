@@ -65,36 +65,61 @@ describe('SalonInfoSettings', () => {
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_save_salon_info', expect.objectContaining({ p_whatsapp: '' })));
   });
 
-  it('blocks an invalid phone client-side', () => {
+  it('blocks an invalid phone client-side', async () => {
     renderIt();
     fireEvent.change(screen.getByLabelText('WhatsApp'), { target: { value: '123' } });
     save();
+    await waitFor(() => expect(screen.getByLabelText('WhatsApp')).toHaveAttribute('aria-invalid', 'true'));
     expect(rpc).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('WhatsApp')).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByRole('alert').textContent).toContain('WhatsApp invalide');
+    expect(screen.getByText(/Numéro de mobile algérien invalide/)).toBeInTheDocument();
   });
 
-  it('blocks a non-https link client-side', () => {
+  it('blocks a non-https link client-side', async () => {
     renderIt();
     fireEvent.change(screen.getByLabelText('Facebook (lien)'), { target: { value: 'facebook.com/x' } });
     save();
+    await waitFor(() => expect(screen.getByLabelText('Facebook (lien)')).toHaveAttribute('aria-invalid', 'true'));
     expect(rpc).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Facebook (lien)')).toHaveAttribute('aria-invalid', 'true');
   });
 
-  it('blocks an uppercase HTTPS:// link like the server does', () => {
+  it('blocks an uppercase HTTPS:// link like the server does', async () => {
     renderIt();
     fireEvent.change(screen.getByLabelText('Instagram (lien)'), { target: { value: 'HTTPS://instagram.com/x' } });
     save();
+    await waitFor(() => expect(screen.getByLabelText('Instagram (lien)')).toHaveAttribute('aria-invalid', 'true'));
     expect(rpc).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Instagram (lien)')).toHaveAttribute('aria-invalid', 'true');
   });
 
-  it('caps address and city at 200 characters', () => {
+  it('flags an address or city over 200 characters', async () => {
     renderIt();
-    for (const label of ['Adresse (français)', 'العنوان (arabe)', 'Ville (français)', 'المدينة (arabe)']) {
-      expect(screen.getByLabelText(label)).toHaveAttribute('maxLength', '200');
-    }
+    fireEvent.change(screen.getByLabelText('Adresse (français)'), { target: { value: 'x'.repeat(201) } });
+    fireEvent.change(screen.getByLabelText('Ville (français)'), { target: { value: 'y'.repeat(201) } });
+    save();
+    await waitFor(() => expect(screen.getAllByText('Ce texte ne doit pas dépasser 200 caractères.')).toHaveLength(2));
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('flags Facebook, not Instagram, for a bad Facebook link', async () => {
+    renderIt();
+    fireEvent.change(screen.getByLabelText('Facebook (lien)'), { target: { value: 'not a url' } });
+    save();
+    await waitFor(() => expect(screen.getByLabelText('Facebook (lien)')).toHaveAttribute('aria-invalid', 'true'));
+    expect(screen.getByLabelText('Instagram (lien)')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('marks the Arabic address optional with the fallback help, and keeps the WhatsApp help', () => {
+    renderIt();
+    expect(screen.getByText('العنوان (arabe)').closest('label')).toHaveTextContent('facultatif');
+    expect(screen.getAllByText('Laissé vide, le texte français est utilisé.').length).toBeGreaterThan(0);
+    expect(screen.getByText('Laissez vide pour masquer les liens WhatsApp sur le site.')).toBeInTheDocument();
+  });
+
+  it('marks the WhatsApp field when the server says invalid_phone', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'invalid_phone' } });
+    renderIt();
+    save();
+    await waitFor(() => expect(screen.getByLabelText('WhatsApp')).toHaveAttribute('aria-invalid', 'true'));
+    expect(screen.getByLabelText('Instagram (lien)')).toHaveAttribute('aria-invalid', 'false');
   });
 
   it('marks the Instagram field when the server says invalid_url', async () => {
@@ -102,6 +127,7 @@ describe('SalonInfoSettings', () => {
     renderIt();
     save();
     await waitFor(() => expect(screen.getByLabelText('Instagram (lien)')).toHaveAttribute('aria-invalid', 'true'));
-    expect(screen.getByRole('alert').textContent).toContain('https://');
+    expect(screen.getByLabelText('Facebook (lien)')).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByText('Le lien doit commencer par https://.')).toBeInTheDocument();
   });
 });
