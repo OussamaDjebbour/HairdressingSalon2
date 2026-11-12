@@ -4,6 +4,26 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    manifest: true,
+    rollupOptions: {
+      output: {
+        // Form controls are admin-only; keep them out of the public first download.
+        // react-direction is a tiny context the app shell uses, so it stays in the entry.
+        manualChunks(id) {
+          if (id.includes('/node_modules/@radix-ui/react-direction/')) return undefined;
+          if (
+            id.includes('/node_modules/@radix-ui/') ||
+            id.includes('/node_modules/react-day-picker/') ||
+            id.includes('/node_modules/date-fns/')
+          ) {
+            return 'admin-ui';
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
