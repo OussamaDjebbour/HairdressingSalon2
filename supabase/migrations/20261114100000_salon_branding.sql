@@ -14,9 +14,10 @@ alter table public.salons
       and jsonb_array_length(jsonb_path_query_array(palette, '$.*')) = 10
       and not jsonb_path_exists(palette, '$.* ? (@.type() != "string" || !(@ like_regex "^#[0-9A-F]{6}$"))')),
   add column hero_image text not null default '',
-  add column founder_name text,
+  add column founder_name jsonb,
   add column founder_role jsonb,
   add column story jsonb,
+  add column story_intro jsonb,
   add column years_open integer check (years_open > 0),
   add column client_count integer check (client_count > 0),
   add column rating numeric(2,1) check (rating between 1 and 5),
@@ -28,9 +29,10 @@ revoke insert, update, delete, truncate on public.salons from anon, authenticate
 -- Élégance looks exactly as today.
 update public.salons set
   hero_image = 'https://images.pexels.com/photos/3993449/pexels-photo-3993449.jpeg?auto=compress&cs=tinysrgb&w=900',
-  founder_name = 'Amina',
+  founder_name = '{"fr":"Amina","ar":"أمينة"}',
   founder_role = '{"fr":"Fondatrice & coiffeuse","ar":"المؤسِّسة وخبيرة التصفيف"}',
   story = '{"fr":"« La beauté n’est pas un luxe. C’est un rituel. »","ar":"«الجمالُ ليس رفاهية، بل طقسٌ يومي.»"}',
+  story_intro = '{"fr":"Depuis quinze ans au cœur d’Alger, nous recevons chaque cliente comme une invitée : un moment suspendu, des gestes précis, et le soin d’un métier transmis.","ar":"منذ خمسة عشر عامًا في قلب الجزائر العاصمة، نستقبل كل عميلة كضيفة عزيزة: لحظة من الهدوء، لمسات دقيقة، وعناية حرفةٍ متوارثة."}',
   years_open = 15,
   client_count = 2500,
   rating = 4.9,
@@ -69,8 +71,118 @@ as $$
   end
 $$;
 
+-- Validates a week of opening hours (7 items {weekday 1..7, opens, closes}, HH:MM in 15-minute
+-- steps, opens < closes, both or neither) and replaces the salon's salon_hours. Raises invalid_hours.
+-- Shared by admin_set_hours and provision_salon.
+create function private.set_hours(p_salon_id text, p_hours jsonb)
+returns void
+language plpgsql volatile set search_path = ''
+as $$
+declare
+  v_item   jsonb;
+  v_days   integer[] := array[]::integer[];
+  v_wd     integer;
+  v_opens  text;
+  v_closes text;
+begin
+  if p_hours is null or jsonb_typeof(p_hours) <> 'array' or jsonb_array_length(p_hours) <> 7 then
+    raise exception 'invalid_hours' using errcode = 'P0001';
+  end if;
+  for v_item in select * from jsonb_array_elements(p_hours) loop
+    if jsonb_typeof(v_item) <> 'object'
+       or coalesce(v_item ->> 'weekday', '') !~ '^[1-7]$' then
+      raise exception 'invalid_hours' using errcode = 'P0001';
+    end if;
+    v_wd := (v_item ->> 'weekday')::int;
+    v_opens := nullif(v_item ->> 'opens', '');
+    v_closes := nullif(v_item ->> 'closes', '');
+    if v_wd = any (v_days) or (v_opens is null) <> (v_closes is null) then
+      raise exception 'invalid_hours' using errcode = 'P0001';
+    end if;
+    if v_opens is not null then
+      if v_opens !~ '^([01][0-9]|2[0-3]):(00|15|30|45)$' or v_closes !~ '^([01][0-9]|2[0-3]):(00|15|30|45)$'
+         or v_opens::time >= v_closes::time then
+        raise exception 'invalid_hours' using errcode = 'P0001';
+      end if;
+    end if;
+    v_days := v_days || v_wd;
+  end loop;
+
+  delete from public.salon_hours h where h.salon_id = p_salon_id;
+  insert into public.salon_hours (salon_id, weekday, opens, closes)
+  select p_salon_id, (e ->> 'weekday')::smallint, nullif(e ->> 'opens', '')::time, nullif(e ->> 'closes', '')::time
+  from jsonb_array_elements(p_hours) e;
+end;
+$$;
+
+-- The owner's rules for salon contact info, shared by admin_save_salon_info and provision_salon:
+-- whatsapp normalised, empty -> null, else an Algerian mobile (invalid_phone); urls empty -> null,
+-- else https:// (invalid_url); address/city {fr, ar} trimmed, empty Arabic -> French, <= 200 chars (invalid_name).
+create function private.clean_salon_info(
+  p_address jsonb, p_city jsonb, p_whatsapp text, p_instagram_url text, p_facebook_url text,
+  out address jsonb, out city jsonb, out whatsapp text, out instagram_url text, out facebook_url text)
+language plpgsql stable set search_path = ''
+as $$
+begin
+  whatsapp := nullif(private.normalize_phone(p_whatsapp), '');
+  instagram_url := nullif(btrim(coalesce(p_instagram_url, '')), '');
+  facebook_url := nullif(btrim(coalesce(p_facebook_url, '')), '');
+  if whatsapp is not null and whatsapp !~ '^0[5-7][0-9]{8}$' then
+    raise exception 'invalid_phone' using errcode = 'P0001';
+  end if;
+  if (instagram_url is not null and instagram_url !~ '^https://') or (facebook_url is not null and facebook_url !~ '^https://') then
+    raise exception 'invalid_url' using errcode = 'P0001';
+  end if;
+  address := jsonb_build_object('fr', btrim(coalesce(p_address ->> 'fr', '')),
+               'ar', coalesce(nullif(btrim(coalesce(p_address ->> 'ar', '')), ''), btrim(coalesce(p_address ->> 'fr', ''))));
+  city := jsonb_build_object('fr', btrim(coalesce(p_city ->> 'fr', '')),
+            'ar', coalesce(nullif(btrim(coalesce(p_city ->> 'ar', '')), ''), btrim(coalesce(p_city ->> 'fr', ''))));
+  if length(address ->> 'fr') > 200 or length(address ->> 'ar') > 200
+     or length(city ->> 'fr') > 200 or length(city ->> 'ar') > 200 then
+    raise exception 'invalid_name' using errcode = 'P0001';
+  end if;
+end;
+$$;
+
 revoke execute on function private.normalize_host(text) from public, anon, authenticated;
 revoke execute on function private.bilingual(jsonb) from public, anon, authenticated;
+revoke execute on function private.set_hours(text, jsonb) from public, anon, authenticated;
+revoke execute on function private.clean_salon_info(jsonb, jsonb, text, text, text) from public, anon, authenticated;
+
+-- The owner RPCs now use the shared helpers (same behaviour; grants are kept by create or replace).
+create or replace function public.admin_set_hours(p_hours jsonb)
+returns void
+language plpgsql volatile security definer set search_path = ''
+as $$
+declare
+  v_salon text := private.my_salon();
+begin
+  if v_salon is null then
+    raise exception 'not_authorized' using errcode = 'P0001';
+  end if;
+  perform private.set_hours(v_salon, p_hours);
+end;
+$$;
+
+create or replace function public.admin_save_salon_info(
+  p_address jsonb, p_city jsonb, p_whatsapp text, p_instagram_url text, p_facebook_url text)
+returns void
+language plpgsql volatile security definer set search_path = ''
+as $$
+declare
+  v_salon text := private.my_salon();
+  v_info  record;
+begin
+  if v_salon is null then
+    raise exception 'not_authorized' using errcode = 'P0001';
+  end if;
+  select * into v_info from private.clean_salon_info(p_address, p_city, p_whatsapp, p_instagram_url, p_facebook_url);
+  update public.salons s
+  set address = v_info.address, city = v_info.city, whatsapp = v_info.whatsapp,
+      instagram_url = v_info.instagram_url, facebook_url = v_info.facebook_url
+  where s.id = v_salon;
+end;
+$$;
 
 -- Salon photos: public read through public URLs; only the service role writes (no policies).
 insert into storage.buckets (id, name, public) values ('salon-photos', 'salon-photos', true)
@@ -82,66 +194,73 @@ language plpgsql volatile security definer set search_path = ''
 as $$
 -- Creates or updates a whole salon; idempotent (re-running a payload changes nothing).
 -- Service role only. Raises (P0001): invalid_id, invalid_name, invalid_palette, invalid_domain,
--- invalid_hours, invalid_service, invalid_stylist, unknown_service, domain_taken, id_taken, staff_taken.
+-- invalid_hours, invalid_phone, invalid_url, invalid_service, invalid_stylist, unknown_service,
+-- domain_taken, id_taken, staff_taken.
 --
 -- Input (jsonb object):
 -- {
 --   "id": "sara",                       required, ^[a-z0-9][a-z0-9-]{1,39}$, never changes
 --   "name": "Sara Beauty",              required, 2..80 chars
---   "name_ar": "سارة بيوتي",            optional, null/"" -> the site uses "name"
+--   "name_ar": "سارة بيوتي",            null/"" -> the site uses "name"
 --   "palette": {"50": "#RRGGBB", "100": …, "900": …},   exactly the 10 keys 50..900; upper-cased
 --   "hero_image": "https://…",          "" = none
---   "founder_name": "Sara",
+--   "founder_name": {"fr": "Sara", "ar": "سارة"},       ar optional
 --   "founder_role": {"fr": "…", "ar": "…"},
---   "story": {"fr": "…", "ar": "…"},
+--   "story": {"fr": "…", "ar": "…"},                     the quote
+--   "story_intro": {"fr": "…", "ar": "…"},               the paragraph under it
 --   "years_open": 3, "client_count": 400, "rating": 4.7, "review_count": 52,   integers > 0; rating 1..5
---   "address": {"fr": "…", "ar": "…"}, "city": {"fr": "…", "ar": "…"},
---   "whatsapp": "0555123456",           Algerian mobile; spaces/+213 normalised
---   "instagram_url": "https://…", "facebook_url": "https://…",
+--   "address": {"fr": "…", "ar": "…"}, "city": {"fr": "…", "ar": "…"},        <= 200 chars (invalid_name)
+--   "whatsapp": "0555123456",           Algerian mobile, spaces/+213 normalised; "" -> none (invalid_phone)
+--   "instagram_url": "https://…", "facebook_url": "https://…",               "" -> none (invalid_url)
 --   "domains": ["sara-salon.com", "www.sara-salon.com"],   normalised (lowercase, no www./port/trailing dot), de-duplicated
 --   "hours": [{"weekday": 1, "opens": null, "closes": null},
---             {"weekday": 2, "opens": "09:00", "closes": "18:00"}, …],   required: weekdays 1 (Mon)..7 (Sun), once each;
---                                                                         HH:MM in 15-minute steps, opens < closes
---   "services": [{"id": "sara-coupe", "category": "coiffure" | "beaute",
---                 "name": {"fr", "ar"}, "description": {"fr", "ar"},     description optional
---                 "price": 2000, "duration": 45,                         DA; minutes, 15..600 in 15-minute steps
---                 "image": "https://…", "icon": "scissors",              optional ("" / icon from category)
---                 "sort_order": 0, "active": true}],                     optional (list position / true)
---   "stylists": [{"id": "sara-yasmine", "name": "Yasmine", "role": {"fr", "ar"},
---                 "specialties": [{"fr", "ar"}], "image": "https://…",   optional ([] / "")
---                 "sort_order": 0, "active": true,                       optional (list position / true)
---                 "services": ["sara-coupe"],                            ids of this salon's services; default []
---                 "weekdays": [2, 3, 4, 5, 6]}],                         default: the salon's open weekdays
+--             {"weekday": 2, "opens": "09:00", "closes": "18:00"}, …],   required for a new salon: weekdays 1 (Mon)..7 (Sun)
+--                                                                         once each; HH:MM in 15-minute steps, opens < closes
+--   "services": [{"id": "sara-coupe", "category": "coiffure" | "beaute",   required
+--                 "name": {"fr", "ar"}, "price": 2000, "duration": 45,    required; DA; minutes, 15..600 in 15-minute steps
+--                 "description": {"fr", "ar"}, "image": "https://…", "icon": "scissors",
+--                 "sort_order": 0, "active": true}],
+--   "stylists": [{"id": "sara-yasmine", "name": "Yasmine",                 required
+--                 "role": {"fr", "ar"}, "specialties": [{"fr", "ar"}], "image": "https://…",
+--                 "sort_order": 0, "active": true,
+--                 "services": ["sara-coupe"],                            ids of this salon's services
+--                 "weekdays": [2, 3, 4, 5, 6]}],
 --   "owner_user_id": "uuid"             optional: an auth.users id made staff of this salon
 -- }
--- For the salon row, a key left out keeps the current value (or the column default for a new
--- salon); a key given as null or "" clears it. Bilingual texts: an empty "ar" falls back to "fr";
--- an empty "fr" clears the field. "hours" replaces all 7 days; "domains", when given, replaces the
--- salon's domain list. Services and stylists are upserted by id (ids are global: an id owned by
--- another salon is id_taken); those not in the payload are left untouched. Each listed stylist's
--- services and weekdays are replaced. Re-running overwrites the owner's edits to listed fields.
+-- A key left out keeps the current value, so re-provisioning never undoes the owner's Réglages edits
+-- for keys the payload omits. Defaults apply only when creating: salon columns take their column
+-- defaults; a new service gets description "", image "", icon from its category, sort_order = list
+-- position, active true; a new stylist gets role "", specialties [], image "", sort_order = list
+-- position, active true, no services, and the salon's open weekdays.
+-- A key given as null or "" clears the field. Bilingual texts: an empty "ar" falls back to "fr"; an
+-- empty "fr" clears the field. "hours" replaces all 7 days; "domains" replaces the salon's domain
+-- list; a stylist's "services"/"weekdays" replace its links/working days. Services and stylists are
+-- upserted by id (ids are global: an id owned by another salon is id_taken); those not in the payload
+-- are left untouched. Fields a payload lists overwrite the owner's edits.
 declare
   v_id      text := p ->> 'id';
   v_name    text := btrim(coalesce(p ->> 'name', ''));
+  v_new     boolean;
+  v_new_st  boolean;
   v_palette jsonb;
   v_domains text[];
   v_owner   uuid;
+  v_info    record;
   v_item    jsonb;
-  v_days    integer[] := array[]::integer[];
-  v_wd      integer;
-  v_opens   text;
-  v_closes  text;
   v_pos     integer;
   v_sid     text;
   v_cat     text;
   v_svc_ids text[];
-  v_weekdays integer[];
 begin
   if p is null or jsonb_typeof(p) <> 'object' or coalesce(v_id, '') !~ '^[a-z0-9][a-z0-9-]{1,39}$' then
     raise exception 'invalid_id' using errcode = 'P0001';
   end if;
   if length(v_name) not between 2 and 80 then
     raise exception 'invalid_name' using errcode = 'P0001';
+  end if;
+  v_new := not exists (select 1 from public.salons s where s.id = v_id);
+  if v_new and not p ? 'hours' then
+    raise exception 'invalid_hours' using errcode = 'P0001';
   end if;
 
   -- palette
@@ -159,6 +278,10 @@ begin
     select jsonb_object_agg(e.key, upper(e.value #>> '{}')) into v_palette from jsonb_each(p -> 'palette') e;
   end if;
 
+  -- contact info: the owner's rules (keys left out are validated as empty and not written)
+  select * into v_info from private.clean_salon_info(
+    p -> 'address', p -> 'city', p ->> 'whatsapp', p ->> 'instagram_url', p ->> 'facebook_url');
+
   -- domains
   if p ? 'domains' then
     if jsonb_typeof(p -> 'domains') is distinct from 'array'
@@ -174,29 +297,6 @@ begin
       raise exception 'domain_taken' using errcode = 'P0001';
     end if;
   end if;
-
-  -- hours (required)
-  if jsonb_typeof(p -> 'hours') is distinct from 'array' or jsonb_array_length(p -> 'hours') <> 7 then
-    raise exception 'invalid_hours' using errcode = 'P0001';
-  end if;
-  for v_item in select * from jsonb_array_elements(p -> 'hours') loop
-    if jsonb_typeof(v_item) <> 'object' or coalesce(v_item ->> 'weekday', '') !~ '^[1-7]$' then
-      raise exception 'invalid_hours' using errcode = 'P0001';
-    end if;
-    v_wd := (v_item ->> 'weekday')::int;
-    v_opens := nullif(v_item ->> 'opens', '');
-    v_closes := nullif(v_item ->> 'closes', '');
-    if v_wd = any (v_days) or (v_opens is null) <> (v_closes is null) then
-      raise exception 'invalid_hours' using errcode = 'P0001';
-    end if;
-    if v_opens is not null then
-      if v_opens !~ '^([01][0-9]|2[0-3]):(00|15|30|45)$' or v_closes !~ '^([01][0-9]|2[0-3]):(00|15|30|45)$'
-         or v_opens::time >= v_closes::time then
-        raise exception 'invalid_hours' using errcode = 'P0001';
-      end if;
-    end if;
-    v_days := v_days || v_wd;
-  end loop;
 
   -- services and stylists: arrays of objects whose ids are not another salon's
   if (p ? 'services' and (jsonb_typeof(p -> 'services') <> 'array'
@@ -229,18 +329,19 @@ begin
     name_ar       = case when p ? 'name_ar' then nullif(btrim(coalesce(p ->> 'name_ar', '')), '') else s.name_ar end,
     palette       = coalesce(v_palette, s.palette),
     hero_image    = case when p ? 'hero_image' then btrim(coalesce(p ->> 'hero_image', '')) else s.hero_image end,
-    founder_name  = case when p ? 'founder_name' then nullif(btrim(coalesce(p ->> 'founder_name', '')), '') else s.founder_name end,
+    founder_name  = case when p ? 'founder_name' then private.bilingual(p -> 'founder_name') else s.founder_name end,
     founder_role  = case when p ? 'founder_role' then private.bilingual(p -> 'founder_role') else s.founder_role end,
     story         = case when p ? 'story' then private.bilingual(p -> 'story') else s.story end,
+    story_intro   = case when p ? 'story_intro' then private.bilingual(p -> 'story_intro') else s.story_intro end,
     years_open    = case when p ? 'years_open' then (p ->> 'years_open')::integer else s.years_open end,
     client_count  = case when p ? 'client_count' then (p ->> 'client_count')::integer else s.client_count end,
     rating        = case when p ? 'rating' then (p ->> 'rating')::numeric(2,1) else s.rating end,
     review_count  = case when p ? 'review_count' then (p ->> 'review_count')::integer else s.review_count end,
-    address       = case when p ? 'address' then coalesce(private.bilingual(p -> 'address'), '{"fr":"","ar":""}') else s.address end,
-    city          = case when p ? 'city' then coalesce(private.bilingual(p -> 'city'), '{"fr":"","ar":""}') else s.city end,
-    whatsapp      = case when p ? 'whatsapp' then nullif(private.normalize_phone(p ->> 'whatsapp'), '') else s.whatsapp end,
-    instagram_url = case when p ? 'instagram_url' then nullif(btrim(coalesce(p ->> 'instagram_url', '')), '') else s.instagram_url end,
-    facebook_url  = case when p ? 'facebook_url' then nullif(btrim(coalesce(p ->> 'facebook_url', '')), '') else s.facebook_url end
+    address       = case when p ? 'address' then v_info.address else s.address end,
+    city          = case when p ? 'city' then v_info.city else s.city end,
+    whatsapp      = case when p ? 'whatsapp' then v_info.whatsapp else s.whatsapp end,
+    instagram_url = case when p ? 'instagram_url' then v_info.instagram_url else s.instagram_url end,
+    facebook_url  = case when p ? 'facebook_url' then v_info.facebook_url else s.facebook_url end
   where s.id = v_id;
 
   if v_domains is not null then
@@ -249,10 +350,9 @@ begin
     on conflict (domain) do nothing;
   end if;
 
-  delete from public.salon_hours h where h.salon_id = v_id;
-  insert into public.salon_hours (salon_id, weekday, opens, closes)
-  select v_id, (e ->> 'weekday')::smallint, nullif(e ->> 'opens', '')::time, nullif(e ->> 'closes', '')::time
-  from jsonb_array_elements(p -> 'hours') e;
+  if p ? 'hours' then
+    perform private.set_hours(v_id, p -> 'hours');
+  end if;
 
   for v_item, v_pos in select x, (n - 1)::int from jsonb_array_elements(coalesce(p -> 'services', '[]')) with ordinality t(x, n) loop
     v_sid := v_item ->> 'id';
@@ -264,7 +364,7 @@ begin
        or (v_item ->> 'duration')::integer not between 15 and 600 or (v_item ->> 'duration')::integer % 15 <> 0 then
       raise exception 'invalid_service' using errcode = 'P0001';
     end if;
-    insert into public.services (id, salon_id, category, name, description, price, duration, image, icon, sort_order, active)
+    insert into public.services as s (id, salon_id, category, name, description, price, duration, image, icon, sort_order, active)
     values (v_sid, v_id, v_cat, private.bilingual(v_item -> 'name'),
             coalesce(private.bilingual(v_item -> 'description'), '{"fr":"","ar":""}'),
             (v_item ->> 'price')::integer, (v_item ->> 'duration')::integer,
@@ -273,9 +373,15 @@ begin
             coalesce((v_item ->> 'sort_order')::integer, v_pos),
             coalesce((v_item ->> 'active')::boolean, true))
     on conflict (id) do update set
-      category = excluded.category, name = excluded.name, description = excluded.description,
-      price = excluded.price, duration = excluded.duration, image = excluded.image, icon = excluded.icon,
-      sort_order = excluded.sort_order, active = excluded.active;
+      category    = excluded.category,
+      name        = excluded.name,
+      price       = excluded.price,
+      duration    = excluded.duration,
+      description = case when v_item ? 'description' then excluded.description else s.description end,
+      image       = case when v_item ? 'image' then excluded.image else s.image end,
+      icon        = case when v_item ? 'icon' then excluded.icon else s.icon end,
+      sort_order  = case when v_item ? 'sort_order' then excluded.sort_order else s.sort_order end,
+      active      = case when v_item ? 'active' then excluded.active else s.active end;
   end loop;
 
   for v_item, v_pos in select x, (n - 1)::int from jsonb_array_elements(coalesce(p -> 'stylists', '[]')) with ordinality t(x, n) loop
@@ -293,13 +399,9 @@ begin
                where not exists (select 1 from public.services x where x.id = s and x.salon_id = v_id)) then
       raise exception 'unknown_service' using errcode = 'P0001';
     end if;
-    if v_item ? 'weekdays' then
-      v_weekdays := array(select distinct w::text::integer from jsonb_array_elements(v_item -> 'weekdays') w);
-    else
-      v_weekdays := array(select h.weekday from public.salon_hours h where h.salon_id = v_id and h.opens is not null);
-    end if;
+    v_new_st := not exists (select 1 from public.stylists st where st.id = v_sid);
 
-    insert into public.stylists (id, salon_id, name, role, specialties, image, sort_order, active)
+    insert into public.stylists as st (id, salon_id, name, role, specialties, image, sort_order, active)
     values (v_sid, v_id, btrim(v_item ->> 'name'),
             coalesce(private.bilingual(v_item -> 'role'), '{"fr":"","ar":""}'),
             coalesce(v_item -> 'specialties', '[]'),
@@ -307,13 +409,25 @@ begin
             coalesce((v_item ->> 'sort_order')::integer, v_pos),
             coalesce((v_item ->> 'active')::boolean, true))
     on conflict (id) do update set
-      name = excluded.name, role = excluded.role, specialties = excluded.specialties, image = excluded.image,
-      sort_order = excluded.sort_order, active = excluded.active;
+      name        = excluded.name,
+      role        = case when v_item ? 'role' then excluded.role else st.role end,
+      specialties = case when v_item ? 'specialties' then excluded.specialties else st.specialties end,
+      image       = case when v_item ? 'image' then excluded.image else st.image end,
+      sort_order  = case when v_item ? 'sort_order' then excluded.sort_order else st.sort_order end,
+      active      = case when v_item ? 'active' then excluded.active else st.active end;
 
-    delete from public.stylist_services ss where ss.stylist_id = v_sid and ss.salon_id = v_id;
-    insert into public.stylist_services (salon_id, stylist_id, service_id) select v_id, v_sid, s from unnest(v_svc_ids) s;
-    delete from public.stylist_workdays w where w.stylist_id = v_sid and w.salon_id = v_id;
-    insert into public.stylist_workdays (salon_id, stylist_id, weekday) select v_id, v_sid, w from unnest(v_weekdays) w;
+    if v_item ? 'services' then
+      delete from public.stylist_services ss where ss.stylist_id = v_sid and ss.salon_id = v_id;
+      insert into public.stylist_services (salon_id, stylist_id, service_id) select v_id, v_sid, s from unnest(v_svc_ids) s;
+    end if;
+    if v_item ? 'weekdays' then
+      delete from public.stylist_workdays w where w.stylist_id = v_sid and w.salon_id = v_id;
+      insert into public.stylist_workdays (salon_id, stylist_id, weekday)
+      select distinct v_id, v_sid, w::text::smallint from jsonb_array_elements(v_item -> 'weekdays') w;
+    elsif v_new_st then
+      insert into public.stylist_workdays (salon_id, stylist_id, weekday)
+      select v_id, v_sid, h.weekday from public.salon_hours h where h.salon_id = v_id and h.opens is not null;
+    end if;
   end loop;
 
   if v_owner is not null then

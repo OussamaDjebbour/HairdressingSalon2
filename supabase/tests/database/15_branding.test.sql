@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(54);
+select plan(69);
 
 -- Élégance before any provisioning: compared at the end.
 create table pg_temp.before as
@@ -21,7 +21,10 @@ select is((select palette from public.salons where id = 'elegance'),
 select is((select rating from public.salons where id = 'elegance'), 4.9, 'elegance rating');
 select is((select review_count from public.salons where id = 'elegance'), 240, 'elegance review count');
 select is((select years_open || ' ' || client_count from public.salons where id = 'elegance'), '15 2500', 'elegance years and clients');
-select is((select founder_name from public.salons where id = 'elegance'), 'Amina', 'elegance founder');
+select is((select founder_name from public.salons where id = 'elegance'), '{"fr":"Amina","ar":"أمينة"}'::jsonb, 'elegance founder');
+select is((select story_intro from public.salons where id = 'elegance'),
+  '{"fr":"Depuis quinze ans au cœur d’Alger, nous recevons chaque cliente comme une invitée : un moment suspendu, des gestes précis, et le soin d’un métier transmis.","ar":"منذ خمسة عشر عامًا في قلب الجزائر العاصمة، نستقبل كل عميلة كضيفة عزيزة: لحظة من الهدوء، لمسات دقيقة، وعناية حرفةٍ متوارثة."}'::jsonb,
+  'elegance story intro is today''s philosophy body');
 select is((select founder_role from public.salons where id = 'elegance'),
   '{"fr":"Fondatrice & coiffeuse","ar":"المؤسِّسة وخبيرة التصفيف"}'::jsonb, 'elegance founder role');
 select is((select story from public.salons where id = 'elegance'),
@@ -79,12 +82,13 @@ create function pg_temp.sara() returns jsonb language sql as $$ select '{
   "name_ar": "سارة بيوتي",
   "palette": {"50":"#f0f7ff","100":"#E0EFFE","200":"#BAE0FD","300":"#7DC8FC","400":"#38ACF8","500":"#0E92E9","600":"#0274C7","700":"#035DA1","800":"#074F85","900":"#0C426E"},
   "hero_image": "https://example.com/sara.jpg",
-  "founder_name": "Sara",
+  "founder_name": {"fr": "Sara"},
   "founder_role": {"fr": "Fondatrice", "ar": ""},
   "story": {"fr": "Une histoire.", "ar": "قصة."},
+  "story_intro": {"fr": "Depuis trois ans.", "ar": "منذ ثلاث سنوات."},
   "years_open": 3, "client_count": 400, "rating": 4.7, "review_count": 52,
   "address": {"fr": "1 Rue X", "ar": ""}, "city": {"fr": "Oran", "ar": "وهران"},
-  "whatsapp": "0555 12 34 56", "instagram_url": "https://instagram.com/sara", "facebook_url": null,
+  "whatsapp": "0555 12 34 56", "instagram_url": "https://instagram.com/sara", "facebook_url": "",
   "domains": ["WWW.Sara-Salon.com", "sara-salon.com"],
   "hours": [
     {"weekday": 1, "opens": null, "closes": null}, {"weekday": 2, "opens": "09:00", "closes": "18:00"},
@@ -127,7 +131,10 @@ select is(pg_temp.sara_counts(), '1 1 7 2 1 2 5 1', 'provision creates salon, do
 select is((select domain from public.salon_domains where salon_id = 'sara'), 'sara-salon.com', 'domain normalised');
 select is((select palette ->> '50' || ' ' || name_ar || ' ' || rating || ' ' || whatsapp from public.salons where id = 'sara'),
   '#F0F7FF سارة بيوتي 4.7 0555123456', 'salon row written (palette upper-cased, phone normalised)');
-select is((select founder_role ->> 'ar' || '|' || (address ->> 'ar') from public.salons where id = 'sara'), 'Fondatrice|1 Rue X', 'empty Arabic falls back to French');
+select is((select founder_role ->> 'ar' || '|' || (address ->> 'ar') || '|' || (founder_name ->> 'ar') from public.salons where id = 'sara'),
+  'Fondatrice|1 Rue X|Sara', 'empty Arabic falls back to French');
+select is((select story_intro ->> 'ar' from public.salons where id = 'sara'), 'منذ ثلاث سنوات.', 'story intro written');
+select is((select facebook_url from public.salons where id = 'sara'), null, 'empty url stored as null');
 select is((select opens || '-' || closes from public.salon_hours where salon_id = 'sara' and weekday = 6), '10:00:00-16:00:00', 'hours written');
 select is((select icon || ' ' || image || ' ' || active from public.services where id = 'sara-ongles'), 'sparkles  true', 'service defaults');
 
@@ -149,8 +156,33 @@ select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{se
 select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{stylists,0,id}', '"amina"')) $$, 'P0001', 'id_taken', 'another salon''s stylist id');
 select throws_ok($$ select public.provision_salon(pg_temp.sara() || '{"owner_user_id": "11111111-1111-1111-1111-111111111111"}') $$, 'P0001', 'staff_taken', 'another salon''s staff');
 select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{palette,600}', '"blue"')) $$, 'P0001', 'invalid_palette', 'bad palette');
-select throws_ok($$ select public.provision_salon(pg_temp.sara() - 'hours') $$, 'P0001', 'invalid_hours', 'hours required');
+select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{id}', '"nouveau"') - 'hours' - 'domains' - 'services' - 'stylists' - 'owner_user_id') $$,
+  'P0001', 'invalid_hours', 'hours required for a new salon');
+select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{hours,0,opens}', '"09:10"')) $$, 'P0001', 'invalid_hours', 'bad hours');
+select throws_ok($$ select public.provision_salon(pg_temp.sara() || '{"whatsapp": "0123"}') $$, 'P0001', 'invalid_phone', 'bad whatsapp');
+select throws_ok($$ select public.provision_salon(pg_temp.sara() || '{"instagram_url": "http://instagram.com/x"}') $$, 'P0001', 'invalid_url', 'bad instagram url');
+select throws_ok($$ select public.provision_salon(pg_temp.sara() || '{"facebook_url": "facebook.com/x"}') $$, 'P0001', 'invalid_url', 'bad facebook url');
+select throws_ok(format($$ select public.provision_salon(pg_temp.sara() || jsonb_build_object('address', jsonb_build_object('fr', %L))) $$, repeat('a', 201)),
+  'P0001', 'invalid_name', 'address too long');
+select throws_ok(format($$ select public.provision_salon(pg_temp.sara() || jsonb_build_object('city', jsonb_build_object('fr', 'Oran', 'ar', %L))) $$, repeat('a', 201)),
+  'P0001', 'invalid_name', 'city too long');
 reset role;
+
+-- Re-provisioning keeps the owner's Réglages edits for keys the payload leaves out.
+update public.services set active = false, sort_order = 7 where id = 'sara-ongles';
+delete from public.stylist_workdays where stylist_id = 'sara-yasmine' and weekday > 3;
+set local role service_role;
+select lives_ok($$ select public.provision_salon(pg_temp.sara() #- '{stylists,0,weekdays}') $$, 're-run without weekdays');
+reset role;
+select is((select active || ' ' || sort_order from public.services where id = 'sara-ongles'), 'false 7', 'deactivated service stays inactive, order kept');
+select is((select string_agg(weekday::text, ',' order by weekday) from public.stylist_workdays where stylist_id = 'sara-yasmine'), '2,3',
+  'custom workdays survive a re-run without weekdays');
+update public.salon_hours set opens = '11:00', closes = '15:00' where salon_id = 'sara' and weekday = 6;
+set local role service_role;
+select lives_ok($$ select public.provision_salon(pg_temp.sara() - 'hours') $$, 're-run without hours');
+reset role;
+select is((select opens || '-' || closes from public.salon_hours where salon_id = 'sara' and weekday = 6), '11:00:00-15:00:00', 'hours untouched when omitted');
+select is((select price from public.services where id = 'sara-ongles'), 1500, 'listed fields still written');
 
 -- Élégance untouched by all of the above
 select is((select row(salon, services, stylists, stylist_services, workdays, hours, domains)::text from pg_temp.before),
