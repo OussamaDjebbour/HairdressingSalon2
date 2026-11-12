@@ -135,6 +135,51 @@ describe('Schedule', () => {
   });
 });
 
+describe('Schedule — agenda first', () => {
+  const end = (b: AdminBooking, minutes: number) => ({ ...b, endsAt: new Date(b.startsAt.getTime() + minutes * 60000) });
+
+  it('has no page heading and no floating add button', () => {
+    renderSchedule();
+    expect(screen.queryByText('Le carnet du jour')).toBeNull();
+    expect(screen.queryByText('Planning du jour')).toBeNull();
+    expect(document.querySelector('.fixed.bottom-6')).toBeNull();
+  });
+
+  it('sums up the day in one line', () => {
+    weekBookings = [
+      adminBooking({ id: 'a', price: 2500, startIso: '2030-01-08T09:00:00Z' }),
+      adminBooking({ id: 'b', price: 3000, stylistId: 'leila', stylistName: 'Leila', startIso: '2030-01-08T09:00:00Z' }),
+      end(adminBooking({ id: 'c', price: 4000, stylistId: 'sara', stylistName: 'Sara', startIso: '2030-01-08T09:00:00Z' }), 90),
+      end(adminBooking({ id: 'd', price: 6000, startIso: '2030-01-08T13:00:00Z' }), 90),
+      adminBooking({ id: 'x', price: 9999, status: 'cancelled', startIso: '2030-01-08T15:00:00Z' }),
+    ];
+    renderSchedule();
+    expect(screen.getByText('4 rendez-vous')).toBeInTheDocument();
+    expect(screen.getByText('15 500 DA')).toBeInTheDocument();
+    expect(screen.getByText('19 % occupé')).toBeInTheDocument();
+    expect(screen.getByText('Prochain : 10:00')).toBeInTheDocument();
+  });
+
+  it('today with nothing left: names the next booking on a later day', () => {
+    pendingBookings = [adminBooking({ status: 'confirmed', startIso: '2030-01-09T09:00:00Z' })];
+    renderSchedule();
+    expect(screen.getByText('Prochain : mer. 9 à 10:00')).toBeInTheDocument();
+  });
+
+  it('today with nothing coming at all says so', () => {
+    renderSchedule();
+    expect(screen.getByText('Aucun rendez-vous à venir')).toBeInTheDocument();
+  });
+
+  it('the add button in the day bar opens the add sheet', () => {
+    renderSchedule();
+    const add = screen.getByRole('button', { name: 'Nouveau rendez-vous' });
+    expect(add).toHaveTextContent('Rendez-vous');
+    fireEvent.click(add);
+    expect(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
+  });
+});
+
 describe('Schedule deep link (from a notification)', () => {
   it('deep link to another week opens that booking', () => {
     weekBookings = [adminBooking({ id: 'p9', clientName: 'Nour', startIso: '2030-01-17T09:00:00Z' })];

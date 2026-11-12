@@ -114,7 +114,7 @@ export function PendingSheet({ bookings, onOpen, onClose }: PendingSheetProps) {
                   <span className="mt-1.5 block font-semibold text-rose-900">{item.booking.clientName}</span>
                   <span className="block text-sm text-rose-700">
                     {item.booking.serviceName[lang]} · {item.booking.stylistName} · {formatDuration(minutesOf(item.booking), lang)} ·{' '}
-                    {formatPrice(item.booking.price, lang)}
+                    <span className="whitespace-nowrap">{formatPrice(item.booking.price, lang)}</span>
                   </span>
                 </button>
                 {actions.error && lastTried === item.booking.id && (
