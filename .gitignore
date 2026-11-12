@@ -28,3 +28,7 @@ dist-ssr
 
 # Local edge function secrets
 supabase/functions/.env
+
+# Cloudflare: local Pages Functions secrets, wrangler state
+.dev.vars
+.wrangler/

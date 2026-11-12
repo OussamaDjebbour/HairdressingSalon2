@@ -3,8 +3,11 @@
 // introuvable" page), never to a default salon.
 import type { Lang } from '../context/LanguageContext';
 import { supabase } from '../lib/supabase';
+import { normalizeHost } from '../lib/host';
 import type { Palette } from '../lib/palette';
 import type { CurrentSalon } from './salon';
+
+export { normalizeHost };
 
 /** Hosts where `?salon=<id>` may pick a salon (local development and `pnpm preview`). */
 const DEV_HOSTS = ['localhost', '127.0.0.1'];
@@ -27,20 +30,6 @@ interface SalonRow {
   client_count: number | null;
   rating: number | string | null;
   review_count: number | null;
-}
-
-/**
- * Same rules as `private.normalize_host` (how salon_domains stores domains): lowercase, trim
- * spaces, then strip a `:port`, trailing dots and one leading `www.`.
- * 'WWW.Sara-Salon.com.:443' -> 'sara-salon.com'.
- */
-export function normalizeHost(host: string): string {
-  return host
-    .toLowerCase()
-    .replace(/^ +| +$/g, '')
-    .replace(/:[0-9]*$/, '')
-    .replace(/\.+$/, '')
-    .replace(/^www\./, '');
 }
 
 function bilingual(value: unknown): Record<Lang, string> | null {

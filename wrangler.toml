@@ -1,0 +1,7 @@
+# Cloudflare Pages project: one static build (dist) serves every salon's domain; the Pages
+# Functions in functions/ write each salon's title, colours and app manifest at the edge.
+# Runtime env vars (Pages project settings; locally a git-ignored .dev.vars):
+#   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY
+name = "salons"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-04-20"
