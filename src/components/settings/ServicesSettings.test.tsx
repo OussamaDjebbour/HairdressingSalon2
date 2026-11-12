@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Service } from '../../data/types';
+import { pickOption } from '../../test/select';
 
 const rpc = vi.fn();
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
@@ -60,6 +61,24 @@ describe('ServicesSettings while the list is not in', () => {
 });
 
 describe('ServicesSettings', () => {
+  it('an empty Save shows the name and the price errors together', async () => {
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText('Le nom est obligatoire.')).toBeInTheDocument();
+    expect(screen.getByText('Indiquez un prix en dinars, sans centimes (0 à 1 000 000).')).toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalledWith('admin_save_service', expect.anything());
+  });
+
+  it('refuses a price with decimals', async () => {
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    fireEvent.change(screen.getByLabelText('Prix (DA)'), { target: { value: '12.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText('Indiquez un prix en dinars, sans centimes (0 à 1 000 000).')).toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalledWith('admin_save_service', expect.anything());
+  });
+
   it('shows with a chevron that a service opens for editing', () => {
     renderIt();
     const row = screen.getAllByTestId('service-name')[0].closest('li')!;
@@ -77,7 +96,7 @@ describe('ServicesSettings', () => {
     renderIt();
     fireEvent.click(screen.getByText('Brushing'));
     fireEvent.change(screen.getByLabelText('Prix (DA)'), { target: { value: '3500' } });
-    fireEvent.change(screen.getByLabelText('Durée'), { target: { value: '60' } });
+    pickOption('Durée', '60 min');
     fireEvent.change(screen.getByLabelText('Ordre d’affichage'), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() =>

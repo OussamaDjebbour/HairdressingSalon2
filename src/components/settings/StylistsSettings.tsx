@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { toYmd } from '../../data/bookings';
@@ -12,8 +15,15 @@ import {
   useSetStylistActive,
   useStylistDaysOff,
 } from '../../data/salonSettings';
-import type { Stylist, Weekday } from '../../data/types';
+import type { Service, Stylist, Weekday } from '../../data/types';
 import { salonDate } from '../../data/week';
+import { clientNameSchema, periodSchema } from '../../data/schemas';
+import type { Period } from '../../data/period';
+import { TextField } from '../form/TextField';
+import { CheckboxField } from '../form/CheckboxField';
+import { DateRangeField } from '../form/DateRangeField';
+import { FormSummary } from '../form/FormSummary';
+import { applyServerError } from '../form/serverErrors';
 import { AffectedBookings } from './AffectedBookings';
 import { QueryFallback, queriesReady } from './QueryFallback';
 
@@ -27,25 +37,193 @@ const parseYmd = (ymd: string) => {
   return new Date(y, m - 1, d);
 };
 
-interface Draft {
-  id: string | null;
-  name: string;
-  roleFr: string;
-  roleAr: string;
-  serviceIds: string[];
-  workdays: Weekday[];
-}
+const SERVER_ERROR_FIELDS = { invalid_name: 'name' };
+const DAY_OFF_ERROR_FIELDS = { invalid_dates: 'period' };
 
-const emptyDraft: Draft = { id: null, name: '', roleFr: '', roleAr: '', serviceIds: [], workdays: [] };
+const stylistSchema = z.object({
+  name: clientNameSchema,
+  roleFr: z.string(),
+  roleAr: z.string(),
+  serviceIds: z.array(z.string()),
+  workdays: z.array(z.number()),
+});
+type StylistForm = z.infer<typeof stylistSchema>;
 
-const toDraft = (s: Stylist): Draft => ({
-  id: s.id,
+const dayOffSchema = z.object({ period: periodSchema });
+type DayOffForm = { period: Period | null };
+
+const emptyValues: StylistForm = { name: '', roleFr: '', roleAr: '', serviceIds: [], workdays: [] };
+
+const toValues = (s: Stylist): StylistForm => ({
   name: s.name,
   roleFr: s.role.fr,
   roleAr: s.role.ar,
   serviceIds: [...s.serviceIds],
   workdays: [...s.workdays],
 });
+
+interface Draft {
+  id: string | null;
+  values: StylistForm;
+}
+
+const toggleIn = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+
+interface FormProps {
+  draft: Draft;
+  services: Service[];
+  error: string | null;
+  onFail(err: unknown): void;
+  onSaved(): void;
+  onCancel(): void;
+}
+
+function StylistFormCard({ draft, services, error, onFail, onSaved, onCancel }: FormProps) {
+  const { t, lang } = useLang();
+  const save = useSaveStylist();
+  const {
+    register, control, handleSubmit, setError,
+    formState: { errors, submitCount },
+  } = useForm<StylistForm>({ resolver: zodResolver(stylistSchema), defaultValues: draft.values });
+
+  const submit = handleSubmit((v) => {
+    save.mutate(
+      {
+        id: draft.id,
+        name: v.name.trim(),
+        role: { fr: v.roleFr.trim(), ar: v.roleAr.trim() },
+        serviceIds: v.serviceIds,
+        workdays: v.workdays as Weekday[],
+      },
+      {
+        onSuccess: onSaved,
+        onError: (err) => {
+          const onField = applyServerError(toSettingsError(err), SERVER_ERROR_FIELDS, (name, e) => setError(name as keyof StylistForm, e, { shouldFocus: true }), 'settings.error');
+          if (!onField) onFail(err);
+        },
+      }
+    );
+  });
+
+  return (
+    <form className="card p-4 sm:p-5 space-y-4" noValidate onSubmit={submit}>
+      <h2 className="font-display text-lg font-semibold text-rose-800">
+        {t(draft.id ? 'settings.stylists.edit' : 'settings.stylists.new')}
+      </h2>
+      <TextField id="sty-name" label={t('settings.stylists.name')} error={errors.name?.message} {...register('name')} />
+      <TextField id="sty-role-fr" label={t('settings.stylists.roleFr')} {...register('roleFr')} />
+      <TextField id="sty-role-ar" label={t('settings.stylists.roleAr')} optional help={t('form.help.arFallback')} dir="rtl" {...register('roleAr')} />
+
+      <Controller
+        control={control}
+        name="serviceIds"
+        render={({ field }) => {
+          const linked = new Set(field.value);
+          const offered = services.filter((s) => s.active || linked.has(s.id));
+          return (
+            <fieldset>
+              <legend className="label">{t('settings.stylists.services')}</legend>
+              <ul className="space-y-1">
+                {offered.map((s) => (
+                  <li key={s.id}>
+                    <CheckboxField
+                      id={`sty-svc-${s.id}`}
+                      checked={linked.has(s.id)}
+                      onCheckedChange={() => field.onChange(toggleIn(field.value, s.id))}
+                      label={`${s.name[lang]}${s.active ? '' : ` (${t('settings.services.hidden')})`}`}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+          );
+        }}
+      />
+
+      <Controller
+        control={control}
+        name="workdays"
+        render={({ field }) => (
+          <fieldset>
+            <legend className="label">{t('settings.stylists.workdays')}</legend>
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAYS.map((d) => {
+                const on = field.value.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    aria-pressed={on}
+                    className={`${on ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                    onClick={() => field.onChange(toggleIn(field.value, d).sort())}
+                  >
+                    {formatDayName(dateOfWeekday(d), lang)}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+      />
+
+      {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
+      {error && <p role="alert" className="text-sm text-rust-600">{error}</p>}
+      <div className="flex gap-3">
+        <button type="submit" className="btn-primary flex-1" disabled={save.isPending}>{t('settings.services.save')}</button>
+        <button type="button" className="btn-secondary flex-1" onClick={onCancel}>{t('settings.services.cancel')}</button>
+      </div>
+    </form>
+  );
+}
+
+function AddDayOff({ stylistId, onAdded, onFail }: { stylistId: string; onAdded(): void; onFail(err: unknown): void }) {
+  const { t } = useLang();
+  const addOff = useAddStylistDaysOff();
+  const {
+    control, handleSubmit, reset, setError,
+    formState: { errors },
+  } = useForm<DayOffForm>({ resolver: zodResolver(dayOffSchema), defaultValues: { period: null } });
+
+  const add = handleSubmit(({ period }) => {
+    if (!period) return;
+    addOff.mutate(
+      { stylistId, from: toYmd(period.from), to: toYmd(period.to) },
+      {
+        onSuccess: () => {
+          reset({ period: null });
+          onAdded();
+        },
+        onError: (err) => {
+          const onField = applyServerError(toSettingsError(err), DAY_OFF_ERROR_FIELDS, (name, e) => setError(name as keyof DayOffForm, e), 'settings.error');
+          if (!onField) onFail(err);
+        },
+      }
+    );
+  });
+
+  return (
+    <>
+      <Controller
+        control={control}
+        name="period"
+        render={({ field }) => (
+          <DateRangeField
+            id="off-period"
+            label={t('settings.stylists.offPeriod')}
+            value={field.value}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+            ref={field.ref}
+            error={errors.period?.message}
+          />
+        )}
+      />
+      <button type="button" className="btn-secondary w-full" disabled={addOff.isPending} onClick={add}>
+        {t('settings.stylists.addDayOff')}
+      </button>
+    </>
+  );
+}
 
 export function StylistsSettings() {
   const { t, lang } = useLang();
@@ -55,15 +233,11 @@ export function StylistsSettings() {
   const stylists = stylistsQuery.data ?? [];
   const services = servicesQuery.data ?? [];
   const daysOff = daysOffQuery.data ?? [];
-  const save = useSaveStylist();
   const setActive = useSetStylistActive();
-  const addOff = useAddStylistDaysOff();
   const delOff = useDeleteStylistDaysOff();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
 
   const queries = [stylistsQuery, servicesQuery, daysOffQuery];
   if (!queriesReady(queries)) return <QueryFallback queries={queries} />;
@@ -78,30 +252,7 @@ export function StylistsSettings() {
 
   const open = (d: Draft) => {
     setError(null);
-    setFrom('');
-    setTo('');
     setDraft(d);
-  };
-
-  const submit = () => {
-    if (!draft) return;
-    setError(null);
-    save.mutate(
-      {
-        id: draft.id,
-        name: draft.name.trim(),
-        role: { fr: draft.roleFr.trim(), ar: draft.roleAr.trim() },
-        serviceIds: draft.serviceIds,
-        workdays: draft.workdays,
-      },
-      {
-        onSuccess: () => {
-          setDraft(null);
-          setShowAffected(true);
-        },
-        onError: fail,
-      }
-    );
   };
 
   const toggleActive = (s: Stylist) => {
@@ -109,99 +260,23 @@ export function StylistsSettings() {
     setActive.mutate({ id: s.id, active: !s.active }, { onSuccess: () => setShowAffected(true), onError: fail });
   };
 
-  const addDayOff = () => {
-    if (!draft?.id || !from) return setError(t('settings.error.invalid_dates'));
-    setError(null);
-    addOff.mutate(
-      { stylistId: draft.id, from, to: to || from },
-      {
-        onSuccess: () => {
-          setFrom('');
-          setTo('');
-          setShowAffected(true);
-        },
-        onError: fail,
-      }
-    );
-  };
-
-  const toggleIn = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-
   if (draft) {
-    const linked = new Set(draft.serviceIds);
-    const offered = services.filter((s) => s.active || linked.has(s.id));
     const upcoming = daysOff.filter((d) => d.stylistId === draft.id && d.to >= today);
     return (
       <div className="space-y-5">
         {showAffected && <AffectedBookings />}
-        <form
-          className="card p-4 sm:p-5 space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
+        <StylistFormCard
+          key={draft.id ?? 'new'}
+          draft={draft}
+          services={services}
+          error={error}
+          onFail={(err) => { setError(null); fail(err); }}
+          onSaved={() => {
+            setDraft(null);
+            setShowAffected(true);
           }}
-        >
-          <h2 className="font-display text-lg font-semibold text-rose-800">
-            {t(draft.id ? 'settings.stylists.edit' : 'settings.stylists.new')}
-          </h2>
-          <div>
-            <label htmlFor="sty-name" className="label">{t('settings.stylists.name')}</label>
-            <input id="sty-name" className="input" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-          </div>
-          <div>
-            <label htmlFor="sty-role-fr" className="label">{t('settings.stylists.roleFr')}</label>
-            <input id="sty-role-fr" className="input" value={draft.roleFr} onChange={(e) => setDraft({ ...draft, roleFr: e.target.value })} />
-          </div>
-          <div>
-            <label htmlFor="sty-role-ar" className="label">{t('settings.stylists.roleAr')}</label>
-            <input id="sty-role-ar" className="input" dir="rtl" value={draft.roleAr} onChange={(e) => setDraft({ ...draft, roleAr: e.target.value })} />
-          </div>
-
-          <fieldset>
-            <legend className="label">{t('settings.stylists.services')}</legend>
-            <ul className="space-y-1">
-              {offered.map((s) => (
-                <li key={s.id}>
-                  <label className="flex items-center gap-3 min-h-11 text-rose-800">
-                    <input
-                      type="checkbox"
-                      className="w-5 h-5 accent-rose-600"
-                      checked={linked.has(s.id)}
-                      onChange={() => setDraft({ ...draft, serviceIds: toggleIn(draft.serviceIds, s.id) })}
-                    />
-                    <span>{s.name[lang]}{!s.active && <span className="ms-2 text-xs font-semibold text-amber-800">{t('settings.services.hidden')}</span>}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </fieldset>
-
-          <fieldset>
-            <legend className="label">{t('settings.stylists.workdays')}</legend>
-            <div className="flex flex-wrap gap-2">
-              {WEEKDAYS.map((d) => {
-                const on = draft.workdays.includes(d);
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    aria-pressed={on}
-                    className={`${on ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-                    onClick={() => setDraft({ ...draft, workdays: toggleIn(draft.workdays, d).sort() })}
-                  >
-                    {formatDayName(dateOfWeekday(d), lang)}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-
-          {error && <p role="alert" className="text-sm text-rust-600">{error}</p>}
-          <div className="flex gap-3">
-            <button type="submit" className="btn-primary flex-1" disabled={save.isPending}>{t('settings.services.save')}</button>
-            <button type="button" className="btn-secondary flex-1" onClick={() => { setDraft(null); setError(null); }}>{t('settings.services.cancel')}</button>
-          </div>
-        </form>
+          onCancel={() => { setDraft(null); setError(null); }}
+        />
 
         {draft.id && (
           <section className="card p-4 sm:p-5 space-y-3">
@@ -230,19 +305,7 @@ export function StylistsSettings() {
                 ))}
               </ul>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="off-from" className="label">{t('settings.stylists.offFrom')}</label>
-                <input id="off-from" type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} />
-              </div>
-              <div>
-                <label htmlFor="off-to" className="label">{t('settings.stylists.offTo')}</label>
-                <input id="off-to" type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
-              </div>
-            </div>
-            <button type="button" className="btn-secondary w-full" disabled={addOff.isPending} onClick={addDayOff}>
-              {t('settings.stylists.addDayOff')}
-            </button>
+            <AddDayOff stylistId={draft.id} onAdded={() => { setError(null); setShowAffected(true); }} onFail={fail} />
           </section>
         )}
       </div>
@@ -253,13 +316,13 @@ export function StylistsSettings() {
     <div>
       {showAffected && <AffectedBookings />}
       {error && <p role="alert" className="text-sm text-rust-600 mb-3">{error}</p>}
-      <button type="button" className="btn-primary w-full mb-4" onClick={() => open(emptyDraft)}>
+      <button type="button" className="btn-primary w-full mb-4" onClick={() => open({ id: null, values: emptyValues })}>
         <Plus className="w-4 h-4" strokeWidth={2} aria-hidden /> {t('settings.services.add')}
       </button>
       <ul className="space-y-2">
         {ordered.map((s) => (
           <li key={s.id} className={`card relative flex items-center gap-2 ps-4 pe-3 py-2 ${s.active ? '' : 'opacity-70'}`}>
-            <button type="button" className="flex-1 min-w-0 text-start py-1 after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" onClick={() => open(toDraft(s))}>
+            <button type="button" className="flex-1 min-w-0 text-start py-1 after:absolute after:inset-0 after:rounded-[inherit] after:content-['']" onClick={() => open({ id: s.id, values: toValues(s) })}>
               <span className="flex-1 min-w-0">
                 <span data-testid="stylist-name" className="block font-medium text-rose-800 break-words">{s.name}</span>
                 <span className="block text-sm text-rose-600">
