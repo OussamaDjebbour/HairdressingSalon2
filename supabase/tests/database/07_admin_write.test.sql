@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(33);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -99,6 +99,53 @@ select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select throws_ok($$ select public.admin_update_booking('aaaaaaaa-0000-0000-0000-00000000ffff', 'manucure', 'sara', '2030-01-08', '16:00', 'Nour', '0661000000', 'fr') $$,
                  'P0001', 'not_found', 'unknown id');
+reset role;
+
+-- a booking keeps what it was booked with when the owner changes settings
+insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang)
+values ('bbbbbbbb-0000-0000-0000-000000000001', 'elegance', 'coupe-femme', 'leila',
+        '2030-01-15 10:00+01', '2030-01-15 11:00+01', 2500, 'Keep', '0662000000', 'fr');
+update public.services set price = 3000, duration = 90 where id = 'coupe-femme' and salon_id = 'elegance';
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select public.admin_update_booking('bbbbbbbb-0000-0000-0000-000000000001', 'coupe-femme', 'leila', '2030-01-15', '10:00', 'Keep 2', '0662000000', 'fr');
+reset role;
+select is((select price || ' ' || (extract(epoch from ends_at - starts_at) / 60)::int from private.bookings where id = 'bbbbbbbb-0000-0000-0000-000000000001'),
+          '2500 60', 'rename keeps price and length after the service changed');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select public.admin_update_booking('bbbbbbbb-0000-0000-0000-000000000001', 'coupe-femme', 'leila', '2030-01-15', '14:00', 'Keep 2', '0662000000', 'fr');
+reset role;
+select is((select price || ' ' || (extract(epoch from ends_at - starts_at) / 60)::int || ' ' || starts_at::text from private.bookings where id = 'bbbbbbbb-0000-0000-0000-000000000001'),
+          '2500 60 ' || '2030-01-15 14:00+01'::timestamptz::text, 'moving keeps price and length (same service)');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select public.admin_update_booking('bbbbbbbb-0000-0000-0000-000000000001', 'coloration', 'leila', '2030-01-15', '14:00', 'Keep 2', '0662000000', 'fr');
+reset role;
+select is((select price || ' ' || (extract(epoch from ends_at - starts_at) / 60)::int from private.bookings where id = 'bbbbbbbb-0000-0000-0000-000000000001'),
+          '6000 120', 'changing the service takes the new price and length');
+
+-- hours changed under a booking: rename lives, moving is checked against the new hours
+insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang)
+values ('bbbbbbbb-0000-0000-0000-000000000002', 'elegance', 'manucure', 'sara',
+        '2030-01-10 16:00+01', '2030-01-10 17:00+01', 1500, 'Late', '0663000000', 'fr');
+update public.salon_hours set closes = '13:00' where salon_id = 'elegance' and weekday = 4;
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select lives_ok($$ select public.admin_update_booking('bbbbbbbb-0000-0000-0000-000000000002', 'manucure', 'sara', '2030-01-10', '16:00', 'Late 2', '0663000000', 'fr') $$,
+                'rename a booking now outside the hours');
+select throws_ok($$ select public.admin_update_booking('bbbbbbbb-0000-0000-0000-000000000002', 'manucure', 'sara', '2030-01-10', '16:30', 'Late 2', '0663000000', 'fr') $$,
+                 'P0001', 'outside_hours', 'moving it is checked against the new hours');
+reset role;
+
+-- hidden stylist: rename lives, moving to another hidden stylist is refused
+update public.stylists set active = false where salon_id = 'elegance' and id in ('sara', 'amina');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select lives_ok($$ select public.admin_update_booking('bbbbbbbb-0000-0000-0000-000000000002', 'manucure', 'sara', '2030-01-10', '16:00', 'Late 3', '0663000000', 'fr') $$,
+                'rename a booking of a hidden stylist');
+select throws_ok($$ select public.admin_update_booking('bbbbbbbb-0000-0000-0000-000000000002', 'manucure', 'amina', '2030-01-10', '16:00', 'Late 3', '0663000000', 'fr') $$,
+                 'P0001', 'unknown_service', 'moving to another hidden stylist');
 reset role;
 
 select * from finish();

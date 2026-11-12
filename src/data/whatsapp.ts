@@ -4,12 +4,6 @@ import { normalizePhone } from './bookings';
 import { formatLongDate } from './formatters';
 import { salonDate } from './week';
 
-/**
- * The salon's WhatsApp number (international form, no "+").
- * PLACEHOLDER: replace with the owner's real number before go-live (spec, go-live step 4).
- */
-export const SALON_WHATSAPP_NUMBER = '213561234567';
-
 /** "0555 12 34 56" / "+213 555…" / "0555123456" → "213555123456", the form wa.me links expect. */
 export function toWaNumber(phone: string): string {
   return `213${normalizePhone(phone).replace(/^0/, '')}`;

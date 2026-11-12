@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(57);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -15,6 +15,11 @@ insert into public.services (id, salon_id, category, name, description, price, d
 insert into public.stylists (id, salon_id, name, role, image)
   values ('nadia', 'rival', 'Nadia', '{"fr":"Coiffeuse","ar":"مصففة"}', 'x');
 insert into public.stylist_services (salon_id, stylist_id, service_id) values ('rival', 'nadia', 'rival-cut');
+-- rival opens and nadia works Tue–Sat 09:00–18:00, like elegance
+insert into public.salon_hours (salon_id, weekday, opens, closes)
+  select 'rival', d, case when d between 2 and 6 then time '09:00' end, case when d between 2 and 6 then time '18:00' end
+  from generate_series(1, 7) d;
+insert into public.stylist_workdays (salon_id, stylist_id, weekday) select 'rival', 'nadia', d from generate_series(2, 6) d;
 
 select throws_ok($$ select * from public.get_slots('elegance', pg_temp.open_day(), 'rival-cut') $$, 'P0001', 'unknown_service', 'get_slots: other salon''s service');
 select throws_ok($$ select * from public.get_slots('elegance', pg_temp.open_day(), 'coupe-femme', 'nadia') $$, 'P0001', 'unknown_service', 'get_slots: other salon''s stylist');
@@ -157,6 +162,48 @@ select pg_temp.act_as('22222222-2222-2222-2222-222222222222');
 set local role authenticated;
 select throws_ok($$ select public.admin_my_salon() $$, 'P0001', 'not_authorized', 'non-staff refused');
 reset role;
+
+-- catalogue RPCs: Élégance staff never see or change rival's services, stylists or days off
+insert into public.stylist_days_off (id, salon_id, stylist_id, starts_on, ends_on)
+  values ('cccccccc-0000-0000-0000-000000000001', 'rival', 'nadia', '2030-05-01', '2030-05-02');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select throws_ok($$ select public.admin_save_service('rival-cut', '{"fr":"Hack","ar":""}', '{}', 'beaute', 1, 30, 0) $$, 'P0001', 'not_found', 'save_service: other salon''s service is not_found');
+select throws_ok($$ select public.admin_set_service_active('rival-cut', false) $$, 'P0001', 'not_found', 'set_service_active: other salon''s service is not_found');
+select throws_ok($$ select public.admin_save_stylist('nadia', 'Hack', '{"fr":"x","ar":"x"}', '{}', '{}') $$, 'P0001', 'not_found', 'save_stylist: other salon''s stylist is not_found');
+select throws_ok($$ select public.admin_save_stylist(null, 'Xavier', '{"fr":"x","ar":"x"}', array['rival-cut'], '{}') $$, 'P0001', 'unknown_service', 'save_stylist: other salon''s service is unknown_service');
+select throws_ok($$ select public.admin_set_stylist_active('nadia', false) $$, 'P0001', 'not_found', 'set_stylist_active: other salon''s stylist is not_found');
+select throws_ok($$ select public.admin_add_stylist_days_off('nadia', '2030-06-01', '2030-06-02') $$, 'P0001', 'not_found', 'add_days_off: other salon''s stylist is not_found');
+select throws_ok($$ select public.admin_delete_stylist_days_off('cccccccc-0000-0000-0000-000000000001') $$, 'P0001', 'not_found', 'delete_days_off: other salon''s row is not_found');
+select lives_ok($$ select public.admin_add_stylist_days_off('amina', '2030-06-01', '2030-06-02') $$, 'add_days_off: own stylist works');
+reset role;
+select is((select (name ->> 'fr') || ' ' || price || ' ' || active from public.services where id = 'rival-cut') || ' ' || (select name || ' ' || active from public.stylists where id = 'nadia'),
+          'Coupe R 1000 true Nadia true', 'rival service and stylist unchanged');
+select is((select count(*)::int from public.stylist_workdays where stylist_id = 'nadia'), 5, 'rival stylist workdays unchanged');
+select is((select count(*)::int from public.stylist_days_off where salon_id = 'rival'), 1, 'rival days off unchanged');
+select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
+set local role authenticated;
+select is((select count(*)::int from public.stylist_days_off where salon_id = 'elegance'), 0, 'RLS: rival staff see no elegance days off');
+select is((select count(*)::int from public.stylist_days_off), 1, 'RLS: rival staff see only their own days off');
+reset role;
+
+-- settings RPCs: Élégance staff never see or change rival's hours, closed dates, salon info or bookings
+insert into public.salon_closed_dates (id, salon_id, starts_on, ends_on, label)
+  values ('cccccccc-0000-0000-0000-0000000000c1', 'rival', '2030-07-01', '2030-07-05', 'Rival closed');
+update public.salons set whatsapp = '0555000099', instagram_url = 'https://instagram.com/rival' where id = 'rival';
+insert into private.bookings (id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status)
+  values ('bbbbbbbb-0000-0000-0000-000000000099', 'rival', 'rival-cut', 'nadia',
+          '2030-01-13 10:00+01', '2030-01-13 11:00+01', 1000, 'Rival Sunday', '0555999999', 'fr', 'pending');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select throws_ok($$ select public.admin_delete_closed_dates('cccccccc-0000-0000-0000-0000000000c1') $$, 'P0001', 'not_found', 'delete_closed_dates: other salon''s row is not_found');
+select lives_ok($$ select public.admin_set_hours('[{"weekday":1,"opens":null,"closes":null},{"weekday":2,"opens":"10:00","closes":"12:00"},{"weekday":3,"opens":null,"closes":null},{"weekday":4,"opens":null,"closes":null},{"weekday":5,"opens":null,"closes":null},{"weekday":6,"opens":null,"closes":null},{"weekday":7,"opens":null,"closes":null}]') $$, 'set_hours: own salon works');
+select lives_ok($$ select public.admin_save_salon_info('{"fr":"x","ar":"x"}', '{"fr":"x","ar":"x"}', '0661000000', null, null) $$, 'save_salon_info: own salon works');
+select is((select count(*)::int from public.admin_affected_bookings() where client_name = 'Rival Sunday'), 0, 'affected_bookings: never lists another salon''s bookings');
+reset role;
+select is((select count(*)::int from public.salon_hours where salon_id = 'rival' and opens = '09:00' and closes = '18:00'), 5, 'rival hours unchanged');
+select is((select whatsapp || ' ' || instagram_url from public.salons where id = 'rival') || ' ' || (select count(*)::int from public.salon_closed_dates where salon_id = 'rival'),
+          '0555000099 https://instagram.com/rival 1', 'rival salon info and closed dates unchanged');
 
 select * from finish();
 rollback;

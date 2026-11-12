@@ -7,21 +7,21 @@ import {
 import { useLang } from '../context/LanguageContext';
 import { toYmd } from '../data/bookings';
 import {
-  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings, useMySalon,
+  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings,
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
-import { SALON_ID } from '../data/salon';
-import { useStylists } from '../data/queries';
+import { useAllStylists } from '../data/queries';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
-import { CLOSING_HOUR, OPENING_HOUR } from '../data/hours';
-import { dayOccupancy, isClosedDay, minutesToTime, salonDate, salonMinutes, weekDays } from '../data/week';
+import { dayHours, stylistWorks } from '../data/hours';
+import { useClosedDates, useSalonHours, useStylistDaysOff } from '../data/salonSettings';
+import { dayOccupancy, minutesToTime, salonDate, salonMinutes, weekDays } from '../data/week';
 import { DataError } from './DataError';
 import { Thread } from './Thread';
 import { Badge } from './Badge';
+import { SalonGate } from './admin/SalonGate';
 import { WeekStrip } from './admin/WeekStrip';
 import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
-import { NotificationsCard } from './admin/NotificationsCard';
 
 // Online bookings are at most today + 13 days, but the owner can move a waiting one further out;
 // 30 days stays within admin_list_bookings' 31-day range cap.
@@ -65,9 +65,9 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof Clock; label: str
 }
 
 /** First free half-hour for a stylist on a day (from now if it's today), else opening time. */
-function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boolean): string {
+function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boolean, opens: number, closes: number): string {
   const now = isToday ? salonMinutes(new Date()) : 0;
-  for (let min = OPENING_HOUR * 60; min + 30 <= CLOSING_HOUR * 60; min += 30) {
+  for (let min = opens; min + 30 <= closes; min += 30) {
     if (min < now) continue;
     const busy = bookings.some((b) => {
       if (b.stylistId !== stylistId || b.status === 'cancelled') return false;
@@ -76,17 +76,27 @@ function firstFreeTime(bookings: AdminBooking[], stylistId: string, isToday: boo
     });
     if (!busy) return minutesToTime(min);
   }
-  return minutesToTime(OPENING_HOUR * 60);
+  return minutesToTime(opens);
 }
 
-export function Schedule({ userId }: { userId: string }) {
+function ScheduleBody() {
   const { lang, t } = useLang();
   // A notification opens /admin?day=YYYY-MM-DD&booking=<id>: start on that day, then open the booking.
   const [searchParams, setSearchParams] = useSearchParams();
   const [day, setDay] = useState(() => parseYmd(searchParams.get('day')) ?? algiersToday());
   const [sheet, setSheet] = useState<SheetState | null>(null);
-  const stylists = useStylists().data ?? [];
-  const mySalon = useMySalon(userId);
+  // Hidden stylists too: one with a booking that day still gets a column.
+  const allStylists = useAllStylists().data ?? [];
+  const stylists = allStylists.filter((s) => s.active);
+  const hoursQuery = useSalonHours();
+  const closedQuery = useClosedDates();
+  const daysOff = useStylistDaysOff().data ?? [];
+  const salonHours = hoursQuery.data;
+  const closedDates = closedQuery.data;
+  // Without the hours every day would look closed: show loading or an error instead (below).
+  const settingsReady = salonHours !== undefined && closedDates !== undefined;
+  const settingsFailed = !settingsReady && (hoursQuery.isError || closedQuery.isError);
+  const hoursFor = (d: Date) => (salonHours && closedDates ? dayHours(salonHours, closedDates, d) : null);
 
   const today = algiersToday();
   const week = weekDays(day);
@@ -104,8 +114,9 @@ export function Schedule({ userId }: { userId: string }) {
     [weekQuery.data, day]
   );
   const active = all.filter((b) => b.status !== 'cancelled');
+  const columns = allStylists.filter((s) => s.active || active.some((b) => b.stylistId === s.id));
   const totalRevenue = active.reduce((sum, b) => sum + b.price, 0);
-  const occupationRate = Math.round(dayOccupancy(all, day, stylists.length) * 100);
+  const occupationRate = Math.round(dayOccupancy(all, day, stylists.length, hoursFor(day)) * 100);
   const upcoming = isToday ? active.find((b) => b.startsAt > now) : active[0];
 
   const waiting = (pendingQuery.data ?? [])
@@ -124,23 +135,16 @@ export function Schedule({ userId }: { userId: string }) {
   const shiftDay = (delta: number) => setDay((d) => addDays(d, delta));
 
   const openAdd = () => {
-    const stylistId = stylists[0]?.id;
-    if (!stylistId) return;
-    // A closed day (Sunday/Monday) can only fail: start on the next open day instead.
+    // A closed day can only fail: start on the next open day instead (within a year, in case none is open).
     let date = day;
-    while (isClosedDay(date)) date = addDays(date, 1);
+    for (let i = 0; i < 366 && !hoursFor(date); i++) date = addDays(date, 1);
+    const hours = hoursFor(date);
+    if (!hours) return;
+    const stylistId = (stylists.find((s) => stylistWorks(s, daysOff, date)) ?? stylists[0])?.id;
+    if (!stylistId) return;
     const onDate = (weekQuery.data ?? []).filter((b) => toYmd(salonDate(b.startsAt)) === toYmd(date));
-    setSheet({ mode: 'add', stylistId, date, time: firstFreeTime(onDate, stylistId, toYmd(date) === toYmd(today)) });
+    setSheet({ mode: 'add', stylistId, date, time: firstFreeTime(onDate, stylistId, toYmd(date) === toYmd(today), hours.opens, hours.closes) });
   };
-
-  // Staff of another salon must never see this salon's schedule.
-  if (mySalon.isLoading) return <section id="schedule" className="py-20" aria-busy="true" />;
-  if (mySalon.isError && isNotAuthorized(mySalon.error)) {
-    return <p className="text-center text-rose-600 py-20 px-4">{t('admin.notAuthorized')}</p>;
-  }
-  if (mySalon.data !== undefined && mySalon.data !== SALON_ID) {
-    return <p className="text-center text-rose-600 py-20 px-4">{t('admin.otherSalon')}</p>;
-  }
 
   if (weekQuery.isError && isNotAuthorized(weekQuery.error)) {
     return <p className="text-center text-rose-600 py-20 px-4">{t('admin.notAuthorized')}</p>;
@@ -186,18 +190,24 @@ export function Schedule({ userId }: { userId: string }) {
           </div>
         )}
 
-        <NotificationsCard />
+        {settingsReady && (
+          <div className="max-w-3xl mx-auto mb-6">
+            <WeekStrip day={day} bookings={weekQuery.data ?? []} stylistCount={stylists.length} hoursFor={hoursFor} onSelect={setDay} />
+          </div>
+        )}
 
-        <div className="max-w-3xl mx-auto mb-6">
-          <WeekStrip day={day} bookings={weekQuery.data ?? []} stylistCount={stylists.length} onSelect={setDay} />
-        </div>
-
-        {weekQuery.isLoading ? (
+        {weekQuery.isError || settingsFailed ? (
+          <DataError
+            onRetry={() => {
+              if (weekQuery.isError) weekQuery.refetch();
+              if (hoursQuery.isError) hoursQuery.refetch();
+              if (closedQuery.isError) closedQuery.refetch();
+            }}
+          />
+        ) : weekQuery.isLoading || !settingsReady ? (
           <div className="flex justify-center py-20">
             <div className="w-8 h-8 rounded-full border-2 border-rose-300 border-t-rose-700 animate-spin" />
           </div>
-        ) : weekQuery.isError ? (
-          <DataError onRetry={() => weekQuery.refetch()} />
         ) : (
           <div className="flex flex-col">
             {/* Stats row: under the day on phones (the columns come first), above it on large screens */}
@@ -217,7 +227,9 @@ export function Schedule({ userId }: { userId: string }) {
               <div className="lg:col-span-2 bg-white rounded-3xl shadow-card border border-cream-200 p-3 sm:p-6">
                 <DayColumns
                   day={day}
-                  stylists={stylists}
+                  stylists={columns}
+                  hours={hoursFor(day)}
+                  daysOff={daysOff}
                   bookings={all}
                   onSlotTap={(stylistId, time) => setSheet({ mode: 'add', stylistId, date: day, time })}
                   onBookingTap={(booking) => setSheet({ mode: 'edit', booking })}
@@ -313,5 +325,14 @@ export function Schedule({ userId }: { userId: string }) {
 
       {sheet && <BookingSheet key={JSON.stringify(sheet)} state={sheet} onClose={() => setSheet(null)} />}
     </section>
+  );
+}
+
+/** Staff of another salon must never see this salon's schedule: the gate wraps the whole body. */
+export function Schedule({ userId }: { userId: string }) {
+  return (
+    <SalonGate userId={userId}>
+      <ScheduleBody />
+    </SalonGate>
   );
 }

@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { AdminBooking } from './admin';
 import { toYmd } from './bookings';
-import { dayOccupancy, isClosedDay, minutesToTime, salonMinutes, staffTimeOptions, weekDays } from './week';
+import { dayOccupancy, minutesToTime, salonMinutes, staffTimeOptions, weekDays } from './week';
+
+const HOURS = { opens: 540, closes: 1080 };
 
 function booking(startIso: string, minutes: number, status: AdminBooking['status'] = 'confirmed'): AdminBooking {
   const startsAt = new Date(startIso);
@@ -21,14 +23,6 @@ describe('weekDays', () => {
   });
 });
 
-describe('isClosedDay', () => {
-  it('closes Sunday and Monday only', () => {
-    expect(isClosedDay(new Date(2030, 0, 6))).toBe(true);
-    expect(isClosedDay(new Date(2030, 0, 7))).toBe(true);
-    expect(isClosedDay(new Date(2030, 0, 8))).toBe(false);
-  });
-});
-
 describe('dayOccupancy', () => {
   it('divides booked minutes by opening minutes of every stylist, ignoring cancelled ones', () => {
     const bookings = [
@@ -37,17 +31,24 @@ describe('dayOccupancy', () => {
       booking('2030-01-08T10:00:00Z', 60, 'cancelled'),
       booking('2030-01-09T09:00:00Z', 60),
     ];
-    expect(dayOccupancy(bookings, new Date(2030, 0, 8), 3)).toBeCloseTo(120 / 1620);
-    expect(dayOccupancy(bookings, new Date(2030, 0, 8), 0)).toBe(0);
+    expect(dayOccupancy(bookings, new Date(2030, 0, 8), 3, HOURS)).toBeCloseTo(120 / 1620);
+    expect(dayOccupancy(bookings, new Date(2030, 0, 8), 0, HOURS)).toBe(0);
+    expect(dayOccupancy(bookings, new Date(2030, 0, 8), 3, null)).toBe(0);
   });
 });
 
 describe('staffTimeOptions', () => {
   it('lists 15-minute steps that end by closing time', () => {
-    const options = staffTimeOptions(60);
+    const options = staffTimeOptions(60, HOURS);
     expect(options.slice(0, 2)).toEqual(['09:00', '09:15']);
     expect(options[options.length - 1]).toBe('17:00');
     expect(options).toHaveLength(33);
+  });
+
+  it('follows the day hours', () => {
+    const options = staffTimeOptions(60, { opens: 555, closes: 780 });
+    expect(options[0]).toBe('09:15');
+    expect(options[options.length - 1]).toBe('12:00');
   });
 });
 

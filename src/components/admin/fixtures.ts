@@ -1,5 +1,5 @@
 import type { AdminBooking } from '../../data/admin';
-import type { Service, Stylist } from '../../data/types';
+import type { SalonHours, Service, Stylist } from '../../data/types';
 
 /** Shared test fixtures for the admin components. */
 export const stylists: Stylist[] = ['amina', 'leila', 'sara'].map((id) => ({
@@ -9,12 +9,25 @@ export const stylists: Stylist[] = ['amina', 'leila', 'sara'].map((id) => ({
   specialties: [],
   image: '',
   serviceIds: [],
+  active: true,
+  workdays: [1, 2, 3, 4, 5, 6, 7],
 }));
 
 export const services: Service[] = [
-  { id: 'coupe-femme', category: 'coiffure', name: { fr: 'Coupe & Brushing', ar: 'قص وتصفيف' }, description: { fr: '', ar: '' }, price: 2500, duration: 60, image: '', icon: 'scissors' },
-  { id: 'manucure', category: 'beaute', name: { fr: 'Manucure', ar: 'مانيكير' }, description: { fr: '', ar: '' }, price: 1500, duration: 60, image: '', icon: 'hand' },
+  { id: 'coupe-femme', category: 'coiffure', name: { fr: 'Coupe & Brushing', ar: 'قص وتصفيف' }, description: { fr: '', ar: '' }, price: 2500, duration: 60, image: '', icon: 'scissors', active: true, sortOrder: 1 },
+  { id: 'manucure', category: 'beaute', name: { fr: 'Manucure', ar: 'مانيكير' }, description: { fr: '', ar: '' }, price: 1500, duration: 60, image: '', icon: 'hand', active: true, sortOrder: 2 },
 ];
+
+/** Élégance's hours: closed Monday and Sunday, 09:00-18:00 otherwise. */
+export const eleganceHours: SalonHours = {
+  1: null,
+  2: { opens: 540, closes: 1080 },
+  3: { opens: 540, closes: 1080 },
+  4: { opens: 540, closes: 1080 },
+  5: { opens: 540, closes: 1080 },
+  6: { opens: 540, closes: 1080 },
+  7: null,
+};
 
 /** `startIso` is a UTC instant; 09:00Z is 10:00 in Algiers. */
 export function adminBooking(overrides: Partial<AdminBooking> & { startIso?: string } = {}): AdminBooking {

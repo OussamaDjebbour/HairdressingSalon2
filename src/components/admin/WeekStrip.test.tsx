@@ -3,12 +3,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { LanguageProvider } from '../../context/LanguageContext';
 import { toYmd } from '../../data/bookings';
 import { WeekStrip } from './WeekStrip';
-import { adminBooking } from './fixtures';
+import { dayHours } from '../../data/hours';
+import type { ClosedDates } from '../../data/types';
+import { adminBooking, eleganceHours } from './fixtures';
 
-function renderStrip(onSelect = vi.fn()) {
+function renderStrip(onSelect = vi.fn(), closed: ClosedDates[] = []) {
   render(
     <LanguageProvider>
-      <WeekStrip day={new Date(2030, 0, 8)} bookings={[adminBooking()]} stylistCount={3} onSelect={onSelect} />
+      <WeekStrip day={new Date(2030, 0, 8)} bookings={[adminBooking()]} stylistCount={3} hoursFor={(d) => dayHours(eleganceHours, closed, d)} onSelect={onSelect} />
     </LanguageProvider>
   );
   return onSelect;
@@ -33,5 +35,13 @@ describe('WeekStrip', () => {
     const onSelect = renderStrip();
     fireEvent.click(screen.getByRole('button', { name: /^Mercredi 9/ }));
     expect(toYmd(onSelect.mock.calls[0][0])).toBe('2030-01-09');
+  });
+
+  it('marks a closed date (holiday) closed even on a usual workday', () => {
+    renderStrip(vi.fn(), [{ id: 'c1', from: '2030-01-10', to: '2030-01-10', label: null }]);
+    const thursday = screen.getByRole('button', { name: /^Jeudi 10/ });
+    expect(thursday).toBeDisabled();
+    expect(thursday).toHaveAccessibleName('Jeudi 10 — Fermé');
+    expect(screen.getByRole('button', { name: /^Vendredi 11/ })).toBeEnabled();
   });
 });

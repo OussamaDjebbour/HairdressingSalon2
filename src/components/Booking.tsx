@@ -11,7 +11,9 @@ import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
 import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
 import { TimeSlotChip } from './TimeSlotChip';
-import { SALON_WHATSAPP_NUMBER, waLink } from '../data/whatsapp';
+import { dayHours } from '../data/hours';
+import { useClosedDates, useSalonHours, useSalonInfo } from '../data/salonSettings';
+import { toWaNumber, waLink } from '../data/whatsapp';
 import { SmartImage } from './SmartImage';
 
 const iconMap: Record<string, typeof Scissors> = {
@@ -19,19 +21,29 @@ const iconMap: Record<string, typeof Scissors> = {
   hand: Hand, brush: Brush, heart: Heart,
 };
 
+/** Up to two initials, e.g. "Lina Benali" → "LB" (Array.from keeps accented and Arabic letters whole). */
+const initials = (name: string) =>
+  name.trim().split(/\s+/).slice(0, 2).map((w) => Array.from(w)[0] ?? '').join('').toUpperCase();
+
 type Step = 0 | 1 | 2 | 3;
 
 export function Booking() {
   const { lang, t } = useLang();
   const servicesQuery = useServices();
   const stylistsQuery = useStylists();
+  const hoursQuery = useSalonHours();
+  const closedQuery = useClosedDates();
+  const salonHours = hoursQuery.data;
+  const closedDates = closedQuery.data;
+  const whatsapp = useSalonInfo().data?.whatsapp;
+  const waNumber = whatsapp ? toWaNumber(whatsapp) : null;
   const services = servicesQuery.data ?? [];
   const stylists = stylistsQuery.data ?? [];
-  const dataLoading = servicesQuery.isLoading || stylistsQuery.isLoading;
-  const dataError = servicesQuery.isError || stylistsQuery.isError;
+  const queries = [servicesQuery, stylistsQuery, hoursQuery, closedQuery];
+  const dataLoading = queries.some((q) => q.isLoading);
+  const dataError = queries.some((q) => q.isError);
   const retryData = () => {
-    servicesQuery.refetch();
-    stylistsQuery.refetch();
+    for (const q of queries) if (q.isError) q.refetch();
   };
   const [step, setStep] = useState<Step>(0);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -57,10 +69,10 @@ export function Booking() {
     for (let i = 0; i < 14; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      if (d.getDay() !== 0 && d.getDay() !== 1) days.push(d);
+      if (salonHours && dayHours(salonHours, closedDates ?? [], d)) days.push(d);
     }
     return days;
-  }, []);
+  }, [salonHours, closedDates]);
 
   const slotsQuery = useSlots(selectedDate, selectedService?.id ?? null, selectedStylist);
   const slots = slotsQuery.data ?? [];
@@ -200,15 +212,17 @@ export function Booking() {
             </div>
           </div>
 
-          <a
-            href={waLink(SALON_WHATSAPP_NUMBER)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary w-full mb-3"
-          >
-            <MessageCircle className="w-4 h-4" strokeWidth={1.8} />
-            {t('booking.questionsWhatsapp')}
-          </a>
+          {waNumber && (
+            <a
+              href={waLink(waNumber)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary w-full mb-3"
+            >
+              <MessageCircle className="w-4 h-4" strokeWidth={1.8} />
+              {t('booking.questionsWhatsapp')}
+            </a>
+          )}
           <button onClick={resetBooking} className="btn-ghost">{t('booking.newBooking')}</button>
         </div>
       </section>
@@ -338,13 +352,23 @@ export function Booking() {
                       }`}
                     >
                       <div className="relative">
-                        <SmartImage
-                          src={stylist.image}
-                          alt={stylist.name}
-                          aspect="aspect-square"
-                          rounded="rounded-full"
-                          className="w-16 h-16"
-                        />
+                        {stylist.image ? (
+                          <SmartImage
+                            src={stylist.image}
+                            alt={stylist.name}
+                            aspect="aspect-square"
+                            rounded="rounded-full"
+                            className="w-16 h-16"
+                          />
+                        ) : (
+                          // A stylist added in the settings has no photo yet: show her initials.
+                          <div
+                            aria-hidden="true"
+                            className="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center font-display text-xl font-semibold text-rose-700"
+                          >
+                            {initials(stylist.name)}
+                          </div>
+                        )}
                         {isSelected && (
                           <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center border-2 border-white">
                             <Check className="w-3.5 h-3.5 text-cream-50" strokeWidth={3} />
@@ -489,9 +513,9 @@ export function Booking() {
                     <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
                     {errorMessages[submitError]}
                   </p>
-                  {(submitError === 'rate_limited' || submitError === 'too_many_bookings') && (
+                  {(submitError === 'rate_limited' || submitError === 'too_many_bookings') && waNumber && (
                     <a
-                      href={waLink(SALON_WHATSAPP_NUMBER)}
+                      href={waLink(waNumber)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-whatsapp btn-sm mt-3"

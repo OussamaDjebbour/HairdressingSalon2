@@ -34,7 +34,11 @@ create function pg_temp.tables_without_rls() returns text[] language sql as $$
 create function pg_temp.registered_api() returns text[] language sql as $$
   select array['get_slots', 'create_booking', 'admin_my_salon', 'admin_list_bookings', 'admin_set_booking_status',
     'admin_create_booking', 'admin_update_booking', 'admin_save_push_subscription',
-    'admin_delete_push_subscription', 'admin_send_test_push'] $$;
+    'admin_delete_push_subscription', 'admin_send_test_push',
+    'admin_save_service', 'admin_set_service_active', 'admin_save_stylist', 'admin_set_stylist_active',
+    'admin_add_stylist_days_off', 'admin_delete_stylist_days_off',
+    'admin_set_hours', 'admin_add_closed_dates', 'admin_delete_closed_dates', 'admin_save_salon_info',
+    'admin_affected_bookings'] $$;
 
 -- Only inspects the public API schema.
 create function pg_temp.unregistered_api_functions() returns text[] language sql as $$

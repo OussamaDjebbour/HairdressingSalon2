@@ -1,13 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import type { StylistDayOff } from '../../data/types';
 import { services, stylists, adminBooking } from './fixtures';
 
 let servicesOverride: typeof services | undefined;
+let stylistsOverride: typeof stylists | undefined;
 vi.mock('../../data/queries', async () => {
   const f = await import('./fixtures');
+  const allServices = () => servicesOverride ?? f.services;
+  const allStylists = () => stylistsOverride ?? f.stylists;
   return {
-    useServices: () => ({ data: servicesOverride ?? f.services, isLoading: false, isError: false }),
-    useStylists: () => ({ data: f.stylists, isLoading: false, isError: false }),
+    // The public hooks are active-only; the admin sheet must use the "all" ones.
+    useServices: () => ({ data: allServices().filter((s) => s.active), isLoading: false, isError: false }),
+    useStylists: () => ({ data: allStylists().filter((s) => s.active), isLoading: false, isError: false }),
+    useAllServices: () => ({ data: allServices(), isLoading: false, isError: false }),
+    useAllStylists: () => ({ data: allStylists(), isLoading: false, isError: false }),
+  };
+});
+
+let daysOff: StylistDayOff[] = [];
+vi.mock('../../data/salonSettings', async () => {
+  const f = await import('./fixtures');
+  return {
+    useSalonHours: () => ({ data: f.eleganceHours }),
+    useClosedDates: () => ({ data: [] }),
+    useStylistDaysOff: () => ({ data: daysOff }),
   };
 });
 
@@ -51,6 +68,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   pending = false;
   servicesOverride = undefined;
+  stylistsOverride = undefined;
+  daysOff = [];
 });
 
 describe('BookingSheet — add', () => {
@@ -191,7 +210,7 @@ describe('BookingSheet — polish', () => {
     const options = within(screen.getByLabelText('Heure')).getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual([...options].sort());
     expect(screen.getByLabelText('Heure')).toHaveValue('17:30');
-    expect(screen.getByText('En dehors des horaires (9h–18h, fermé dimanche et lundi).')).toBeInTheDocument();
+    expect(screen.getByText('En dehors des horaires du salon ce jour-là.')).toBeInTheDocument();
   });
 
   it('moves focus into the sheet and keeps Tab inside it', () => {
@@ -209,5 +228,52 @@ describe('BookingSheet — polish', () => {
     renderSheet(addState);
     expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
     expect(screen.getByText('Chargement des prestations…')).toBeInTheDocument();
+  });
+});
+
+describe('BookingSheet — salon settings', () => {
+  it("warns that Amina doesn't work that day, and still saves", () => {
+    daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
+    renderSheet({ ...addState, stylistId: 'amina' });
+    expect(screen.getByText('Amina ne travaille pas ce jour-là')).toBeInTheDocument();
+    fillClient('Rania', '0555123456');
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ stylistId: 'amina' }), expect.anything());
+  });
+
+  it('shows no warning when the stylist works that day, and updates it when the stylist changes', () => {
+    daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-08', to: '2030-01-08' }];
+    renderSheet(addState);
+    expect(screen.queryByText(/ne travaille pas ce jour-là/)).toBeNull();
+    fireEvent.change(screen.getByLabelText('Styliste'), { target: { value: 'amina' } });
+    expect(screen.getByText('Amina ne travaille pas ce jour-là')).toBeInTheDocument();
+  });
+
+  it("keeps a booking's hidden service in the picker, but offers no other hidden one", () => {
+    servicesOverride = [
+      ...services,
+      { ...services[0], id: 'old-cut', name: { fr: 'Ancienne coupe', ar: 'قص قديم' }, active: false },
+      { ...services[0], id: 'gone', name: { fr: 'Disparue', ar: 'محذوفة' }, active: false },
+    ];
+    renderSheet({ mode: 'edit', booking: adminBooking({ serviceId: 'old-cut', serviceName: { fr: 'Ancienne coupe', ar: 'قص قديم' } }) });
+    const select = screen.getByLabelText('Prestation');
+    expect(select).toHaveValue('old-cut');
+    expect(within(select).getByRole('option', { name: 'Ancienne coupe' })).toBeInTheDocument();
+    expect(within(select).queryByRole('option', { name: 'Disparue' })).toBeNull();
+  });
+
+  it("keeps a booking's hidden stylist in the picker, but offers no other hidden one", () => {
+    stylistsOverride = stylists.map((s) => (s.id === 'sara' ? s : { ...s, active: false }));
+    renderSheet({ mode: 'edit', booking: adminBooking() }); // Amina, now hidden
+    const select = screen.getByLabelText('Styliste');
+    expect(select).toHaveValue('amina');
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Amina', 'Sara']);
+  });
+
+  it('a booking on a closed date keeps its own time to pick', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking({ startIso: '2030-01-07T09:00:00Z' }) }); // Monday: closed
+    const options = within(screen.getByLabelText('Heure')).getAllByRole('option').map((o) => o.textContent);
+    expect(options).toEqual(['10:00']);
+    expect(screen.getByLabelText('Heure')).toHaveValue('10:00');
   });
 });

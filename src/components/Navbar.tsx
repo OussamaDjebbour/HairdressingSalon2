@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Menu, X, Scissors, CalendarPlus, Globe } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
+import { useSalonInfo } from '../data/salonSettings';
 
 export function Navbar() {
   const { lang, toggleLang, t } = useLang();
+  const city = useSalonInfo().data?.city[lang];
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -38,7 +40,7 @@ export function Navbar() {
                 Élégance
               </span>
               <span className="text-[10px] uppercase tracking-[0.28em] text-gold-700 font-semibold mt-0.5">
-                Alger
+                {city}
               </span>
             </span>
           </a>

@@ -50,6 +50,11 @@ export function formatLongDate(date: Date, lang: Lang = 'fr'): string {
   return `${day} ${dayNum} ${month}`;
 }
 
+/** "16 mars" / "16 مارس". */
+export function formatDayMonth(date: Date, lang: Lang = 'fr'): string {
+  return `${date.getDate()} ${monthNames[lang][date.getMonth()]}`;
+}
+
 export function formatShortDate(date: Date): string {
   const d = String(date.getDate()).padStart(2, '0');
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -58,4 +63,10 @@ export function formatShortDate(date: Date): string {
 
 export function formatTime(time: string): string {
   return time;
+}
+
+/** "0561234567" → "0561 23 45 67" (other shapes are returned as given). */
+export function formatPhone(phone: string): string {
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(phone.replace(/\s/g, ''));
+  return m ? m.slice(1).join(' ') : phone;
 }
