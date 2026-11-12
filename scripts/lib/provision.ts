@@ -57,11 +57,43 @@ export interface ProvisionPayload {
   services?: ServicePayload[];
   stylists?: StylistPayload[];
   owner_user_id?: string;
+  add_owner?: true;
 }
 
-/** The product owner's keys are always sent; `settings: true` also sends the owner's settings. */
+/**
+ * The product owner's keys are always sent; `settings: true` also sends the owner's settings.
+ * `addOwner` (--add-owner) lets the owner's login join an existing salon that already has other staff.
+ */
 export interface PayloadOptions {
   settings: boolean;
+  addOwner?: boolean;
+}
+
+/** What provision_salon's error codes mean for the person running the script. */
+const PROVISION_ERRORS: Record<string, string> = {
+  invalid_id: 'the salon id is invalid',
+  invalid_name: 'a name, address or city is too short or too long',
+  invalid_palette: 'the palette is invalid',
+  invalid_domain: 'a domain name is invalid',
+  invalid_hours: 'the opening hours are invalid',
+  invalid_phone: 'the WhatsApp number is not an Algerian mobile number',
+  invalid_url: 'the Instagram/Facebook link must start with https://',
+  invalid_service: 'a service is invalid (id, category, name, price or duration)',
+  invalid_stylist: 'a stylist is invalid (id, name or workdays)',
+  unknown_service: "a stylist offers a service that is not this salon's",
+  domain_taken: 'a domain already belongs to another salon',
+  id_taken: 'a service or stylist id is already used by another salon (ids are shared by all salons: prefix them with the salon id)',
+  staff_taken: "the owner's email is already the login of another salon's staff",
+  owner_conflict:
+    'salon "{id}" already has its own staff and this owner\'s email is not one of them: the file probably reuses another salon\'s ' +
+    'id — give it another "id". If this email really is an extra login of this salon, re-run with --add-owner',
+};
+
+/** provision_salon's error (its message is the code) as a readable sentence; unknown errors as they are. */
+export function provisionErrorMessage(message: string, salonId: string): string {
+  const code = message.trim();
+  const text = PROVISION_ERRORS[code];
+  return text ? `${text.replace('{id}', salonId)} (${code})` : message;
 }
 
 /** {fr, ar?} -> {fr, ar}: a missing Arabic text falls back to the French one. */
@@ -86,7 +118,7 @@ export function buildProvisionPayload(
   palette: Palette,
   photoUrls: Record<string, string>,
   ownerUserId?: string,
-  { settings }: PayloadOptions = { settings: true },
+  { settings, addOwner = false }: PayloadOptions = { settings: true },
 ): ProvisionPayload {
   const image = (ref: string | undefined) => {
     if (ref === undefined) return {};
@@ -143,5 +175,6 @@ export function buildProvisionPayload(
     }),
     ...(domains.length > 0 && { domains }),
     ...optional('owner_user_id', ownerUserId),
+    ...(addOwner && ownerUserId && { add_owner: true }),
   } as ProvisionPayload;
 }

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { generatePalette } from '../../src/lib/palette';
 import { parseSalonConfig, type SalonConfig } from './config';
-import { buildProvisionPayload, localPhotos, storagePath } from './provision';
+import { buildProvisionPayload, localPhotos, provisionErrorMessage, storagePath } from './provision';
 
 const exampleJson = () =>
   JSON.parse(readFileSync(new URL('../../salons/example.json', import.meta.url), 'utf8'));
@@ -153,5 +153,31 @@ describe('photos', () => {
 
   it('stores a photo under the salon id', () => {
     expect(storagePath('sara', 'team/lina.jpg')).toBe('sara/team/lina.jpg');
+  });
+});
+
+describe('owner', () => {
+  it('sends add_owner only when asked (--add-owner) and with an owner', () => {
+    expect(buildProvisionPayload(example(), palette, {}, OWNER)).not.toHaveProperty('add_owner');
+    expect(buildProvisionPayload(example(), palette, {}, OWNER, { settings: false, addOwner: true })).toMatchObject({
+      owner_user_id: OWNER,
+      add_owner: true,
+    });
+    expect(buildProvisionPayload(example(), palette, {}, undefined, { settings: true, addOwner: true })).not.toHaveProperty('add_owner');
+  });
+});
+
+describe('provisionErrorMessage', () => {
+  it('explains owner_conflict: the id is probably another salon', () => {
+    const msg = provisionErrorMessage('owner_conflict', 'sara');
+    expect(msg).toMatch(/salon "sara" already has its own staff/);
+    expect(msg).toMatch(/another "id"/);
+    expect(msg).toMatch(/--add-owner/);
+    expect(msg).toMatch(/\(owner_conflict\)$/);
+  });
+
+  it('keeps an unknown error as it is', () => {
+    expect(provisionErrorMessage('boom: something', 'sara')).toBe('boom: something');
+    expect(provisionErrorMessage('domain_taken', 'sara')).toBe('a domain already belongs to another salon (domain_taken)');
   });
 });

@@ -1,5 +1,5 @@
 /**
- * pnpm new-salon <slug> [--dry-run] [--reapply-settings [--yes]]
+ * pnpm new-salon <slug> [--dry-run] [--reapply-settings] [--add-owner] [--yes]
  *
  * Launches (or updates) the salon described by salons/<slug>.json: validates the config, makes
  * its colour palette, uploads its photos, creates the owner's login, provisions the salon in the
@@ -7,10 +7,15 @@
  * an existing salon only the product owner's keys are sent (the owner's Réglages edits are kept).
  * Secrets come from the git-ignored .env.admin (see .env.admin.example). See salons/README.md.
  *
+ * When the salon id already exists, it prints that salon's name and domains and asks before
+ * writing anything (a reused id would otherwise overwrite another salon).
+ *
  *   --dry-run            validate and print the provision payload; writes nothing
  *   --reapply-settings   existing salon: also overwrite hours, contact info, services and stylists
- *                        with the file (asks first)
- *   --yes                answer yes to that question
+ *                        with the file
+ *   --add-owner          existing salon that already has staff: add the file's owner email as
+ *                        another login (else provision_salon refuses with owner_conflict)
+ *   --yes                answer yes to the "salon already exists" question
  */
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -21,7 +26,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { generatePalette } from '../src/lib/palette';
 import { addDomain, ensureCname, findZone, pagesHostnames, pagesTarget, type Cloudflare } from './lib/cloudflare';
 import { ConfigError, parseSalonConfig, type SalonConfig } from './lib/config';
-import { buildProvisionPayload, localPhotos, storagePath } from './lib/provision';
+import { confirmContinue, existingSalonLines, type CurrentSalon } from './lib/existing';
+import { buildProvisionPayload, localPhotos, provisionErrorMessage, storagePath } from './lib/provision';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUCKET = 'salon-photos';
@@ -35,23 +41,6 @@ function fail(msg: string): never {
   throw new StepFailed(msg);
 }
 
-/** What provision_salon's error codes mean for the person running the script. */
-const PROVISION_ERRORS: Record<string, string> = {
-  invalid_id: 'the salon id is invalid',
-  invalid_name: 'a name, address or city is too short or too long',
-  invalid_palette: 'the palette is invalid',
-  invalid_domain: 'a domain name is invalid',
-  invalid_hours: 'the opening hours are invalid',
-  invalid_phone: 'the WhatsApp number is not an Algerian mobile number',
-  invalid_url: 'the Instagram/Facebook link must start with https://',
-  invalid_service: 'a service is invalid (id, category, name, price or duration)',
-  invalid_stylist: 'a stylist is invalid (id, name or workdays)',
-  unknown_service: "a stylist offers a service that is not this salon's",
-  domain_taken: 'a domain already belongs to another salon',
-  id_taken: 'a service or stylist id is already used by another salon (ids are shared by all salons: prefix them with the salon id)',
-  staff_taken: "the owner's email is already the login of another salon's staff",
-};
-
 const CONTENT_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
   '.avif': 'image/avif', '.gif': 'image/gif', '.svg': 'image/svg+xml',
@@ -59,13 +48,19 @@ const CONTENT_TYPES: Record<string, string> = {
 
 function parseArgs(argv: string[]) {
   const flags = new Set(argv.filter((a) => a.startsWith('--')));
-  const unknown = [...flags].filter((f) => !['--dry-run', '--yes', '--reapply-settings'].includes(f));
+  const unknown = [...flags].filter((f) => !['--dry-run', '--yes', '--reapply-settings', '--add-owner'].includes(f));
   const [slug, ...rest] = argv.filter((a) => !a.startsWith('--'));
   if (!slug || rest.length || unknown.length || !/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
-    console.error('Usage: pnpm new-salon <slug> [--dry-run] [--reapply-settings [--yes]]   (reads salons/<slug>.json)');
+    console.error('Usage: pnpm new-salon <slug> [--dry-run] [--reapply-settings] [--add-owner] [--yes]   (reads salons/<slug>.json)');
     process.exit(2);
   }
-  return { slug, dryRun: flags.has('--dry-run'), yes: flags.has('--yes'), reapply: flags.has('--reapply-settings') };
+  return {
+    slug,
+    dryRun: flags.has('--dry-run'),
+    yes: flags.has('--yes'),
+    reapply: flags.has('--reapply-settings'),
+    addOwner: flags.has('--add-owner'),
+  };
 }
 
 function loadEnv(required: boolean) {
@@ -116,26 +111,22 @@ function env(name: string): string {
 }
 
 /**
- * On an existing salon, a re-run sends only the product owner's keys (name, colours, photo, story,
- * claims, domains, owner). With --reapply-settings it also overwrites the owner's own settings,
- * so it asks first (--yes answers for her).
+ * The salon id already exists: show which salon that is and what this run changes, then ask
+ * before anything is written (--yes answers for the product owner; a dry run writes nothing).
  */
-async function confirmExisting(slug: string, config: SalonConfig, reapply: boolean, yes: boolean) {
-  if (!reapply) {
-    ok(`Salon "${config.id}" already exists: updating name, colours, photo, story, claims, domains (when listed) and owner only; ` +
-      "hours, contact info, services and stylists keep the owner's edits (--reapply-settings to overwrite them)");
-    return;
+async function confirmExisting(slug: string, id: string, current: CurrentSalon, reapply: boolean, yes: boolean, dryRun: boolean) {
+  const [first, ...rest] = existingSalonLines(id, current, { slug, reapply });
+  warn(first);
+  for (const line of rest) info(line);
+  if (dryRun) return;
+  const rl = process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
+  try {
+    const answer = await confirmContinue({ yes }, { interactive: rl !== null, ask: (q) => rl!.question(q) });
+    if (answer === 'needs-yes') fail(`Not changing the existing salon "${id}" without confirmation: run again with --yes`);
+    if (answer === 'stopped') fail('Stopped: nothing was changed');
+  } finally {
+    rl?.close();
   }
-  warn(
-    `Salon "${config.id}" already exists. --reapply-settings overwrites the owner's own edits in Réglages with ` +
-      `salons/${slug}.json: hours, address, WhatsApp, links, services and prices, stylists and their days.`,
-  );
-  if (yes) return;
-  if (!process.stdin.isTTY) fail('Not overwriting the owner\'s settings without confirmation: run again with --yes');
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await rl.question('Continue? [y/N] ');
-  rl.close();
-  if (!/^y(es)?$/i.test(answer.trim())) fail('Stopped: nothing was changed');
 }
 
 async function uploadPhotos(supabase: SupabaseClient, slug: string, config: SalonConfig, settings: boolean) {
@@ -215,14 +206,18 @@ function supabaseClient(url: string, key: string): SupabaseClient {
   });
 }
 
-async function salonExists(supabase: SupabaseClient, id: string): Promise<boolean> {
-  const { data, error } = await supabase.from('salons').select('id').eq('id', id).maybeSingle();
+/** The salon stored under this id (name and domains), or null when the id is free. */
+async function currentSalon(supabase: SupabaseClient, id: string): Promise<CurrentSalon | null> {
+  const { data, error } = await supabase.from('salons').select('name').eq('id', id).maybeSingle();
   if (error) fail(`Reading salons failed: ${error.message}`);
-  return data !== null;
+  if (data === null) return null;
+  const domains = await supabase.from('salon_domains').select('domain').eq('salon_id', id).order('domain');
+  if (domains.error) fail(`Reading salon_domains failed: ${domains.error.message}`);
+  return { name: data.name as string, domains: domains.data.map((d) => d.domain as string) };
 }
 
 async function main() {
-  const { slug, dryRun, yes, reapply } = parseArgs(process.argv.slice(2));
+  const { slug, dryRun, yes, reapply, addOwner } = parseArgs(process.argv.slice(2));
 
   // 1. environment and config (every variable is checked before anything is written)
   loadEnv(!dryRun);
@@ -242,16 +237,17 @@ async function main() {
   for (const w of warnings) warn(w);
 
   // A new salon gets everything; an existing one only the product owner's keys, unless asked.
-  const existing = supabase ? await salonExists(supabase, config.id) : false;
+  const current = supabase ? await currentSalon(supabase, config.id) : null;
+  const existing = current !== null;
   const settings = !existing || reapply;
-  if (existing) await confirmExisting(slug, config, reapply, yes || dryRun);
+  if (current) await confirmExisting(slug, config.id, current, reapply, yes, dryRun);
 
   if (dryRun) {
     if (!supabase) warn('No database access (.env.admin): showing the payload for a new salon');
     const base = supabaseUrl?.replace(/\/+$/, '');
     const urls = Object.fromEntries(localPhotos(config, { settings }).map((ref) => [ref,
       base ? `${base}/storage/v1/object/public/${BUCKET}/${storagePath(config.id, ref)}` : `<upload of ${ref}>`]));
-    console.log(JSON.stringify(buildProvisionPayload(config, palette, urls, undefined, { settings }), null, 2));
+    console.log(JSON.stringify(buildProvisionPayload(config, palette, urls, undefined, { settings, addOwner }), null, 2));
     ok('Dry run: the payload above is valid (owner_user_id is added once the login exists); nothing was written');
     return;
   }
@@ -264,13 +260,10 @@ async function main() {
   const owner = await ensureOwner(supabase, config.owner.email);
 
   // 5. salon
-  const payload = buildProvisionPayload(config, palette, photoUrls, owner.id, { settings });
+  const payload = buildProvisionPayload(config, palette, photoUrls, owner.id, { settings, addOwner });
   const domains = payload.domains ?? [];
   const { error } = await supabase.rpc('provision_salon', { p: payload });
-  if (error) {
-    const code = error.message.trim();
-    fail(`provision_salon: ${PROVISION_ERRORS[code] ? `${PROVISION_ERRORS[code]} (${code})` : error.message}`);
-  }
+  if (error) fail(`provision_salon: ${provisionErrorMessage(error.message, config.id)}`);
   ok(existing
     ? `Salon "${config.id}" updated: name, colours, photo, story, claims, ${domains.length ? 'domains, ' : ''}owner` +
         (settings ? ', and hours, contact, services and stylists re-applied' : " (the owner's settings are kept)")

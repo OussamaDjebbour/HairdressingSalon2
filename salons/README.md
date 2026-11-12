@@ -24,12 +24,18 @@ The script, step by step (each line printed with ✓, ! for a warning, ✗ for a
    add at the domain's DNS provider. Skipped with a warning when `CLOUDFLARE_API_TOKEN` is empty;
 7. prints the site and `/admin` addresses, the owner's login and what's left to do by hand.
 
+**An id that already exists:** before writing anything the script prints the stored salon's name
+and domains and asks `Continue? [y/N]` (`--yes` answers for you). If that isn't the salon in the
+file, say no and give the file another `id` — otherwise its branding and domains would be overwritten.
+Adding the file's owner email to a salon that already has other staff is refused (`owner_conflict`);
+when that email really is an extra login of the same salon, re-run with `--add-owner`.
+
 **Re-running** is safe (nothing is duplicated) and never undoes the owner's own edits: on an
 existing salon the script only sends the product owner's keys — `name`, `color`, `heroPhoto`,
 `story`, `storyIntro`, `founder`, `claims`, `domains` (when not empty) and the owner's login. Hours,
 address, city, WhatsApp, links, services and stylists are only written when the salon is created;
 after that they belong to the owner (Réglages). To overwrite them with the file anyway, run
-`pnpm new-salon <slug> --reapply-settings` (it asks first; `--yes` answers for you). An empty
+`pnpm new-salon <slug> --reapply-settings`. An empty
 `domains` list is never sent, so it can't take a salon's site offline; keys left out of the file
 keep their current value.
 

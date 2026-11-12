@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(69);
+select plan(75);
 
 -- Élégance before any provisioning: compared at the end.
 create table pg_temp.before as
@@ -73,7 +73,9 @@ select ok(has_function_privilege('service_role', 'public.provision_salon(jsonb)'
 insert into auth.users (id, instance_id, aud, role, email)
 values
   ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'staff@test.local'),
-  ('55555555-5555-5555-5555-555555555555', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'sara@test.local');
+  ('55555555-5555-5555-5555-555555555555', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'sara@test.local'),
+  ('66666666-6666-6666-6666-666666666666', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'second@test.local'),
+  ('77777777-7777-7777-7777-777777777777', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stranger@test.local');
 insert into private.staff (user_id, salon_id) values ('11111111-1111-1111-1111-111111111111', 'elegance');
 
 create function pg_temp.sara() returns jsonb language sql as $$ select '{
@@ -155,6 +157,21 @@ select throws_ok($$ select public.provision_salon(pg_temp.sara() || '{"domains":
 select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{services,0,id}', '"coupe-femme"')) $$, 'P0001', 'id_taken', 'another salon''s service id');
 select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{stylists,0,id}', '"amina"')) $$, 'P0001', 'id_taken', 'another salon''s stylist id');
 select throws_ok($$ select public.provision_salon(pg_temp.sara() || '{"owner_user_id": "11111111-1111-1111-1111-111111111111"}') $$, 'P0001', 'staff_taken', 'another salon''s staff');
+-- A salon id that collides with an existing salon never adds a stranger to its staff (bookings would leak).
+select throws_ok($$ select public.provision_salon(pg_temp.sara() || '{"owner_user_id": "66666666-6666-6666-6666-666666666666"}') $$,
+  'P0001', 'owner_conflict', 'existing salon with other staff: a new owner is refused');
+select throws_ok($$ select public.provision_salon('{"id": "elegance", "name": "Mon salon", "owner_user_id": "77777777-7777-7777-7777-777777777777"}') $$,
+  'P0001', 'owner_conflict', 'colliding with elegance''s id is refused');
+select lives_ok($$ select public.provision_salon(pg_temp.sara() || '{"owner_user_id": "66666666-6666-6666-6666-666666666666", "add_owner": true}') $$,
+  'add_owner: true adds a second staff login');
+reset role;
+select is((select string_agg(user_id::text, ',' order by user_id) from private.staff where salon_id = 'sara'),
+  '55555555-5555-5555-5555-555555555555,66666666-6666-6666-6666-666666666666', 'both staff of sara');
+set local role service_role;
+select lives_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{id}', '"solo"') - 'domains' - 'services' - 'stylists' - 'owner_user_id') $$,
+  'a salon created without an owner');
+select lives_ok($$ select public.provision_salon('{"id": "solo", "name": "Solo", "owner_user_id": "77777777-7777-7777-7777-777777777777"}') $$,
+  'an existing salon with no staff takes an owner without add_owner');
 select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{palette,600}', '"blue"')) $$, 'P0001', 'invalid_palette', 'bad palette');
 select throws_ok($$ select public.provision_salon(jsonb_set(pg_temp.sara(), '{id}', '"nouveau"') - 'hours' - 'domains' - 'services' - 'stylists' - 'owner_user_id') $$,
   'P0001', 'invalid_hours', 'hours required for a new salon');

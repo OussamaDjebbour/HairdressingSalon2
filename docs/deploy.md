@@ -129,7 +129,8 @@ that salon's `<title>` and a `<style>` with `--brand-*` values (`--brand-600: ..
    project and adds the DNS record when the domain is in your Cloudflare account. The owner's
    **password is printed once**: copy it now.
    Re-running is safe and keeps the owner's own settings; `--reapply-settings` overwrites them
-   with the file.
+   with the file. When the id already exists, the script shows that salon's name and domains and
+   asks before changing anything (`--yes` answers for you).
 4. **Check the site** at the new domain (DNS and the certificate can take a few minutes) and at
    `/admin`. Before the domain works, preview any salon on your computer with
    `pnpm dev` and `http://localhost:5173/?salon=<slug>` (this only works on localhost).

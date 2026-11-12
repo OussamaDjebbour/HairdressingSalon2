@@ -196,7 +196,7 @@ as $$
 -- Creates or updates a whole salon; idempotent (re-running a payload changes nothing).
 -- Service role only. Raises (P0001): invalid_id, invalid_name, invalid_palette, invalid_domain,
 -- invalid_hours, invalid_phone, invalid_url, invalid_service, invalid_stylist, unknown_service,
--- domain_taken, id_taken, staff_taken.
+-- domain_taken, id_taken, staff_taken, owner_conflict.
 --
 -- Input (jsonb object):
 -- {
@@ -226,7 +226,10 @@ as $$
 --                 "sort_order": 0, "active": true,
 --                 "services": ["sara-coupe"],                            ids of this salon's services
 --                 "weekdays": [2, 3, 4, 5, 6]}],
---   "owner_user_id": "uuid"             optional: an auth.users id made staff of this salon
+--   "owner_user_id": "uuid",            optional: an auth.users id made staff of this salon
+--   "add_owner": true                   optional: allow owner_user_id to join an existing salon that
+--                                       already has other staff (else owner_conflict: a salon id that
+--                                       collides with another salon's must never take it over)
 -- }
 -- A key left out keeps the current value, so re-provisioning never undoes the owner's Réglages edits
 -- for keys the payload omits. Defaults apply only when creating: salon columns take their column
@@ -321,6 +324,12 @@ begin
     if exists (select 1 from private.staff s where s.user_id = v_owner and s.salon_id <> v_id) then
       raise exception 'staff_taken' using errcode = 'P0001';
     end if;
+    if not v_new
+       and not exists (select 1 from private.staff s where s.user_id = v_owner and s.salon_id = v_id)
+       and exists (select 1 from private.staff s where s.salon_id = v_id and s.user_id <> v_owner)
+       and (p -> 'add_owner') is distinct from 'true'::jsonb then
+      raise exception 'owner_conflict' using errcode = 'P0001';
+    end if;
   end if;
 
   -- salon row: a key left out keeps the current value
@@ -347,8 +356,10 @@ begin
 
   if v_domains is not null then
     delete from public.salon_domains sd where sd.salon_id = v_id and sd.domain <> all (v_domains);
-    insert into public.salon_domains (domain, salon_id) select d, v_id from unnest(v_domains) d
-    on conflict (domain) do nothing;
+    -- a plain insert: a domain another salon took since the domain_taken check fails loudly
+    insert into public.salon_domains (domain, salon_id)
+    select d, v_id from unnest(v_domains) d
+    where not exists (select 1 from public.salon_domains sd where sd.domain = d and sd.salon_id = v_id);
   end if;
 
   if p ? 'hours' then
@@ -382,7 +393,8 @@ begin
       image       = case when v_item ? 'image' then excluded.image else s.image end,
       icon        = case when v_item ? 'icon' then excluded.icon else s.icon end,
       sort_order  = case when v_item ? 'sort_order' then excluded.sort_order else s.sort_order end,
-      active      = case when v_item ? 'active' then excluded.active else s.active end;
+      active      = case when v_item ? 'active' then excluded.active else s.active end
+    where s.salon_id = excluded.salon_id;
   end loop;
 
   for v_item, v_pos in select x, (n - 1)::int from jsonb_array_elements(coalesce(p -> 'stylists', '[]')) with ordinality t(x, n) loop
@@ -415,7 +427,8 @@ begin
       specialties = case when v_item ? 'specialties' then excluded.specialties else st.specialties end,
       image       = case when v_item ? 'image' then excluded.image else st.image end,
       sort_order  = case when v_item ? 'sort_order' then excluded.sort_order else st.sort_order end,
-      active      = case when v_item ? 'active' then excluded.active else st.active end;
+      active      = case when v_item ? 'active' then excluded.active else st.active end
+    where st.salon_id = excluded.salon_id;
 
     if v_item ? 'services' then
       delete from public.stylist_services ss where ss.stylist_id = v_sid and ss.salon_id = v_id;
