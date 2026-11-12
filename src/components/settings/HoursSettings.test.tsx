@@ -88,9 +88,9 @@ describe('HoursSettings', () => {
     const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
     expect(follows(name, sw)).toBe(true);
     expect(follows(sw, opens)).toBe(true);
-    // compact time triggers: small text, no drop-down arrow eating the row's width
+    // compact time triggers: small text and a small arrow, so they still read as drop-downs
     expect(opens).toHaveClass('text-sm');
-    expect(opens.querySelector('svg')).toBeNull();
+    expect(opens.querySelector('svg')).not.toBeNull();
   });
 
   it('opens >= closes shows the error under that day and skips the RPC', async () => {

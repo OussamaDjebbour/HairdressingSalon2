@@ -108,6 +108,14 @@ describe('SalonInfoSettings', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it('counts the address length without surrounding spaces, like the server', async () => {
+    renderIt();
+    fireEvent.change(screen.getByLabelText('Adresse (français)'), { target: { value: `  ${'x'.repeat(200)}  ` } });
+    save();
+    await waitFor(() => expect(rpc).toHaveBeenCalled());
+    expect(screen.queryByText('Ce texte ne doit pas dépasser 200 caractères.')).toBeNull();
+  });
+
   it('flags Facebook, not Instagram, for a bad Facebook link', async () => {
     renderIt();
     fireEvent.change(screen.getByLabelText(/^Facebook \(lien\)/), { target: { value: 'not a url' } });

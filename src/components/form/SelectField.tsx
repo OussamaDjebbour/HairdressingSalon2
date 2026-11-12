@@ -21,24 +21,26 @@ interface SelectFieldProps {
   placeholder?: string;
   /** Render item text left-to-right (times such as 10:15 in an Arabic page). */
   dirLtrValues?: boolean;
-  /** A narrow trigger for short values (a time in an hours row): small text, no arrow. */
+  /** A narrow trigger for short values (a time in an hours row): small text and a small arrow. */
   compact?: boolean;
+  /** Label for a current value that isn't among the options (e.g. "50 min" for an old duration). */
+  formatValue?(value: string): string;
 }
 
 /** Options plus the current value when it is not on the list (kept at its sorted place). */
-function withCurrent(options: Option[], value: string): Option[] {
+function withCurrent(options: Option[], value: string, formatValue?: (value: string) => string): Option[] {
   if (!value || options.some((o) => o.value === value)) return options;
   const next = [...options];
   const at = next.findIndex((o) => o.value.localeCompare(value, undefined, { numeric: true }) > 0);
-  next.splice(at === -1 ? next.length : at, 0, { value, label: value });
+  next.splice(at === -1 ? next.length : at, 0, { value, label: formatValue ? formatValue(value) : value });
   return next;
 }
 
 export const SelectField = forwardRef<HTMLButtonElement, SelectFieldProps>(function SelectField(
-  { id, label, value, options, onValueChange, onBlur, error, optional, help, placeholder, dirLtrValues, compact },
+  { id, label, value, options, onValueChange, onBlur, error, optional, help, placeholder, dirLtrValues, compact, formatValue },
   ref
 ) {
-  const items = withCurrent(options, value);
+  const items = withCurrent(options, value, formatValue);
   return (
     <Field id={id} label={label} optional={optional} help={help} error={error}>
       {(a11y) => (
@@ -54,18 +56,16 @@ export const SelectField = forwardRef<HTMLButtonElement, SelectFieldProps>(funct
             ref={ref}
             className={
               compact
-                ? 'input flex min-h-11 items-center justify-center px-2 py-2 text-sm'
+                ? 'input flex min-h-11 items-center justify-center gap-0.5 px-1.5 py-2 text-sm'
                 : 'input flex items-center gap-2 text-start'
             }
           >
             <span className={compact ? 'whitespace-nowrap' : 'min-w-0 flex-1 truncate'} dir={dirLtrValues ? 'ltr' : undefined}>
               <Select.Value placeholder={placeholder} />
             </span>
-            {!compact && (
-              <Select.Icon className="ms-auto shrink-0 text-rose-600">
-                <ChevronDown className="h-4 w-4" aria-hidden="true" />
-              </Select.Icon>
-            )}
+            <Select.Icon className={compact ? 'shrink-0 text-rose-500' : 'ms-auto shrink-0 text-rose-600'}>
+              <ChevronDown className={compact ? 'h-3 w-3' : 'h-4 w-4'} aria-hidden="true" />
+            </Select.Icon>
           </Select.Trigger>
           <Select.Portal>
             <Select.Content

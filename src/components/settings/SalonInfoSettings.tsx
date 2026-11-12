@@ -12,7 +12,8 @@ import { applyServerError } from '../form/serverErrors';
 import { QueryFallback } from './QueryFallback';
 
 const ERROR_KEYS = ['invalid_name', 'not_authorized'];
-const text = z.string().max(200, 'form.error.textLength');
+// Counted without surrounding spaces, as the server does (btrim) — the value itself is sent unchanged.
+const text = z.string().refine((v) => v.trim().length <= 200, 'form.error.textLength');
 
 const infoSchema = z.object({
   addressFr: text,

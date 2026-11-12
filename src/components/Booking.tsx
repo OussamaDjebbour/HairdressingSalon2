@@ -59,6 +59,7 @@ export function Booking() {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors, submitCount },
   } = useForm<ClientDetails>({
     resolver: zodResolver(clientDetailsSchema),
@@ -152,6 +153,13 @@ export function Booking() {
             setSelectedTime(null);
             setSlotNotice(code === 'slot_taken' ? 'booking.slotTaken' : 'booking.slotPassed');
             setStep(2);
+            return;
+          }
+          // The server's own name/phone check (normally caught first by the form): show it on the field.
+          if (code === 'invalid_phone' || code === 'invalid_name') {
+            const [name, message] =
+              code === 'invalid_phone' ? (['clientPhone', 'form.error.phone'] as const) : (['clientName', 'form.error.nameLength'] as const);
+            setError(name, { type: 'server', message }, { shouldFocus: true });
             return;
           }
           setSubmitError(code);

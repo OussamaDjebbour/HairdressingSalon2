@@ -105,7 +105,7 @@ describe('formatCompactRange', () => {
 
   it('names the month once when both days share it', () => {
     expect(formatCompactRange(new Date(2026, 10, 20), new Date(2026, 10, 22), 'fr')).toBe('Ven. 20 → Dim. 22 nov.');
-    expect(formatCompactRange(new Date(2026, 10, 20), new Date(2026, 10, 22), 'ar')).toBe('الجمعة 20 → الأحد 22 نوفمبر');
+    expect(formatCompactRange(new Date(2026, 10, 20), new Date(2026, 10, 22), 'ar')).toBe('الجمعة 20 ← الأحد 22 نوفمبر'); // reads right to left
   });
 
   it('names both months when they differ', () => {

@@ -141,6 +141,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
               ref={field.ref}
               error={errors.duration?.message}
               options={DURATIONS.map((m) => ({ value: String(m), label: formatDuration(m, lang) }))}
+              formatValue={(v) => formatDuration(Number(v), lang)}
             />
           )}
         />

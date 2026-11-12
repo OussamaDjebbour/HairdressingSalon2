@@ -70,6 +70,13 @@ describe('ServicesSettings', () => {
     expect(rpc).not.toHaveBeenCalledWith('admin_save_service', expect.anything());
   });
 
+  it('shows an off-list duration with its unit', () => {
+    services = [{ ...svc('a1', 'Brushing', true, 2), duration: 50 }];
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    expect(screen.getByLabelText('Durée')).toHaveTextContent('50 min');
+  });
+
   it('refuses a price with decimals', async () => {
     renderIt();
     fireEvent.click(screen.getByText('Brushing'));

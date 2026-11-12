@@ -76,7 +76,8 @@ export function formatCompactRange(from: Date, to: Date, lang: Lang = 'fr'): str
   const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth();
   if (sameMonth && from.getDate() === to.getDate()) return formatCompactDate(from, lang);
   const start = sameMonth ? `${compactDay(from, lang)} ${from.getDate()}` : formatCompactDate(from, lang);
-  return `${start} → ${formatCompactDate(to, lang)}`;
+  // From start to end in reading order: right-to-left in Arabic.
+  return `${start} ${lang === 'ar' ? '←' : '→'} ${formatCompactDate(to, lang)}`;
 }
 
 /** "Novembre 2026" / "نوفمبر 2026". */

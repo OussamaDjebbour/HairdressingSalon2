@@ -184,6 +184,23 @@ describe('Booking client details validation', () => {
     expect(screen.getByLabelText('Votre téléphone')).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('a server invalid_phone lands on the phone field, not in the general alert', async () => {
+    failWith('invalid_phone');
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(screen.getByLabelText('Votre téléphone')).toHaveAttribute('aria-invalid', 'true'));
+    expect(screen.getByText('Numéro de mobile algérien invalide (ex. 0555 12 34 56).')).toBeInTheDocument();
+    expect(screen.queryByText('Numéro invalide. Exemple : 0555 12 34 56')).toBeNull();
+  });
+
+  it('a server invalid_name lands on the name field', async () => {
+    failWith('invalid_name');
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(screen.getByLabelText('Votre nom')).toHaveAttribute('aria-invalid', 'true'));
+    expect(screen.getByText('Le nom doit contenir 2 à 80 caractères.')).toBeInTheDocument();
+  });
+
   it('in Arabic shows the Arabic phone error and keeps the phone input LTR', async () => {
     goToConfirmStep();
     fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '021 12 34 56' } });
