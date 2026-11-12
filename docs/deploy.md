@@ -1,0 +1,114 @@
+# Setting up automatic updates and launching salons
+
+Every merge to `main` runs the checks, updates the shared database, then publishes the one site
+that serves all salons (`.github/workflows/deploy.yml`). You set the accounts up **once**, below,
+in this order. After that, a new salon is one command.
+
+## Before the first deploy (go-live checklist)
+
+- The live database must already have **all migrations**, including Part 2's `20261113*` files and
+  Part 3's `20261114100000`. The first deploy runs `supabase db push`, which applies any that are
+  missing; check it succeeds before trusting the site.
+- The live Élégance demo needs a row saying which address belongs to it, or the live site shows
+  "Salon introuvable". Until a demo domain is bought, use its `<project>.pages.dev` address
+  (replace `salons` if your Pages project has another name). In Supabase, SQL Editor:
+
+  ```sql
+  insert into public.salon_domains (domain, salon_id) values ('salons.pages.dev', 'elegance');
+  ```
+
+## 1. Supabase: upgrade to Pro
+
+The free plan **pauses the project after a week without activity**: salons would be offline.
+Upgrade to Pro (about 25 USD per month for the whole project, shared by all salons) before the
+first real salon. Dashboard → Organization → Billing.
+
+## 2. Cloudflare: account and Pages project
+
+1. Create a free account at <https://dash.cloudflare.com>.
+2. Create the Pages project that serves every salon. On your machine, once:
+
+   ```bash
+   npx wrangler login
+   npx wrangler pages project create salons --production-branch=main
+   ```
+
+   (`salons` is the project name; the site is then `https://salons.pages.dev`.)
+3. In the dashboard: Workers & Pages → `salons` → Settings → Variables and Secrets → add, for
+   **Production**:
+   - `SUPABASE_URL` = your project URL (Supabase → Project Settings → API)
+   - `SUPABASE_PUBLISHABLE_KEY` = the publishable (anon) key from the same page
+
+   The edge functions use them to put each salon's name and colours in the page.
+
+## 3. Cloudflare: the API token
+
+Dashboard → My Profile → API Tokens → Create Token → Custom token, with exactly these permissions:
+
+- Account → **Cloudflare Pages: Edit**
+- Zone → **Zone: Read**
+- Zone → **DNS: Edit** (for the salons' domains; scope: all zones in your account)
+
+Copy the token once; it is not shown again. Also note your **Account ID** (Account home → the
+three dots next to your account name → Copy account ID).
+
+## 4. GitHub: the Actions secrets
+
+> **The repository belongs to a teammate and you are not an admin of it.** Only a repository
+> admin can add secrets. Ask the teammate either to add the secrets below (Settings → Secrets and
+> variables → Actions → New repository secret) or to make you an admin. Also ask them to create
+> an environment named **production** (Settings → Environments), which the deploy job uses.
+
+| Secret | Where to find it |
+| --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | Supabase → Account → Access Tokens → Generate |
+| `SUPABASE_DB_PASSWORD` | the database password chosen when the project was created (reset it under Project Settings → Database if lost) |
+| `SUPABASE_PROJECT_REF` | the code in the project URL `https://<ref>.supabase.co` |
+| `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | same page, publishable (anon) key |
+| `VITE_VAPID_PUBLIC_KEY` | the public push key (see `docs/notifications-setup.md`) |
+| `CLOUDFLARE_API_TOKEN` | step 3 |
+| `CLOUDFLARE_ACCOUNT_ID` | step 3 |
+| `CLOUDFLARE_PAGES_PROJECT` | `salons` (step 2) |
+
+From then on, merging to `main` deploys. To redeploy without a change: GitHub → Actions → Deploy →
+Run workflow. If a step fails, nothing after it runs: the database is updated before the site, so
+a failed migration never publishes a site that expects it.
+
+## 5. Your machine: `.env.admin`
+
+The launch script needs its own secrets in a file that is never committed:
+
+```bash
+cp .env.admin.example .env.admin
+```
+
+Fill it in (every line is explained inside the file): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+(Supabase → Project Settings → API; **it bypasses all protections, keep it private**),
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` (step 3), `CLOUDFLARE_PAGES_PROJECT=salons`.
+
+Node 22 is recommended locally (the deploy uses it); Node 20.12 or newer works.
+
+## 6. Launching a salon
+
+1. **Buy the domain** in your Cloudflare account (Domain Registration → Register Domains). It
+   stays yours and can be transferred to the salon later. A domain bought elsewhere also works:
+   the script prints the DNS record to add there.
+2. **Describe the salon:** `cp salons/example.json salons/<slug>.json`, edit it, and put its
+   photos in `salons/<slug>/photos/`. Details: `salons/README.md`.
+3. **Check, then launch:**
+
+   ```bash
+   pnpm new-salon <slug> --dry-run   # validates only, writes nothing
+   pnpm new-salon <slug>
+   ```
+
+   It creates the salon and the owner's login, attaches the domain (and `www.`) to the Pages
+   project and adds the DNS record when the domain is in your Cloudflare account. The owner's
+   **password is printed once**: copy it now.
+   Re-running is safe and keeps the owner's own settings; `--reapply-settings` overwrites them
+   with the file.
+4. **Check the site** at the new domain (DNS and the certificate can take a few minutes) and at
+   `/admin`. Before the domain works, preview any salon on your computer with
+   `pnpm dev` and `http://localhost:5173/?salon=<slug>` (this only works on localhost).
+5. **Hand over** the site address, `/admin` address, the owner's email and the password.

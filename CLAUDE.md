@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single-page marketing + booking site for women's hairdressing/beauty salons in Algeria, being turned into a product sold to several salons (design: `docs/superpowers/specs/2026-11-11-multi-salon-design.md`). "Élégance" (salon id `'elegance'`) is the **demo** salon, not a real one. Vite + React 18 + TypeScript + Tailwind, originally scaffolded by Bolt (see `.bolt/`). Backend is one shared Supabase project (Postgres + Auth), managed by CLI migrations in `supabase/`; every salon's data lives in it, strictly separated (see "Salons" below). Customers book through RPCs (`get_slots`, `create_booking`); bookings live in the non-exposed `private` schema. Staff log in at `/admin` (sign-ups disabled; access requires a row in `private.staff`). Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (in `.env`), optional `VITE_SALON_ID` (defaults to `elegance`).
+A single-page marketing + booking site for women's hairdressing/beauty salons in Algeria, being turned into a product sold to several salons (design: `docs/superpowers/specs/2026-11-11-multi-salon-design.md`). "Élégance" (salon id `'elegance'`) is the **demo** salon, not a real one. Vite + React 18 + TypeScript + Tailwind, originally scaffolded by Bolt (see `.bolt/`). Backend is one shared Supabase project (Postgres + Auth), managed by CLI migrations in `supabase/`; every salon's data lives in it, strictly separated (see "Salons" below). Customers book through RPCs (`get_slots`, `create_booking`); bookings live in the non-exposed `private` schema. Staff log in at `/admin` (sign-ups disabled; access requires a row in `private.staff`). Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (in `.env`). The salon is not an env var: it is resolved from the host (see "Salons").
 
 ## Commands
 
@@ -13,6 +13,8 @@ pnpm dev           # Vite dev server (talks to the Supabase project in .env)
 pnpm build         # tsc typecheck, then vite build
 pnpm preview       # serve the production build
 pnpm test          # Vitest (supabase client is mocked)
+pnpm new-salon <slug> [--dry-run]   # launch/update a salon from salons/<slug>.json (needs .env.admin; salons/README.md)
+npx wrangler pages dev dist         # after `pnpm build`: try the edge functions locally (needs .dev.vars)
 
 supabase start -x logflare,vector,studio   # local stack (Docker)
 supabase db reset                           # re-apply migrations + seed.sql locally
@@ -23,6 +25,7 @@ supabase db lint --level warning            # security/schema lint
 - To run the app against the local stack without editing `.env`: `VITE_SUPABASE_URL=<API_URL> VITE_SUPABASE_PUBLISHABLE_KEY=<ANON_KEY> pnpm dev` (values from `supabase status -o env`).
 - Changes to the live database go through new migration files + `supabase db push`; never edit an already-pushed migration.
 - **No `lint` script.** `eslint.config.js` exists, but the ESLint packages it imports are *not* in `package.json` and are *not* installed. To lint you must first install them (`@eslint/js`, `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `globals`, `eslint`), then `npx eslint .`.
+- Node: `engines` is `>=20.12`; CI and deploy use Node 22 (recommended locally). `wrangler` is pinned (4.86.0).
 - Typecheck alone: `npx tsc -b` (the `build` runs `tsc` first, so a broken build usually means a type error).
 
 ## Architecture
@@ -35,7 +38,8 @@ Many salons share one database. Leaking one salon's clients or bookings to anoth
 
 - `public.salons` lists the salons. **Every salon-owned table has `salon_id text not null` with a foreign key to `salons`, no default, and row-level security on.** Links between tables carry the salon too (composite FKs on `(salon_id, id)`), so a booking can't use another salon's service or stylist. Service/stylist ids stay globally unique.
 - **Staff belong to one salon** (`private.staff (user_id, salon_id)`). `private.my_salon()` returns the caller's salon. **Owner (`admin_*`) functions never take a salon id from the browser**; they use `my_salon()`, and an id from another salon behaves exactly like one that doesn't exist (`not_found` / `unknown_service` / no rows). Staff booking functions are `security invoker` under RLS on `private.bookings`; functions that need elevated rights (public booking, push) stay `security definer` with explicit salon scoping.
-- **Public functions take `p_salon_id`** (`get_slots`, `create_booking`); abuse limits count per salon. The frontend sends `SALON_ID` from `src/data/salon.ts` and filters public reads with `.eq('salon_id', SALON_ID)`.
+- **Public functions take `p_salon_id`** (`get_slots`, `create_booking`); abuse limits count per salon. The frontend sends the resolved salon id from `src/data/salon.ts` and filters public reads with `.eq('salon_id', …)` (see "Which salon a page is").
+- **Which salon a page is:** resolved from the host through `public.salon_domains` (lowercase, no `www.`); an unknown host shows "Salon introuvable", never another salon. `?salon=<id>` works on **localhost only**; `VITE_SALON_ID` works **only in dev builds** (e.g. phone testing over the LAN). Branding columns on `salons` (palette, story, claims, photos) are written only by `provision_salon` / the service role (the script), never by the browser; the owner's `admin_save_salon_info` touches only address/city/whatsapp/socials.
 - `/admin` checks `admin_my_salon()`: staff of another salon see only `admin.otherSalon`.
 - Push subscriptions and notifications are per salon.
 - `src/components/admin/SalonGate.tsx` is the single `/admin` salon check (agenda and settings). It fails closed: no verified salon yet → loading / `DataError` retry; `not_authorized` → message; another salon → `admin.otherSalon`.
@@ -75,13 +79,17 @@ The SQL functions own the business rules: Algiers time, each salon's **hours per
 
 `src/pages/SettingsPage.tsx` lists the sections; each screen lives in `src/components/settings/` (`ServicesSettings`, `StylistsSettings`, `HoursSettings`, `ClosedDatesSettings`, `SalonInfoSettings`) inside `SettingsLayout`, plus a Compte group (`NotificationsCard`, logout). Per-salon settings tables: `salon_hours`, `salon_closed_dates`, `stylist_workdays`, `stylist_days_off` (staff-only read), salon info columns on `salons` (address, city, whatsapp, instagram_url, facebook_url) and `active` on services/stylists. **They have no write grants or policies: all writes go through `security definer` `admin_*` RPCs scoped by `my_salon()`** (`admin_save_service`, `admin_set_service_active`, `admin_save_stylist`, `admin_set_stylist_active`, `admin_add/delete_stylist_days_off`, `admin_set_hours`, `admin_add/delete_closed_dates`, `admin_save_salon_info`). Removing a service/stylist only hides it; no setting change cancels a booking — after a save, `AffectedBookings` lists future bookings that no longer fit (`admin_affected_bookings`) with a deep link to each. An empty Arabic name/description/role/address/city is stored as the French text. Settings queries use `staleTime: 30_000`.
 
+### Hosting
+
+One Cloudflare Pages project serves every salon's domain: the static build (`dist`) plus `functions/` (edge middleware that writes each salon's title, colours and app manifest; env `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`; `wrangler.toml`). `.github/workflows/deploy.yml` runs on every merge to `main`: CI checks, `supabase db push`, deploy `notify-booking`, `pnpm build`, `wrangler pages deploy`. One-time account setup and launching salons: `docs/deploy.md`.
+
 ### Booking notifications (Web Push)
 
 New **online** bookings notify the owner's devices: trigger `bookings_notify_online` → `private.post_push` → async `pg_net` POST (auth header `x-notify-secret`) → Edge Function `supabase/functions/notify-booking` (message text and send/prune logic in `supabase/functions/_shared/notify.ts`, tested by Vitest) → Web Push (VAPID, `npm:web-push`). Nothing is sent until the Vault secrets `notify_booking_url` / `notify_booking_secret` exist, and a failure can never block a booking. The admin is installable (`public/manifest.webmanifest`, `public/sw.js`); the owner enables it on her device from `NotificationsCard` (`src/lib/push.ts`, env `VITE_VAPID_PUBLIC_KEY`). Tapping a notification opens `/admin?day=YYYY-MM-DD&booking=<id>`, which `Schedule` turns into that day + that booking's sheet. Live/local setup: `docs/notifications-setup.md`.
 
 ### Data & formatting
 
-`src/data/` holds the data layer: `types.ts`, `queries.ts` (services/stylists), `bookings.ts` (slots, create, phone rules, error codes), `admin.ts` (staff hooks, Algiers-time helpers, `toAdminError`), `week.ts` (week days, occupancy, salon-time helpers, owner time options), `whatsapp.ts` (`wa.me` links, client messages), `salonSettings.ts` (salon info, hours, closed dates, days off, affected bookings, settings mutations, `toSettingsError`), `hours.ts` (the hour/workday rule mirror), `salon.ts` (`SALON_ID`), `formatters.ts`. Money is Algerian Dinar formatted via `formatPrice()` (`fr-FR` grouping + ` DA` suffix) — always format prices/durations/dates through these helpers so the AR/FR output stays consistent.
+`src/data/` holds the data layer: `types.ts`, `queries.ts` (services/stylists), `bookings.ts` (slots, create, phone rules, error codes), `admin.ts` (staff hooks, Algiers-time helpers, `toAdminError`), `week.ts` (week days, occupancy, salon-time helpers, owner time options), `whatsapp.ts` (`wa.me` links, client messages), `salonSettings.ts` (salon info, hours, closed dates, days off, affected bookings, settings mutations, `toSettingsError`), `hours.ts` (the hour/workday rule mirror), `salon.ts` (the current salon, set once at startup), `formatters.ts`. Money is Algerian Dinar formatted via `formatPrice()` (`fr-FR` grouping + ` DA` suffix) — always format prices/durations/dates through these helpers so the AR/FR output stays consistent.
 
 ### Icons & images
 
