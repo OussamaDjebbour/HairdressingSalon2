@@ -149,17 +149,16 @@ The demo is the Élégance salon at https://salons-dzi.pages.dev. Its login is p
 
 ### Set up (once, after deploying Part 4)
 
-1. Publish the site and the database changes. Until the GitHub deploy secrets exist this is manual:
-   `pnpm build && npx wrangler pages deploy dist --project-name salons --branch main`, then `supabase db push`.
-2. Create the demo account:
+1. Apply the database changes first, then publish the site (database before site, as in `deploy.yml`). Until the GitHub deploy secrets exist this is manual: `supabase db push`, then `pnpm build && npx wrangler pages deploy dist --project-name salons --branch main`.
+2. Log in to `/admin` as the Élégance owner (no owner account yet: see § 6) and set Élégance up the way prospects should see it. In particular set Réglages → Infos du salon → **WhatsApp** to **your own number**: in the demo, WhatsApp messages "to the client" open WhatsApp to the salon's number, not the client's.
+3. **Then** create the demo account:
 
    ```bash
    pnpm setup-demo elegance --dry-run   # checks only
    pnpm setup-demo elegance
    ```
 
-   It creates `demo+elegance@demo.invalid` and prints its **password once**. Re-running rotates the password and **re-captures the snapshot**: the state the reset returns to is whatever Élégance looks like at that moment, so set Élégance up the way you want it shown *before* running it. `--domain=` changes the email domain.
-3. In the demo, WhatsApp messages "to the client" open WhatsApp to the **salon's** number, not the client's. Set Élégance's WhatsApp in Réglages → Infos du salon to **your own number**.
+   It creates `demo+elegance@demo.invalid` and prints its **password once**. It also records Élégance's current state as the "original" the reset returns to, which is why step 2 comes first. If you change Élégance's settings later and want the reset to keep them, run `pnpm setup-demo elegance` again (it rotates the demo password and records the new original). `--domain=` changes the email domain.
 4. Supabase → Authentication → Email: keep **"Secure email change"** on (both addresses must confirm). See the caveat below.
 
 ### Reset before a pitch
