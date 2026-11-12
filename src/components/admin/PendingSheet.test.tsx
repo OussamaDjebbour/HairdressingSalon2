@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useState } from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import type { AdminBooking } from '../../data/admin';
 import { adminBooking } from './fixtures';
 
@@ -194,6 +194,24 @@ describe('PendingSheet', () => {
   it('lays a client name out in its own direction', () => {
     renderSheet([nour]);
     expect(screen.getByText('Nour K.')).toHaveAttribute('dir', 'auto');
+  });
+
+  it('slides away before opening the booking a card was tapped on', () => {
+    vi.useRealTimers(); // beforeEach fakes only Date; the slide-away runs on a timer
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-08T07:00:00Z'));
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia;
+    try {
+      const { onOpen } = renderSheet([nour]);
+      fireEvent.click(within(cards()[0]).getByText('Nour K.'));
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(screen.getByRole('dialog')).toHaveAttribute('data-state', 'closing');
+      act(() => vi.advanceTimersByTime(250));
+      expect(onOpen).toHaveBeenCalledWith(nour);
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
   });
 
   it('Escape closes it', () => {

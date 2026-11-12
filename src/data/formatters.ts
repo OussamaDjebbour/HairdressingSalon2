@@ -50,6 +50,17 @@ export function formatLongDate(date: Date, lang: Lang = 'fr'): string {
   return `${day} ${dayNum} ${month}`;
 }
 
+/** "Novembre 2026" / "نوفمبر 2026". */
+export function formatMonthYear(date: Date, lang: Lang = 'fr'): string {
+  const month = monthNames[lang][date.getMonth()];
+  return `${lang === 'fr' ? month[0].toUpperCase() + month.slice(1) : month} ${date.getFullYear()}`;
+}
+
+/** One-letter weekday headings for a calendar, from Sunday. */
+export function weekdayInitials(lang: Lang = 'fr'): string[] {
+  return lang === 'ar' ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'] : ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+}
+
 /** "16 mars" / "16 مارس". */
 export function formatDayMonth(date: Date, lang: Lang = 'fr'): string {
   return `${date.getDate()} ${monthNames[lang][date.getMonth()]}`;

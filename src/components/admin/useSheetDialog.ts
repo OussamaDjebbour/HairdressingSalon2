@@ -11,7 +11,7 @@ export function useSheetDialog(requestClose: () => void) {
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
+    dialogRef.current?.focus({ preventScroll: true });
     return () => previous?.focus?.();
   }, []);
 

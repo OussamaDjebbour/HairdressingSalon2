@@ -246,6 +246,46 @@ describe('Schedule — agenda first', () => {
   });
 });
 
+describe('Schedule — finding a day', () => {
+  const openPicker = () => fireEvent.click(screen.getByRole('button', { name: /Choisir un jour/ }));
+
+  it('tapping the date opens the calendar', () => {
+    renderSchedule();
+    openPicker();
+    expect(screen.getByRole('dialog', { name: 'Choisir un jour' })).toBeInTheDocument();
+  });
+
+  it('a tapped day becomes the agenda’s day', () => {
+    renderSchedule();
+    openPicker();
+    fireEvent.click(screen.getByRole('button', { name: 'Jeudi 10 janvier — 0%' }));
+    expect(screen.queryByRole('dialog', { name: 'Choisir un jour' })).toBeNull();
+    expect(screen.getAllByText('Jeudi 10 janvier').length).toBeGreaterThan(0);
+  });
+
+  it('a time found for a service opens a pre-filled new booking on that day', () => {
+    renderSchedule();
+    openPicker();
+    fireEvent.change(screen.getByLabelText('Prestation'), { target: { value: 'coupe-femme' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Jeudi 10 janvier — \d+ créneaux/ }));
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    const dialog = screen.getByRole('dialog', { name: 'Nouveau rendez-vous' });
+    expect(within(dialog).getByLabelText('Prestation')).toHaveValue('coupe-femme');
+    expect(within(dialog).getByLabelText('Date')).toHaveValue('2030-01-10');
+    expect(within(dialog).getByLabelText('Heure')).toHaveValue('10:00');
+    expect(screen.getAllByText('Jeudi 10 janvier').length).toBeGreaterThan(0);
+  });
+
+  it('remembers the chosen service when the calendar is opened again', () => {
+    renderSchedule();
+    openPicker();
+    fireEvent.change(screen.getByLabelText('Prestation'), { target: { value: 'coupe-femme' } });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    openPicker();
+    expect(screen.getByLabelText('Prestation')).toHaveValue('coupe-femme');
+  });
+});
+
 describe('Schedule deep link (from a notification)', () => {
   it('deep link to another week opens that booking', () => {
     weekBookings = [adminBooking({ id: 'p9', clientName: 'Nour', startIso: '2030-01-17T09:00:00Z' })];

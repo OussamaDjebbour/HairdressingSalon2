@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import type { StylistDayOff } from '../../data/types';
 import { services, stylists, adminBooking } from './fixtures';
 
@@ -95,6 +95,13 @@ describe('BookingSheet — add', () => {
       expect(within(serviceSelect).getByRole('option', { name: s.name.fr })).toBeInTheDocument();
     }
     expect(stylists).toHaveLength(3);
+  });
+
+  it('can open pre-filled with a service, coiffeuse and time (from the calendar)', () => {
+    renderSheet({ mode: 'add', stylistId: 'leila', date: tuesday, time: '11:00', serviceId: 'manucure' });
+    expect(screen.getByLabelText('Prestation')).toHaveValue('manucure');
+    expect(screen.getByLabelText('Coiffeuse')).toHaveValue('leila');
+    expect(screen.getByLabelText('Heure')).toHaveValue('11:00');
   });
 
   it('add sends a staff booking', () => {
@@ -456,3 +463,47 @@ describe('BookingSheet — demo account', () => {
   });
 });
 
+
+describe('BookingSheet — motion', () => {
+  const realMatchMedia = window.matchMedia;
+  const motion = (reduce: boolean) => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('reduce') ? reduce : false, media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+  };
+  afterEach(() => {
+    window.matchMedia = realMatchMedia;
+    vi.useRealTimers();
+  });
+
+  it('slides down before it closes', () => {
+    vi.useFakeTimers();
+    motion(false);
+    const onClose = renderSheet(addState);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-state', 'closing');
+    act(() => vi.advanceTimersByTime(250));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes at once when the phone asks for reduced motion', () => {
+    motion(true);
+    const onClose = renderSheet(addState);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('slides away after a save too, not only on ✕', () => {
+    vi.useFakeTimers();
+    motion(false);
+    create.mockImplementation((_input, opts) => opts.onSuccess('new-id'));
+    const onClose = renderSheet(addState);
+    fillClient('Rania', '0555123456');
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(250));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

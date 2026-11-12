@@ -20,6 +20,7 @@ import { WeekStrip } from './admin/WeekStrip';
 import { DayColumns } from './admin/DayColumns';
 import { BookingSheet, type SheetState } from './admin/BookingSheet';
 import { PendingSheet, type Answered } from './admin/PendingSheet';
+import { DayPicker, type RoomFilter } from './admin/DayPicker';
 
 // Online bookings are at most today + 13 days, but the owner can move a waiting one further out;
 // 30 days stays within admin_list_bookings' 31-day range cap.
@@ -73,6 +74,9 @@ function ScheduleBody() {
   // The waiting list's answered rows outlive a booking opened from it; the list comes back after.
   const [answered, setAnswered] = useState<Answered[]>([]);
   const [backToWaiting, setBackToWaiting] = useState(false);
+  // The month calendar; what the owner looks for room for is remembered until reload.
+  const [showPicker, setShowPicker] = useState(false);
+  const [roomFilter, setRoomFilter] = useState<RoomFilter>({ serviceId: null, stylistId: null });
   // Hidden stylists too: one with a booking that day still gets a column.
   const allStylists = useAllStylists().data ?? [];
   const stylists = allStylists.filter((s) => s.active);
@@ -166,7 +170,14 @@ function ScheduleBody() {
               <button onClick={() => shiftDay(-1)} className="btn-ghost btn-sm tap" aria-label={t('admin.prevDay')}>
                 <ChevronLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               </button>
-              <span className="font-display text-lg font-semibold text-rose-900 text-center whitespace-nowrap sm:min-w-[11rem]">{formatLongDate(day, lang)}</span>
+              <button
+                type="button"
+                onClick={() => setShowPicker(true)}
+                aria-label={`${t('admin.picker.title')} — ${formatLongDate(day, lang)}`}
+                className="tap px-1 rounded-lg font-display text-lg font-semibold text-rose-900 text-center whitespace-nowrap sm:min-w-[11rem] underline decoration-dotted decoration-gold-400 underline-offset-4 hover:bg-cream-100"
+              >
+                {formatLongDate(day, lang)}
+              </button>
               <button onClick={() => shiftDay(1)} className="btn-ghost btn-sm tap" aria-label={t('admin.nextDay')}>
                 <ChevronRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               </button>
@@ -316,6 +327,23 @@ function ScheduleBody() {
             setShowWaiting(false);
             setAnswered([]);
           }}
+        />
+      )}
+      {showPicker && (
+        <DayPicker
+          day={day}
+          filter={roomFilter}
+          onFilterChange={setRoomFilter}
+          onJump={(date) => {
+            setShowPicker(false);
+            setDay(date);
+          }}
+          onPickTime={({ date, time, stylistId, serviceId }) => {
+            setShowPicker(false);
+            setDay(date);
+            setSheet({ mode: 'add', stylistId, date, time, serviceId });
+          }}
+          onClose={() => setShowPicker(false)}
         />
       )}
       {sheet && (

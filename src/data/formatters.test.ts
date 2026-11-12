@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatAgo, formatClaim, formatNumber, formatPrice, nameInText, pluralCategory } from './formatters';
+import { formatAgo, formatClaim, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
 
 const LRI = '⁦'; // LEFT-TO-RIGHT ISOLATE
 const PDI = '⁩'; // POP DIRECTIONAL ISOLATE
@@ -72,5 +72,16 @@ describe('nameInText', () => {
   });
   it('leaves French text alone', () => {
     expect(nameInText('Lina M.', 'fr')).toBe('Lina M.');
+  });
+});
+
+describe('calendar labels', () => {
+  it('names the month with its year', () => {
+    expect(formatMonthYear(new Date(2026, 10, 1), 'fr')).toBe('Novembre 2026');
+    expect(formatMonthYear(new Date(2026, 10, 1), 'ar')).toBe('نوفمبر 2026');
+  });
+  it('gives the weekday initials from Sunday', () => {
+    expect(weekdayInitials('fr')).toEqual(['D', 'L', 'M', 'M', 'J', 'V', 'S']);
+    expect(weekdayInitials('ar')).toEqual(['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']);
   });
 });

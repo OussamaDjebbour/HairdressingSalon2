@@ -15,9 +15,11 @@ import { BookingSummary } from './BookingSummary';
 import { MessageReady } from './MessageReady';
 import { useBookingActions, type Notice } from './useBookingActions';
 import { Sheet } from './Sheet';
+import { useSheetMotion } from './useSheetMotion';
 
 export type SheetState =
-  | { mode: 'add'; stylistId: string; date: Date; time: string }
+  // serviceId: pre-filled when the time was found for a service in the calendar.
+  | { mode: 'add'; stylistId: string; date: Date; time: string; serviceId?: string }
   | { mode: 'edit'; booking: AdminBooking };
 
 interface BookingSheetProps {
@@ -33,7 +35,7 @@ function initialForm(state: SheetState, lang: Lang): StaffBookingInput {
       clientName: b.clientName, clientPhone: b.clientPhone, lang: b.lang,
     };
   }
-  return { serviceId: '', stylistId: state.stylistId, date: state.date, time: state.time, clientName: '', clientPhone: '', lang };
+  return { serviceId: state.serviceId ?? '', stylistId: state.stylistId, date: state.date, time: state.time, clientName: '', clientPhone: '', lang };
 }
 
 const minutesOf = (b: AdminBooking) => Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000);
@@ -106,11 +108,15 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     setForm((f) => ({ ...f, [key]: value }));
   const onError = (err: unknown) => setError(t(`admin.error.${toAdminError(err)}`));
 
+  // Every way of closing slides the sheet down first.
+  const motion = useSheetMotion();
+  const close = () => motion.dismiss(onClose);
+
   /** Backdrop, Escape and ✕ go through here: a half-typed booking or unsaved edit isn't thrown away silently. */
   const requestClose = () => {
     const message = state.mode === 'add' ? t('admin.sheet.discardNew') : t('admin.sheet.discardChanges');
     if (!notice && view === 'form' && dirty && !window.confirm(message)) return;
-    onClose();
+    close();
   };
 
   /** Back from the form to the summary; unsaved edits are dropped (after asking). */
@@ -136,7 +142,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     const input = { ...form, serviceId };
 
     if (state.mode === 'add') {
-      create.mutate(input, { onSuccess: () => onClose(), onError });
+      create.mutate(input, { onSuccess: () => close(), onError });
       return;
     }
     const b = state.booking;
@@ -154,7 +160,7 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
                   startsAt: salonInstant(input.date, input.time), serviceName: service.name,
                 },
               })
-            : onClose(),
+            : close(),
         onError,
       }
     );
@@ -175,9 +181,10 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
         </>
       }
       onRequestClose={requestClose}
+      motion={motion.state}
     >
       {notice ? (
-        <MessageReady notice={notice} onSend={onClose} onLater={onClose} />
+        <MessageReady notice={notice} onSend={close} onLater={close} />
       ) : editing && view === 'summary' ? (
         <BookingSummary
           booking={editing}

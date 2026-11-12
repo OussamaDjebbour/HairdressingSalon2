@@ -7,6 +7,7 @@ import { salonDate } from '../../data/week';
 import { clientMessage, toWaNumber, waLink } from '../../data/whatsapp';
 import { useBookingActions } from './useBookingActions';
 import { Sheet } from './Sheet';
+import { useSheetMotion } from './useSheetMotion';
 
 interface PendingSheetProps {
   /** Website bookings waiting for the owner's answer (past ones are left out). */
@@ -38,6 +39,7 @@ export function PendingSheet({ bookings, answered, onAnswered, onOpen, onClose }
   const salonWhatsapp = useSalonInfo().data?.whatsapp ?? null;
   const actions = useBookingActions((booking, kind) => onAnswered({ booking, kind }));
   const done = new Set(answered.map((a) => a.booking.id));
+  const motion = useSheetMotion();
 
   const now = new Date();
   const waiting = bookings.filter((b) => b.status === 'pending' && b.startsAt > now && !done.has(b.id));
@@ -59,7 +61,8 @@ export function PendingSheet({ bookings, answered, onAnswered, onOpen, onClose }
     <Sheet
       title={title}
       lead={n > 0 ? t(n === 1 ? 'admin.pending.leadOne' : 'admin.pending.leadMany') : undefined}
-      onRequestClose={onClose}
+      onRequestClose={() => motion.dismiss(onClose)}
+      motion={motion.state}
     >
       <ul className="space-y-3">
         {items.map((item) =>
@@ -87,7 +90,7 @@ export function PendingSheet({ bookings, answered, onAnswered, onOpen, onClose }
             </li>
           ) : (
             <li key={item.booking.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 pt-3.5 pb-3">
-              <button type="button" disabled={busy} onClick={() => onOpen(item.booking)} className="block w-full text-start disabled:cursor-wait">
+              <button type="button" disabled={busy} onClick={() => motion.dismiss(() => onOpen(item.booking))} className="block w-full text-start disabled:cursor-wait">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="font-display text-2xl font-semibold text-rose-900">
                     <span dir="ltr">{formatAlgiersTime(item.booking.startsAt)}</span>

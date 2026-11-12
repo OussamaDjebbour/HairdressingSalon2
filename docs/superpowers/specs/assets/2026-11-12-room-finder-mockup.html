@@ -1,0 +1,142 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<h2>Finding room for a client: tap the date</h2>
+<p class="subtitle">Three phone screens at real size (390 px), same colours and fonts as the app. Tapping the date in the day bar opens a month calendar. It answers "is there room?" for the service and coiffeuse the client asked for, then books straight from the free time.</p>
+
+<style>
+  .ph-row{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+  .ph-col{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .ph-cap{max-width:330px;font-size:13px;color:#6b5a5e;line-height:1.45;text-align:left}
+  .ph-cap b{color:#421F28}
+  .ph{width:330px;height:690px;border-radius:34px;border:1px solid #e3d6d2;background:#FDFBF8;overflow:hidden;position:relative;
+      font-family:Inter,system-ui,sans-serif;color:#5F2D3A;box-shadow:0 18px 40px -18px rgba(66,31,40,.35)}
+  .bar{background:#421F28;color:#FDFBF8;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+  .bar .brand{font-family:Fraunces,serif;font-style:italic;font-weight:600;font-size:18px}
+  .day{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 0 6px;font-family:Fraunces,serif;font-weight:600;font-size:18px;color:#421F28}
+  .day .tapme{border-bottom:2px dotted #c9a96a;padding-bottom:1px}
+  .dim{position:absolute;inset:54px 0 0 0;background:rgba(66,31,40,.28)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;top:92px;background:#FDFBF8;border-radius:26px 26px 0 0;box-shadow:0 -10px 30px -12px rgba(66,31,40,.35);overflow:hidden}
+  .sh-head{padding:16px 18px 12px;border-bottom:1px solid #efe4e1;display:flex;justify-content:space-between;align-items:flex-start}
+  .sh-head h3{font-family:Fraunces,serif;font-weight:600;font-size:20px;color:#421F28;margin:0}
+  .x{width:30px;height:30px;display:grid;place-items:center;color:#7a6368;font-size:16px}
+  .body{padding:12px 18px}
+  .filters{display:flex;gap:8px}
+  .sel{flex:1;height:44px;border:1px solid #e3d6d2;border-radius:14px;background:#fff;padding:0 12px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#421F28}
+  .sel small{display:block;font-size:10.5px;color:#8a7478}
+  .sel.on{border-color:#5F2D3A;box-shadow:0 0 0 1px #5F2D3A}
+  .month{display:flex;justify-content:space-between;align-items:center;margin:14px 2px 8px;font-weight:600;color:#421F28}
+  .month span.arr{width:32px;height:32px;display:grid;place-items:center;color:#7a6368}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .wd{font-size:11px;color:#a08a6a;text-align:center;padding-bottom:2px}
+  .c{height:46px;border-radius:12px;background:#fff;border:1px solid #f1e8e5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative;font-size:14px;font-weight:600;color:#421F28}
+  .c.out{background:transparent;border-color:transparent;color:#d8cbc8;font-weight:500}
+  .c.closed{background:#f6f1ef;color:#c4b5b1;border-color:#f6f1ef;font-weight:500}
+  .c.today{box-shadow:0 0 0 2px #c9a96a inset}
+  .c.sel{background:#5F2D3A;color:#FDFBF8;border-color:#5F2D3A}
+  .fill{width:26px;height:4px;border-radius:4px;background:#efe4e1;overflow:hidden}
+  .fill i{display:block;height:100%;background:#c9a96a}
+  .pend{position:absolute;top:5px;right:6px;width:6px;height:6px;border-radius:50%;background:#d9a22b}
+  .n{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:999px}
+  .n.lots{background:#e1efe6;color:#24493a}
+  .n.few{background:#F5E6B8;color:#7a5a12}
+  .n.none{background:transparent;color:#c4b5b1;font-weight:500}
+  .c.sel .n{background:rgba(253,251,248,.18);color:#FDFBF8}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:#8a7478}
+  .legend b{display:inline-block;width:8px;height:8px;border-radius:50%;margin-inline-end:4px;vertical-align:middle}
+  .slots{margin-top:12px;border-top:1px solid #efe4e1;padding-top:12px}
+  .slots .t{font-size:13px;color:#8a7478;margin-bottom:8px}
+  .slots .t b{color:#421F28}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{height:40px;min-width:68px;padding:0 12px;border-radius:999px;border:1px solid #e3d6d2;background:#fff;display:grid;place-items:center;font-weight:600;font-size:14px;color:#5F2D3A}
+  .chip.hit{background:#5F2D3A;color:#FDFBF8;border-color:#5F2D3A}
+  .form .row{display:flex;justify-content:space-between;font-size:14px;padding:9px 2px;border-bottom:1px solid #f1e8e5}
+  .form .row span:first-child{color:#8a7478}
+  .form .row span:last-child{color:#421F28;font-weight:500}
+  .form .row.pre span:last-child::after{content:" ✓";color:#2f7a52;font-size:12px}
+  .inp{height:44px;border:1px solid #e3d6d2;border-radius:14px;background:#fff;margin-top:10px;padding:0 12px;display:flex;align-items:center;color:#b7a6a8;font-size:14px}
+  .btn{margin-top:14px;height:46px;border-radius:999px;background:#5F2D3A;color:#FDFBF8;display:grid;place-items:center;font-weight:600}
+</style>
+
+<div class="ph-row">
+
+  <!-- A: plain calendar, how full each day is -->
+  <div class="ph-col">
+    <div class="ph">
+      <div class="bar"><span class="brand">Élégance</span></div>
+      <div class="day">‹ <span class="tapme">Jeudi 12 novembre</span> ›</div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="sh-head"><h3>Choisir un jour</h3><span class="x">✕</span></div>
+        <div class="body">
+          <div class="filters">
+            <div class="sel"><span><small>Prestation</small>Toutes</span>▾</div>
+            <div class="sel"><span><small>Coiffeuse</small>Toutes</span>▾</div>
+          </div>
+          <div class="month"><span class="arr">‹</span>Novembre 2026<span class="arr">›</span></div>
+          <div class="grid">
+            <div class="wd">L</div><div class="wd">M</div><div class="wd">M</div><div class="wd">J</div><div class="wd">V</div><div class="wd">S</div><div class="wd">D</div>
+            <div class="c closed">9</div><div class="c">10<span class="fill"><i style="width:20%"></i></span></div><div class="c">11<span class="fill"><i style="width:35%"></i></span></div><div class="c today">12<span class="fill"><i style="width:10%"></i></span></div><div class="c">13<span class="pend"></span><span class="fill"><i style="width:60%"></i></span></div><div class="c">14<span class="pend"></span><span class="fill"><i style="width:90%"></i></span></div><div class="c closed">15</div>
+            <div class="c closed">16</div><div class="c">17<span class="pend"></span><span class="fill"><i style="width:40%"></i></span></div><div class="c">18<span class="fill"><i style="width:25%"></i></span></div><div class="c">19<span class="fill"><i style="width:5%"></i></span></div><div class="c">20<span class="fill"><i style="width:70%"></i></span></div><div class="c">21<span class="fill"><i style="width:100%"></i></span></div><div class="c closed">22</div>
+            <div class="c closed">23</div><div class="c">24<span class="fill"><i style="width:15%"></i></span></div><div class="c">25<span class="fill"><i style="width:0%"></i></span></div><div class="c">26<span class="fill"><i style="width:30%"></i></span></div><div class="c">27<span class="fill"><i style="width:45%"></i></span></div><div class="c">28<span class="fill"><i style="width:80%"></i></span></div><div class="c closed">29</div>
+            <div class="c closed">30</div><div class="c out">1</div><div class="c out">2</div><div class="c out">3</div><div class="c out">4</div><div class="c out">5</div><div class="c out">6</div>
+          </div>
+          <div class="legend"><span><b style="background:#c9a96a"></b>bar = how full the day is</span><span><b style="background:#d9a22b"></b>requests waiting</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="ph-cap"><b>A · Tap the date in the day bar.</b> A month opens: each day shows how full it is, closed days are greyed, amber dots mark days with requests still waiting. Tapping a day jumps the agenda there.</div>
+  </div>
+
+  <!-- B: service + coiffeuse chosen -->
+  <div class="ph-col">
+    <div class="ph">
+      <div class="bar"><span class="brand">Élégance</span></div>
+      <div class="day">‹ <span class="tapme">Jeudi 12 novembre</span> ›</div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="sh-head"><h3>Choisir un jour</h3><span class="x">✕</span></div>
+        <div class="body">
+          <div class="filters">
+            <div class="sel on"><span><small>Prestation</small>Coloration · 2 h</span>▾</div>
+            <div class="sel on"><span><small>Coiffeuse</small>Amina</span>▾</div>
+          </div>
+          <div class="month"><span class="arr">‹</span>Novembre 2026<span class="arr">›</span></div>
+          <div class="grid">
+            <div class="wd">L</div><div class="wd">M</div><div class="wd">M</div><div class="wd">J</div><div class="wd">V</div><div class="wd">S</div><div class="wd">D</div>
+            <div class="c closed">9</div><div class="c">10<span class="n lots">6</span></div><div class="c">11<span class="n lots">5</span></div><div class="c today">12<span class="n lots">4</span></div><div class="c">13<span class="n few">1</span></div><div class="c">14<span class="n none">complet</span></div><div class="c closed">15</div>
+            <div class="c closed">16</div><div class="c">17<span class="n few">2</span></div><div class="c">18<span class="n lots">5</span></div><div class="c sel">19<span class="n">7</span></div><div class="c">20<span class="n none">absente</span></div><div class="c">21<span class="n none">complet</span></div><div class="c closed">22</div>
+            <div class="c closed">23</div><div class="c">24<span class="n lots">6</span></div><div class="c">25<span class="n lots">7</span></div><div class="c">26<span class="n lots">5</span></div><div class="c">27<span class="n few">3</span></div><div class="c">28<span class="n few">1</span></div><div class="c closed">29</div>
+          </div>
+          <div class="slots">
+            <div class="t">Jeudi 19 · <b>Amina libre pour 2 h</b> à :</div>
+            <div class="chips"><span class="chip">09:00</span><span class="chip">10:30</span><span class="chip hit">11:00</span><span class="chip">13:00</span><span class="chip">14:15</span><span class="chip">15:00</span><span class="chip">16:00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ph-cap"><b>B · The client asks for “a coloration with Amina”.</b> Pick both at the top: every day now shows how many start times fit (green = plenty, amber = 1–3), or why not (“complet”, “absente”). Tap a day to see the exact times. “Toutes” as coiffeuse means whoever is free.</div>
+  </div>
+
+  <!-- C: tap a time -> prefilled new booking -->
+  <div class="ph-col">
+    <div class="ph">
+      <div class="bar"><span class="brand">Élégance</span></div>
+      <div class="day">‹ <span>Jeudi 19 novembre</span> ›</div>
+      <div class="dim"></div>
+      <div class="sheet" style="top:140px">
+        <div class="sh-head"><h3>Nouveau rendez-vous</h3><span class="x">✕</span></div>
+        <div class="body form">
+          <div class="row pre"><span>Prestation</span><span>Coloration &amp; balayage</span></div>
+          <div class="row pre"><span>Coiffeuse</span><span>Amina</span></div>
+          <div class="row pre"><span>Date</span><span>Jeudi 19 novembre</span></div>
+          <div class="row pre"><span>Heure</span><span>11:00 – 13:00</span></div>
+          <div class="inp">Nom de la cliente</div>
+          <div class="inp">Téléphone</div>
+          <div class="btn">Enregistrer</div>
+        </div>
+      </div>
+    </div>
+    <div class="ph-cap"><b>C · Tap 11:00.</b> The usual “Nouveau rendez-vous” form opens with service, coiffeuse, date and time already filled; she only types the client's name and number. The agenda behind has moved to that day.</div>
+  </div>
+</div>
