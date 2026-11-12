@@ -8,6 +8,7 @@ import { resolveSalon } from './data/currentSalon';
 import { currentSalonId, setCurrentSalon } from './data/salon';
 import { startApp } from './bootstrap';
 import { ELEGANCE } from './test/salon';
+import indexHtml from '../index.html?raw';
 
 const resolve = resolveSalon as ReturnType<typeof vi.fn>;
 const FakeApp = () => <p>the app for {currentSalonId()}</p>;
@@ -24,7 +25,11 @@ beforeEach(() => {
   root = createRoot(container);
   document.documentElement.removeAttribute('style');
   document.title = '';
+  document.head.innerHTML =
+    '<meta name="theme-color" content="#421F28"><meta name="apple-mobile-web-app-title" content="Salon">';
 });
+
+const meta = (name: string) => document.head.querySelector(`meta[name="${name}"]`)?.getAttribute('content');
 
 afterEach(() => {
   act(() => root.unmount());
@@ -36,6 +41,18 @@ async function start(host: string, search = '') {
   await act(() => startApp(root, { host, search }, FakeApp));
 }
 
+describe('the built page head (before the edge or the app names the salon)', () => {
+  it('names no salon and no city', () => {
+    const head = new DOMParser().parseFromString(indexHtml, 'text/html');
+    expect(head.title).toBe('Salon de beauté');
+    expect(head.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute('content')).toBe('Salon');
+    expect(head.querySelector('meta[name="description"]')?.getAttribute('content')).toBe(
+      'Salon de coiffure et de beauté. Réservez votre rendez-vous en ligne.',
+    );
+    expect(indexHtml).not.toMatch(/Élégance|Alger/);
+  });
+});
+
 describe('startApp', () => {
   it('renders the app for the salon of this address, with its colours and name', async () => {
     resolve.mockResolvedValue(SARA);
@@ -46,6 +63,8 @@ describe('startApp', () => {
     expect(screen.getByText('the app for sara')).toBeInTheDocument();
     expect(document.documentElement.style.getPropertyValue('--brand-600')).toBe('51 85 204');
     expect(document.title).toBe('Sara Beauté — Salon de beauté');
+    expect(meta('theme-color')).toBe(SARA.palette['900']);
+    expect(meta('apple-mobile-web-app-title')).toBe('Sara Beauté');
   });
 
   it('keeps Élégance’s tab title exactly as today', async () => {
@@ -54,6 +73,8 @@ describe('startApp', () => {
     await start('localhost:5173');
 
     expect(document.title).toBe('Élégance — Salon de beauté');
+    expect(meta('theme-color')).toBe('#421F28');
+    expect(meta('apple-mobile-web-app-title')).toBe('Élégance');
   });
 
   it('shows "salon introuvable" for an unknown address, never another salon', async () => {

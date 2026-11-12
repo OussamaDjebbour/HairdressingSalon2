@@ -30,6 +30,7 @@ describe('headTags', () => {
     const tags = headTags(ELEGANCE);
     expect(tags.title).toBe('Élégance — Salon de beauté');
     expect(tags.themeColor).toBe('#421F28');
+    expect(tags.description).toBe('Élégance — salon de coiffure et de beauté. Réservez votre rendez-vous en ligne.');
     expect(tags.style).toContain('--brand-600:157 75 95');
   });
 

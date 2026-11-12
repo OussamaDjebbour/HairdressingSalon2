@@ -100,6 +100,30 @@ describe('lookupSalon', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('still answers when the cache fails to read or write', async () => {
+    cache.match.mockRejectedValue(new Error('cache down'));
+    cache.put.mockRejectedValue(new Error('cache down'));
+    rest([{ salon: SARA }]);
+    expect(await lookupSalon('sara-salon.com', ENV)).toEqual(SARA);
+  });
+
+  it('writes the cache in the background when it can (waitUntil)', async () => {
+    rest([{ salon: SARA }]);
+    const waitUntil = vi.fn();
+    expect(await lookupSalon('sara-salon.com', ENV, waitUntil)).toEqual(SARA);
+    expect(waitUntil).toHaveBeenCalledTimes(1);
+    await waitUntil.mock.calls[0][0];
+    expect(cache.store.size).toBe(1);
+  });
+
+  it('a failing background cache write is swallowed', async () => {
+    cache.put.mockRejectedValue(new Error('cache down'));
+    rest([{ salon: SARA }]);
+    const waitUntil = vi.fn();
+    expect(await lookupSalon('sara-salon.com', ENV, waitUntil)).toEqual(SARA);
+    await expect(waitUntil.mock.calls[0][0]).resolves.toBeUndefined();
+  });
+
   it('still works without the Cache API', async () => {
     vi.stubGlobal('caches', undefined);
     rest([{ salon: SARA }]);

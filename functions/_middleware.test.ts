@@ -52,10 +52,11 @@ function html(headers: Record<string, string> = {}) {
   });
 }
 
-function run(url: string, response: Response) {
-  const next = vi.fn(async () => response);
-  const context = { request: new Request(url), env: ENV, next };
-  return { next, result: onRequest(context as unknown as Parameters<typeof onRequest>[0]) };
+function run(url: string, response: Response, init?: RequestInit) {
+  const next = vi.fn(async (_input?: Request) => response);
+  const waitUntil = vi.fn();
+  const context = { request: new Request(url, init), env: ENV, next, waitUntil };
+  return { next, waitUntil, result: onRequest(context as unknown as Parameters<typeof onRequest>[0]) };
 }
 
 beforeEach(() => {
@@ -72,15 +73,19 @@ describe('edge middleware', () => {
   it("writes the salon's title, theme colour and colours into the page head", async () => {
     lookup.mockResolvedValue(SARA);
 
-    const res = await run('https://www.Sara-Salon.com/admin/settings/hours', html()).result;
+    const { result, waitUntil } = run('https://www.Sara-Salon.com/admin/settings/hours', html());
+    const res = await result;
 
-    expect(lookup).toHaveBeenCalledWith('sara-salon.com', ENV);
+    expect(lookup).toHaveBeenCalledWith('sara-salon.com', ENV, expect.any(Function));
+    lookup.mock.calls[0][2]!(Promise.resolve());
+    expect(waitUntil).toHaveBeenCalledTimes(1);
     expect(await res.text()).toBe('rewritten');
     expect(rewriters).toHaveLength(1);
     expect(rewriters[0].edits()).toEqual([
       ['title', 'setInnerContent', 'Sara Beauté — Salon de beauté', { html: false }],
       ['meta[name="theme-color"]', 'setAttribute', 'content', '#102440'],
       ['meta[name="apple-mobile-web-app-title"]', 'setAttribute', 'content', 'Sara Beauté'],
+      ['meta[name="description"]', 'setAttribute', 'content', 'Sara Beauté — salon de coiffure et de beauté. Réservez votre rendez-vous en ligne.'],
       ['head', 'append', expect.stringMatching(/^<style>:root\{--brand-50:251 241 243;.*--brand-900:16 36 64\}<\/style>$/), { html: true }],
     ]);
   });
@@ -91,6 +96,28 @@ describe('edge middleware', () => {
     expect(res.headers.get('ETag')).toBeNull();
     expect(res.headers.get('Last-Modified')).toBeNull();
     expect(res.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+  });
+
+  it('never lets a page navigation revalidate to a 304 of a page built for another salon', async () => {
+    lookup.mockResolvedValue(SARA);
+    const conditional = { 'If-None-Match': '"abc"', 'If-Modified-Since': 'Wed, 11 Nov 2026 10:00:00 GMT', Cookie: 'a=1' };
+
+    for (const headers of [{ ...conditional, Accept: 'text/html,application/xhtml+xml' }, { ...conditional, 'Sec-Fetch-Dest': 'document' }]) {
+      const { next, result } = run('https://sara-salon.com/', html(), { headers });
+      await result;
+      const forwarded = next.mock.calls[0][0]!;
+      expect(forwarded.headers.get('If-None-Match')).toBeNull();
+      expect(forwarded.headers.get('If-Modified-Since')).toBeNull();
+      expect(forwarded.headers.get('Cookie')).toBe('a=1');
+      expect(forwarded.url).toBe('https://sara-salon.com/');
+    }
+  });
+
+  it('keeps conditional headers on other requests (assets revalidate as usual)', async () => {
+    const js = new Response('x', { headers: { 'Content-Type': 'application/javascript' } });
+    const { next, result } = run('https://sara-salon.com/assets/index.js', js, { headers: { 'If-None-Match': '"abc"', Accept: '*/*' } });
+    await result;
+    expect(next.mock.calls[0][0]).toBeUndefined();
   });
 
   it('leaves non-HTML responses alone without a lookup', async () => {

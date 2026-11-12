@@ -6,9 +6,14 @@ import { setCurrentSalon } from './data/salon';
 import { applyPalette } from './lib/theme';
 import { SalonLoadError, SalonNotFound } from './pages/SalonNotFound';
 
+/** Sets <meta name="…">'s content when the page has that tag. */
+function setMeta(name: string, content: string) {
+  document.head.querySelector(`meta[name="${name}"]`)?.setAttribute('content', content);
+}
+
 /**
  * Resolves the salon from the web address, then renders: the app when found (store set,
- * palette applied, tab title set); "salon introuvable" when the address belongs to no salon
+ * palette applied, tab title, theme colour and home-screen name set); "salon introuvable" when the address belongs to no salon
  * (no data queries, no salon shown); a retry screen when the lookup itself failed.
  */
 export async function startApp(
@@ -40,6 +45,9 @@ export async function startApp(
   setCurrentSalon(salon);
   applyPalette(salon.palette);
   document.title = `${salon.name.fr} — Salon de beauté`;
+  // Same as the edge middleware writes; also covers a page served without it (dev, preview).
+  setMeta('theme-color', salon.palette['900']);
+  setMeta('apple-mobile-web-app-title', salon.name.fr);
   root.render(
     <StrictMode>
       <App />

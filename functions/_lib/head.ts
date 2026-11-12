@@ -34,13 +34,14 @@ export function toEdgeSalon(row: unknown): EdgeSalon | null {
 }
 
 /** Same tab title the app sets at runtime (src/bootstrap.tsx). */
-export function headTags(salon: EdgeSalon): { title: string; themeColor: string; style: string } {
+export function headTags(salon: EdgeSalon): { title: string; themeColor: string; description: string; style: string } {
   const vars = Object.entries(paletteToCssVars(salon.palette))
     .map(([name, value]) => `${name}:${value}`)
     .join(';');
   return {
     title: `${salon.name} — Salon de beauté`,
     themeColor: salon.palette['900'],
+    description: `${salon.name} — salon de coiffure et de beauté. Réservez votre rendez-vous en ligne.`,
     style: `:root{${vars}}`,
   };
 }
