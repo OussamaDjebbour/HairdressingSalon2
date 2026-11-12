@@ -142,3 +142,50 @@ that salon's `<title>` and a `<style>` with `--brand-*` values (`--brand-600: ..
    database has no `localhost` address row, so plain `http://localhost:5173/` shows "Salon
    introuvable" — use `?salon=elegance` or `VITE_SALON_ID=elegance pnpm dev`).
 5. **Hand over** the site address, `/admin` address, the owner's email and the password.
+
+## 7. The demo (pitching to salon owners)
+
+The demo is the Élégance salon at https://salons-dzi.pages.dev. Its login is public on purpose (the data is fake), so prospects can try the booking page and the owner's `/admin` for themselves.
+
+### Set up (once, after deploying Part 4)
+
+1. Publish the site and the database changes. Until the GitHub deploy secrets exist this is manual:
+   `pnpm build && npx wrangler pages deploy dist --project-name salons --branch main`, then `supabase db push`.
+2. Create the demo account:
+
+   ```bash
+   pnpm setup-demo elegance --dry-run   # checks only
+   pnpm setup-demo elegance
+   ```
+
+   It creates `demo+elegance@demo.invalid` and prints its **password once**. Re-running rotates the password and **re-captures the snapshot**: the state the reset returns to is whatever Élégance looks like at that moment, so set Élégance up the way you want it shown *before* running it. `--domain=` changes the email domain.
+3. In the demo, WhatsApp messages "to the client" open WhatsApp to the **salon's** number, not the client's. Set Élégance's WhatsApp in Réglages → Infos du salon to **your own number**.
+4. Supabase → Authentication → Email: keep **"Secure email change"** on (both addresses must confirm). See the caveat below.
+
+### Reset before a pitch
+
+- Log in as your own Élégance owner account, then Réglages → Compte → **Réinitialiser la démo**. The button is only shown to the product owner's own account.
+- The reset restores the demo account's email and password, removes everything prospects added (services, stylists, closed dates, days off, bookings), restores the snapshot, then adds a week of fake bookings (3 to 5 per open day, some pending) without sending any notification.
+- It also runs by itself every night at **03:00 Algiers** (pg_cron job `demo-nightly-reset`, `0 2 * * *` UTC).
+
+### What prospects see and can do
+
+- They can book on the public page, and in `/admin` add, move, confirm and cancel bookings, change services, stylists, hours and text. All of it is shared by everyone using the demo and disappears at the next reset.
+- Client phone numbers are **masked** for the demo account (`05•• •• •• 56`), enforced in SQL, not only in the screen.
+- They cannot enable push notifications, cannot see the reset button, and no WhatsApp message ever reaches a real client.
+
+### Abuse limits during a pitch
+
+The online-booking limits stay on, per salon and counting online bookings only (read from `create_booking`):
+
+| Limit | Effect |
+| --- | --- |
+| 20 online bookings created in 10 minutes (whole salon) | `rate_limited` |
+| 5 online bookings per client IP (`cf-connecting-ip`) per hour | `rate_limited` on the 6th |
+| 3 future, non-cancelled online bookings per phone | `too_many_bookings` on the 4th |
+
+So one phone number gets **3** future bookings (cancelling one frees a slot), and one IP gets **5** per hour, whichever comes first. Staff bookings made in `/admin` are not counted. The fake bookings are inserted with an old `created_at`, so they do not count either. The reset deletes every booking, which **clears all the counters**. If a prospect is blocked, or several prospects share one Wi-Fi (one IP) at an event, run **Réinitialiser la démo**; the limits are deliberately not loosened for the demo.
+
+### Known caveat: email change on the shared demo account
+
+A visitor in the public demo session could call the Supabase auth API to request an email change for the demo account, which makes Supabase send a confirmation email to any address they choose. The nightly or on-demand reset restores the demo account's email and password. Keep "Secure email change" on (above); you can also restrict auth emails with a custom SMTP provider and Supabase's email rate limits.
