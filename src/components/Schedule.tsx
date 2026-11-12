@@ -159,17 +159,17 @@ function ScheduleBody() {
               <button onClick={() => shiftDay(-1)} className="btn-ghost btn-sm" aria-label={t('admin.prevDay')}>
                 <ChevronLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               </button>
-              <span className="font-display text-lg font-semibold text-rose-900 text-center sm:min-w-[11rem]">{formatLongDate(day, lang)}</span>
+              <span className="font-display text-lg font-semibold text-rose-900 text-center whitespace-nowrap sm:min-w-[11rem]">{formatLongDate(day, lang)}</span>
               <button onClick={() => shiftDay(1)} className="btn-ghost btn-sm" aria-label={t('admin.nextDay')}>
                 <ChevronRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               </button>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 ms-auto">
               {!isToday && (
-                <button onClick={() => setDay(algiersToday())} className="btn-secondary btn-sm ms-1">
+                <button onClick={() => setDay(algiersToday())} className="btn-secondary btn-sm">
                   {t('schedule.today')}
                 </button>
               )}
-            </div>
-            <div className="flex items-center gap-2 ms-auto">
               {waiting.length > 0 && (
                 <button
                   type="button"
@@ -211,7 +211,8 @@ function ScheduleBody() {
           <div>
             <div className="grid lg:grid-cols-3 gap-6">
               {/* Day: one column per stylist, then the day in one line */}
-              <div className="lg:col-span-2">
+              {/* min-w-0: a wide day (many stylists) scrolls inside its card, not the whole page */}
+              <div className="lg:col-span-2 min-w-0">
                 <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-3 sm:p-6">
                   <DayColumns
                     day={day}

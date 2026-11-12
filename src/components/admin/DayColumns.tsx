@@ -9,6 +9,11 @@ import { minutesToTime, salonDate, salonMinutes } from '../../data/week';
 const HOUR_HEIGHT = 64; // px per hour
 const CELL_MINUTES = 30;
 const QUARTER = 15;
+/** From this many stylists, columns keep a readable width and the day scrolls sideways. */
+const MANY_STYLISTS = 4;
+const MIN_COLUMN_REM = 7;
+const GAP_REM = 0.25; // gap-1
+const GUTTER_REM = 2.5;
 
 interface DayColumnsProps {
   day: Date;
@@ -32,7 +37,10 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
   const { lang, t } = useLang();
   const ymd = toYmd(day);
   const visible = bookings.filter((b) => b.status !== 'cancelled' && toYmd(salonDate(b.startsAt)) === ymd);
-  const gridTemplateColumns = `2.5rem repeat(${Math.max(stylists.length, 1)}, minmax(0, 1fr))`;
+  const gridTemplateColumns = `${GUTTER_REM}rem repeat(${Math.max(stylists.length, 1)}, minmax(0, 1fr))`;
+  const many = stylists.length >= MANY_STYLISTS;
+  // Wider than the card when needed; the card then scrolls sideways (the hour gutter stays put).
+  const minWidth = many ? `${GUTTER_REM + stylists.length * (MIN_COLUMN_REM + GAP_REM)}rem` : undefined;
 
   const starts = visible.map((b) => salonMinutes(b.startsAt));
   const ends = visible.map((b) => salonMinutes(b.startsAt) + minutesOf(b));
@@ -54,9 +62,9 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
   );
 
   return (
-    <div>
-      <div className="grid gap-1 mb-2" style={{ gridTemplateColumns }}>
-        <div />
+    <div data-testid="day-columns-scroll" className={many ? 'overflow-x-auto overflow-y-hidden overscroll-x-contain pb-2' : ''}>
+      <div className="grid gap-1 mb-2" style={{ gridTemplateColumns, minWidth }}>
+        <div className="sticky start-0 z-30 bg-white" />
         {stylists.map((s) => (
           <div key={s.id} className={`text-center text-xs font-semibold text-rose-800 truncate ${works(s) ? '' : 'opacity-60'}`}>
             {s.name}
@@ -69,8 +77,9 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
       ) : (
         <>
           {hours === null && closedNotice(true)}
-          <div className="relative grid gap-1" style={{ gridTemplateColumns, height: `${(CLOSE - OPEN) / 60 * HOUR_HEIGHT}px` }}>
-            <div className="relative">
+          <div className="relative grid gap-1" style={{ gridTemplateColumns, minWidth, height: `${(CLOSE - OPEN) / 60 * HOUR_HEIGHT}px` }}>
+            {/* Bookings scroll under the hours, which stay on the start side. */}
+            <div data-testid="day-columns-gutter" className="sticky start-0 z-30 bg-white">
               {hourLabels.map((h) => (
                 <span key={h} className="absolute start-0 -mt-2 text-[11px] text-rose-600" style={{ top: topPx(h * 60) }}>
                   {minutesToTime(h * 60)}
