@@ -173,7 +173,7 @@
     field-sizing: content;
   }
 
-  .salon-calendar {
+  .rdp-root.salon-calendar {
     --rdp-accent-color: theme('colors.rose.700');
     --rdp-accent-background-color: theme('colors.gold.200');
     --rdp-today-color: theme('colors.gold.700');
