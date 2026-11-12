@@ -1,0 +1,140 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=Cairo:wght@400;600&display=swap" rel="stylesheet">
+
+<h2>New form fields: Radix + react-hook-form + zod</h2>
+<p class="subtitle">Phone size (360 px), app colours. A: the owner's booking form after tapping Save with problems. B: picking a closed period with one range calendar. C: hours with an open/closed switch per day. D: the same field and error in Arabic.</p>
+
+<style>
+  .row{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+  .col{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .cap{max-width:310px;font-size:13px;color:#6b5a5e;line-height:1.45}
+  .cap b{color:#421F28}
+  .ph{width:310px;min-height:640px;border-radius:30px;border:1px solid #e3d6d2;background:#FDFBF8;overflow:hidden;position:relative;
+      font-family:Inter,system-ui,sans-serif;color:#5F2D3A;box-shadow:0 18px 40px -18px rgba(66,31,40,.35);padding:18px 18px 22px}
+  .ph.ar{font-family:Cairo,Inter,sans-serif;direction:rtl}
+  h3{font-family:Fraunces,serif;font-weight:600;font-size:19px;color:#421F28;margin:0 0 12px}
+  .f{margin-bottom:12px}
+  .lab{display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:#7a3a4a;margin-bottom:5px}
+  .lab i{font-style:normal;font-weight:400;color:#a08a6a}
+  .in{height:46px;border:1.5px solid #e8dcd2;border-radius:14px;background:#fff;display:flex;align-items:center;padding:0 12px;font-size:15px;color:#421F28;gap:8px}
+  .in.ph-t{color:#b9a7a4}
+  .in.focus{border-color:#5F2D3A;box-shadow:0 0 0 3px rgba(95,45,58,.15)}
+  .in.bad{border-color:#b4532a;background:#fff8f5}
+  .in .grow{flex:1}
+  .chev{color:#8a7478;font-size:12px}
+  .help{font-size:12px;color:#8a7478;margin-top:4px}
+  .err{font-size:12.5px;color:#9a3d17;margin-top:5px;display:flex;gap:6px;align-items:flex-start;font-weight:500}
+  .err b{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:#b4532a;color:#fff;font-size:10px;flex:none;margin-top:1px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .btn{height:46px;border-radius:999px;background:#5F2D3A;color:#FDFBF8;display:grid;place-items:center;font-weight:600;margin-top:6px}
+  .pop{border:1px solid #e8dcd2;border-radius:18px;background:#fff;box-shadow:0 12px 30px -14px rgba(66,31,40,.35);padding:12px;margin-top:6px}
+  .mh{display:flex;justify-content:space-between;align-items:center;font-weight:600;color:#421F28;font-size:14px;margin-bottom:8px}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:13px}
+  .cal .wd{font-size:11px;color:#a08a6a;padding:2px 0}
+  .cal span{height:34px;display:grid;place-items:center;border-radius:10px;color:#421F28}
+  .cal .o{color:#d4c4c1}
+  .cal .r{background:#f3e3e6;border-radius:0}
+  .cal .s{background:#5F2D3A;color:#fff;border-radius:10px 0 0 10px}
+  .cal .e{background:#5F2D3A;color:#fff;border-radius:0 10px 10px 0}
+  .hr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f1e8e5}
+  .hr .d{width:74px;font-weight:600;color:#421F28;font-size:14px}
+  .sw{width:42px;height:24px;border-radius:999px;background:#5F2D3A;position:relative;flex:none}
+  .sw::after{content:"";position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:#fff}
+  .sw.off{background:#e3d6d2}
+  .sw.off::after{right:auto;left:3px}
+  .times{display:flex;align-items:center;gap:6px;font-size:14px;color:#421F28}
+  .times .t{border:1.5px solid #e8dcd2;border-radius:10px;padding:6px 8px;background:#fff}
+  .closed{font-size:13px;color:#a08a6a}
+  .toast{margin-bottom:12px;border-radius:14px;background:#fff4ef;border:1px solid #f0c9b6;color:#8a3a16;font-size:12.5px;padding:9px 11px}
+</style>
+
+<div class="row">
+
+  <div class="col">
+    <div class="ph">
+      <h3>Nouveau rendez-vous</h3>
+      <div class="toast">2 champs à corriger.</div>
+      <div class="f">
+        <div class="lab">Nom de la cliente</div>
+        <div class="in bad focus"><span class="grow"></span></div>
+        <div class="err"><b>!</b>Le nom est obligatoire.</div>
+      </div>
+      <div class="f">
+        <div class="lab">Téléphone</div>
+        <div class="in bad"><span class="grow">021 12 34 56</span></div>
+        <div class="err"><b>!</b>Numéro de mobile algérien invalide (ex. 0555 12 34 56).</div>
+      </div>
+      <div class="f">
+        <div class="lab">Prestation</div>
+        <div class="in"><span class="grow">Coupe &amp; Brushing · 1 h</span><span class="chev">▾</span></div>
+      </div>
+      <div class="two">
+        <div class="f"><div class="lab">Date</div><div class="in"><span class="grow">Mar. 19 nov.</span><span class="chev">▾</span></div></div>
+        <div class="f"><div class="lab">Heure</div><div class="in"><span class="grow">10:30</span><span class="chev">▾</span></div></div>
+      </div>
+      <div class="btn">Enregistrer</div>
+    </div>
+    <div class="cap"><b>A · Save with problems.</b> All errors at once, each under its field with a red border; focus jumps to the first. Drop-downs and the date are styled the same way as the text fields.</div>
+  </div>
+
+  <div class="col">
+    <div class="ph">
+      <h3>Jours fermés</h3>
+      <div class="f">
+        <div class="lab">Période</div>
+        <div class="in focus"><span class="grow">Ven. 1 → Dim. 3 mai</span><span class="chev">▾</span></div>
+        <div class="pop">
+          <div class="mh"><span>‹</span>Mai 2026<span>›</span></div>
+          <div class="cal">
+            <div class="wd">D</div><div class="wd">L</div><div class="wd">M</div><div class="wd">M</div><div class="wd">J</div><div class="wd">V</div><div class="wd">S</div>
+            <span class="o">26</span><span class="o">27</span><span class="o">28</span><span class="o">29</span><span class="o">30</span><span class="s">1</span><span class="r">2</span>
+            <span class="e">3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span>
+            <span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span>
+          </div>
+        </div>
+      </div>
+      <div class="f">
+        <div class="lab">Libellé <i>facultatif</i></div>
+        <div class="in ph-t"><span class="grow">ex. Aïd</span></div>
+      </div>
+      <div class="btn">Ajouter la fermeture</div>
+    </div>
+    <div class="cap"><b>B · One range instead of “Du / Au”.</b> Tap the first and last day in one calendar (react-day-picker in a popover). Same for a coiffeuse's days off. Nothing clipped, same look on every phone.</div>
+  </div>
+
+  <div class="col">
+    <div class="ph">
+      <h3>Horaires</h3>
+      <div class="hr"><span class="d">Lundi</span><span class="sw off"></span><span class="closed">Fermé</span></div>
+      <div class="hr"><span class="d">Mardi</span><span class="sw"></span><span class="times"><span class="t">09:00</span>–<span class="t">18:00</span></span></div>
+      <div class="hr"><span class="d">Mercredi</span><span class="sw"></span><span class="times"><span class="t">09:00</span>–<span class="t">18:00</span></span></div>
+      <div class="hr"><span class="d">Jeudi</span><span class="sw"></span><span class="times"><span class="t">09:00</span>–<span class="t">18:00</span></span></div>
+      <div class="hr"><span class="d">Vendredi</span><span class="sw"></span><span class="times"><span class="t">09:00</span>–<span class="t">12:00</span></span></div>
+      <div class="hr"><span class="d">Samedi</span><span class="sw"></span><span class="times"><span class="t">09:00</span>–<span class="t">18:00</span></span></div>
+      <div class="hr"><span class="d">Dimanche</span><span class="sw off"></span><span class="closed">Fermé</span></div>
+      <div class="btn" style="margin-top:16px">Enregistrer</div>
+    </div>
+    <div class="cap"><b>C · Hours.</b> One row per day: an open/closed switch (Radix Switch), then the times. It reads at a glance and fits the screen.</div>
+  </div>
+
+  <div class="col">
+    <div class="ph ar">
+      <h3 style="font-family:Cairo,serif">موعد جديد</h3>
+      <div class="f">
+        <div class="lab">الهاتف</div>
+        <div class="in bad"><span class="grow" style="direction:ltr;text-align:right">021 12 34 56</span></div>
+        <div class="err"><b>!</b>رقم هاتف جزائري غير صالح (مثال: 0555 12 34 56).</div>
+      </div>
+      <div class="f">
+        <div class="lab">الخدمة</div>
+        <div class="in"><span class="grow">قص وتصفيف الشعر</span><span class="chev">▾</span></div>
+      </div>
+      <div class="f">
+        <div class="lab">ملاحظة <i>اختياري</i></div>
+        <div class="in ph-t"><span class="grow">…</span></div>
+        <div class="help">تظهر للخبيرة فقط.</div>
+      </div>
+    </div>
+    <div class="cap"><b>D · Arabic.</b> Labels, errors and drop-down arrows all mirror; numbers stay left-to-right. (The note field is only here to show help text vs. error.)</div>
+  </div>
+</div>
