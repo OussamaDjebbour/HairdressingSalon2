@@ -53,13 +53,14 @@ export const DateRangeField = forwardRef<HTMLButtonElement, Props>(function Date
           a11y={a11y}
           triggerRef={ref}
           onBlur={onBlur}
+          onOpen={() => setExtending(false)}
           text={text}
           placeholder={t('form.pickPeriod')}
         >
           <DayPicker
             {...calendar}
-            modifiers={value ? { range: { from: value.from, to: value.to } } : undefined}
-            modifiersClassNames={{ range: 'bg-gold-200 text-rose-900' }}
+            modifiers={value ? { range: { from: value.from, to: value.to }, rangeEdge: [value.from, value.to] } : undefined}
+            modifiersClassNames={{ range: 'range-day', rangeEdge: 'range-edge' }}
             defaultMonth={value?.from}
             onDayClick={pick}
           />

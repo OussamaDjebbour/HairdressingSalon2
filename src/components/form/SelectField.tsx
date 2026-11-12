@@ -27,7 +27,7 @@ interface SelectFieldProps {
 function withCurrent(options: Option[], value: string): Option[] {
   if (!value || options.some((o) => o.value === value)) return options;
   const next = [...options];
-  const at = next.findIndex((o) => o.value > value);
+  const at = next.findIndex((o) => o.value.localeCompare(value, undefined, { numeric: true }) > 0);
   next.splice(at === -1 ? next.length : at, 0, { value, label: value });
   return next;
 }
@@ -40,11 +40,16 @@ export const SelectField = forwardRef<HTMLButtonElement, SelectFieldProps>(funct
   return (
     <Field id={id} label={label} optional={optional} help={help} error={error}>
       {(a11y) => (
-        <Select.Root value={value} onValueChange={onValueChange}>
+        <Select.Root
+          value={value}
+          onValueChange={onValueChange}
+          onOpenChange={(open) => {
+            if (!open) onBlur?.(); // touched once the menu closes, not when it opens
+          }}
+        >
           <Select.Trigger
             {...a11y}
             ref={ref}
-            onBlur={onBlur}
             className="input flex items-center gap-2 text-start"
           >
             <span className="min-w-0 flex-1 truncate" dir={dirLtrValues ? 'ltr' : undefined}>

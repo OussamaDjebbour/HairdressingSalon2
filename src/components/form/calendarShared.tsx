@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { CalendarDays } from 'lucide-react';
 import * as Popover from '@radix-ui/react-popover';
@@ -21,20 +22,30 @@ interface Props {
   a11y: FieldA11y;
   triggerRef: React.Ref<HTMLButtonElement>;
   onBlur?(): void;
+  /** Called each time the popover opens. */
+  onOpen?(): void;
   text: string | null;
   placeholder: string;
   children: ReactNode;
 }
 
 /** The input-looking button and the popover that holds a calendar. */
-export function CalendarPopover({ a11y, triggerRef, onBlur, text, placeholder, children }: Props) {
+export function CalendarPopover({ a11y, triggerRef, onBlur, onOpen, text, placeholder, children }: Props) {
   const { dir } = useLang();
+  const [open, setOpen] = useState(false);
+  const change = (next: boolean) => {
+    setOpen(next);
+    if (next) onOpen?.();
+    else onBlur?.(); // touched once the user is done picking, not when the calendar opens
+  };
   return (
-    <Popover.Root>
+    <Popover.Root open={open} onOpenChange={change}>
       <Popover.Trigger
         {...a11y}
         ref={triggerRef}
-        onBlur={onBlur}
+        onBlur={() => {
+          if (!open) onBlur?.();
+        }}
         type="button"
         className="input flex items-center gap-2 text-start"
       >

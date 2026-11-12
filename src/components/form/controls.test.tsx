@@ -57,6 +57,28 @@ describe('SelectField', () => {
     expect(labels).toEqual(['10:00', '10:10', '10:15']);
   });
 
+  it('sorts an off-grid numeric value numerically', () => {
+    const opts = ['15', '90', '105', '600'].map((v) => ({ value: v, label: v }));
+    wrap(<SelectField id="n" label="Durée" value="100" options={opts} onValueChange={() => {}} />);
+    fireEvent.pointerDown(screen.getByRole('combobox', { name: 'Durée' }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: 'mouse',
+    });
+    const labels = screen.getAllByRole('option').map((o) => o.textContent);
+    expect(labels).toEqual(['15', '90', '100', '105', '600']);
+  });
+
+  it('calls onBlur when the menu closes, not when it opens', () => {
+    const onBlur = vi.fn();
+    wrap(<SelectField id="s" label="Coiffeuse" value="amina" options={stylists} onValueChange={() => {}} onBlur={onBlur} />);
+    const trigger = screen.getByRole('combobox', { name: 'Coiffeuse' });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    expect(onBlur).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('option', { name: 'Leila' }));
+    expect(onBlur).toHaveBeenCalledTimes(1);
+  });
+
   it('flags an error', () => {
     wrap(
       <SelectField id="s" label="Coiffeuse" value="" options={stylists} onValueChange={() => {}} error="form.error.required" />
@@ -109,6 +131,18 @@ describe('DateField', () => {
   });
 });
 
+describe('DateField blur', () => {
+  it('calls onBlur when the calendar closes, not when it opens', () => {
+    const onBlur = vi.fn();
+    wrap(<DateField id="d" label="Date" value={new Date(2030, 0, 8)} onChange={() => {}} onBlur={onBlur} />);
+    const trigger = screen.getByRole('button', { name: /Date/ });
+    fireEvent.click(trigger);
+    expect(onBlur).not.toHaveBeenCalled();
+    fireEvent.click(trigger);
+    expect(onBlur).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('DateRangeField', () => {
   function H({ onChange, arabic }: { onChange: (p: Period | null) => void; arabic?: boolean }) {
     const [v, setV] = useState<Period | null>(null);
@@ -152,6 +186,20 @@ describe('DateRangeField', () => {
     fireEvent.click(day(2));
     const p = onChange.mock.calls[0][0] as Period;
     expect([p.from.getDate(), p.to.getDate()]).toEqual([2, 2]);
+  });
+
+  it('starts a new period after the popover was closed and reopened', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2030, 4, 1, 10));
+    const onChange = vi.fn();
+    wrap(<H onChange={onChange} />);
+    open();
+    fireEvent.click(day(2));
+    open(); // close
+    open(); // reopen
+    fireEvent.click(day(9));
+    const p = onChange.mock.calls.at(-1)![0] as Period;
+    expect([p.from.getDate(), p.to.getDate()]).toEqual([9, 9]);
   });
 
   it('lays the calendar out right-to-left in Arabic', () => {

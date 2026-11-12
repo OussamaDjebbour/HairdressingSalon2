@@ -173,6 +173,20 @@
     field-sizing: content;
   }
 
+  .salon-calendar {
+    --rdp-accent-color: theme('colors.rose.700');
+    --rdp-accent-background-color: theme('colors.gold.200');
+    --rdp-today-color: theme('colors.gold.700');
+    color: theme('colors.rose.900');
+  }
+  .salon-calendar .range-day {
+    background-color: theme('colors.gold.200');
+  }
+  .salon-calendar .range-edge {
+    background-color: theme('colors.rose.700');
+    color: white;
+  }
+
   .field-help {
     @apply text-xs text-rose-600;
   }
