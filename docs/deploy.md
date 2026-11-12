@@ -154,12 +154,25 @@ The demo is the Élégance salon at https://salons-dzi.pages.dev. Its login is p
 3. **Then** create the demo account:
 
    ```bash
-   pnpm setup-demo elegance --dry-run   # checks only
-   pnpm setup-demo elegance
+   pnpm setup-demo elegance --dry-run   # checks only, writes nothing
+   pnpm setup-demo elegance             # shows the salon, then asks you to type "elegance"
    ```
 
-   It creates `demo+elegance@demo.invalid` and prints its **password once**. It also records Élégance's current state as the "original" the reset returns to, which is why step 2 comes first. If you change Élégance's settings later and want the reset to keep them, run `pnpm setup-demo elegance` again (it rotates the demo password and records the new original). `--domain=` changes the email domain.
-4. Supabase → Authentication → Email: keep **"Secure email change"** on (both addresses must confirm). See the caveat below.
+   Before writing anything it shows the salon's name, its number of future bookings (and how many are online), its owner accounts and whether it is already the demo, then asks you to **type the salon id** to confirm (without a terminal, pass `--yes=elegance`; any other value is refused). It **refuses** a salon that is not the demo yet and has future online bookings (that looks like a real salon with real clients) unless you add `--force`.
+
+   It creates `demo+elegance@demo.invalid` and prints its **password once**. It also records Élégance's current state as the "original" the reset returns to, which is why step 2 comes first. `--domain=` changes the email domain.
+
+   > **What the reset deletes.** Once setup-demo has run, the **first reset** (the nightly one, or Réinitialiser la démo) **deletes every booking, closed date and stylist day off of that salon**: they are not part of the snapshot. Export or check anything you want to keep **before** running setup-demo. Closed dates and days off you set before setup-demo are not kept either.
+
+   **Re-running setup-demo** (to keep later changes to Élégance's settings): tap **Réinitialiser la démo first**, make your changes, then **re-run `pnpm setup-demo elegance` immediately**, before prospects change anything (it records whatever is there at that moment as the new original, and rotates the demo password).
+
+   **3b. Check the demo works on the live project:**
+
+   - Log in as your Élégance owner account and tap Réglages → Compte → **Réinitialiser la démo** once. This confirms the reset, including restoring the demo login (an `auth` schema write), works on the hosted project.
+   - Log out, tap **Essayer la démo** on `/admin`, and check that client phone numbers are **masked** (`05•• •• •• 56`).
+   - Supabase dashboard → Database → **Cron**: the job `demo-nightly-reset` is listed (`0 2 * * *`).
+   - The next morning, in the SQL editor: `select status, return_message, start_time from cron.job_run_details order by start_time desc limit 5;` shows a `succeeded` run around 02:00 UTC.
+4. Supabase → Authentication → Email: keep **"Secure email change"** on (both addresses must confirm), and keep Supabase's **default SMTP** (see the caveats below).
 
 ### Reset before a pitch
 
@@ -171,7 +184,7 @@ The demo is the Élégance salon at https://salons-dzi.pages.dev. Its login is p
 
 - They can book on the public page, and in `/admin` add, move, confirm and cancel bookings, change services, stylists, hours and text. All of it is shared by everyone using the demo and disappears at the next reset.
 - Client phone numbers are **masked** for the demo account (`05•• •• •• 56`), enforced in SQL, not only in the screen.
-- They cannot enable push notifications, cannot see the reset button, and no WhatsApp message ever reaches a real client.
+- They cannot enable push notifications, cannot change the salon's WhatsApp number, cannot see the reset button, and no WhatsApp message ever reaches a real client (and there is no call shortcut on the masked numbers).
 
 ### Abuse limits during a pitch
 
@@ -185,6 +198,7 @@ The online-booking limits stay on, per salon and counting online bookings only (
 
 So one phone number gets **3** future bookings (cancelling one frees a slot), and one IP gets **5** per hour, whichever comes first. Staff bookings made in `/admin` are not counted. The fake bookings are inserted with an old `created_at`, so they do not count either. The reset deletes every booking, which **clears all the counters**. If a prospect is blocked, or several prospects share one Wi-Fi (one IP) at an event, run **Réinitialiser la démo**; the limits are deliberately not loosened for the demo.
 
-### Known caveat: email change on the shared demo account
+### Known caveats: the shared demo session
 
-A visitor in the public demo session could call the Supabase auth API to request an email change for the demo account, which makes Supabase send a confirmation email to any address they choose. The nightly or on-demand reset restores the demo account's email and password. Keep "Secure email change" on (above); you can also restrict auth emails with a custom SMTP provider and Supabase's email rate limits.
+- **Emails.** Anyone in the public demo session can call the Supabase auth API as the demo account (e.g. request an email change). Keep Supabase's **default SMTP**: it only delivers to the email addresses of the Supabase project's team members, so the demo session cannot make it email arbitrary people. If a custom SMTP provider is ever configured, the demo session could make Supabase send confirmation emails to **any** address; do not add one while a demo exists (or rely on "Secure email change" and Supabase's email rate limits, knowing that is weaker). The reset restores the demo account's email.
+- **Password.** A prospect could change the demo account's password (supabase-js `updateUser`) and lock every other visitor out of "Essayer la démo" until the next reset. **Réinitialiser la démo** fixes it immediately (it restores the stored password).

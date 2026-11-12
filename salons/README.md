@@ -81,5 +81,13 @@ flags the salon as the demo and records its **current** state as the snapshot th
 (03:00 Algiers) and the owner's "Réinitialiser la démo" button return to. The "Essayer la démo"
 button then appears on that salon's `/admin`. Uses `.env.admin`; `--dry-run` writes nothing.
 
+Before writing it shows the salon (name, future bookings and how many are online, owner accounts,
+demo or not) and asks you to **type the salon id**; without a terminal pass `--yes=<salon-id>`
+(it must match). It **refuses** a salon that is not the demo yet and has future online bookings
+(a real salon: the reset would delete them) unless `--force`. Once it has run, the first reset
+**deletes every booking, closed date and stylist day off** of that salon (not part of the
+snapshot): export or check them first.
+
 Re-running keeps the login, **rotates its password** (printed once; visitors never need it) and
-**re-captures the snapshot**: run it when the salon looks the way prospects should see it.
+**re-captures the snapshot** as the salon is at that moment. So: tap **Réinitialiser la démo
+first**, make your changes, then **re-run immediately**. See `docs/deploy.md` § 7.
