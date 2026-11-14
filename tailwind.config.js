@@ -111,10 +111,35 @@ export default {
           from: { opacity: 0 },
           to: { opacity: 1 },
         },
+        dialogIn: {
+          from: { opacity: 0, transform: 'translateY(0.5rem) scale(0.97)' },
+          to: { opacity: 1, transform: 'none' },
+        },
+        toastIn: {
+          from: { opacity: 0, transform: 'translateY(100%)' },
+          to: { opacity: 1, transform: 'translateY(0)' },
+        },
+        toastOut: {
+          from: { opacity: 1 },
+          to: { opacity: 0 },
+        },
+        toastSwipeOut: {
+          from: { transform: 'translateY(var(--radix-toast-swipe-end-y))' },
+          to: { opacity: 0, transform: 'translateY(100%)' },
+        },
       },
       animation: {
         shimmer: 'shimmer 1.8s ease-in-out infinite',
         fadeIn: 'fadeIn 0.4s ease-out',
+        dialogIn: 'dialogIn 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+        toastIn: 'toastIn 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+        toastOut: 'toastOut 0.15s ease-in forwards',
+        toastSwipeOut: 'toastSwipeOut 0.15s ease-out forwards',
+      },
+      // Above the admin sheets (z-50): the confirm dialog, then the toasts.
+      zIndex: {
+        60: '60',
+        70: '70',
       },
     },
   },

@@ -90,6 +90,38 @@
            hover:bg-whatsapp-dark hover:shadow-lift;
   }
 
+  /* Confirms a change that can't be undone (cancel a booking, wipe the demo). */
+  .btn-danger {
+    @apply btn bg-rust-600 text-cream-50 px-7 py-3.5
+           hover:bg-rust-700 hover:shadow-lift;
+  }
+
+  /* ---- Admin "done" toasts (src/components/admin/feedback.tsx) ---- */
+  .toast-viewport {
+    @apply fixed inset-x-0 bottom-0 z-70 flex flex-col items-center gap-2 px-4 outline-none pointer-events-none;
+    padding-bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem));
+  }
+
+  .toast {
+    @apply pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-2xl bg-rose-900 ps-4 pe-2 py-2 text-cream-50 shadow-lift;
+  }
+  .toast[data-state='open'] {
+    @apply animate-toastIn;
+  }
+  .toast[data-state='closed'] {
+    @apply animate-toastOut;
+  }
+  .toast[data-swipe='move'] {
+    transform: translateY(var(--radix-toast-swipe-move-y));
+  }
+  .toast[data-swipe='cancel'] {
+    transform: translateY(0);
+    @apply transition-transform duration-200 ease-silk;
+  }
+  .toast[data-swipe='end'] {
+    @apply animate-toastSwipeOut;
+  }
+
   /* A full-size tap area (44 × 44 px minimum) for small controls used on phones. */
   .tap {
     @apply min-h-11 min-w-11;

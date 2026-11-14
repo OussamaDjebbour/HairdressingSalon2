@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useState } from 'react';
-import { act, render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { AdminBooking } from '../../data/admin';
 import { adminBooking } from './fixtures';
 
@@ -18,6 +18,7 @@ vi.mock('../../data/admin', async (importOriginal) => ({
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
+import { FeedbackProvider } from './feedback';
 import { PendingSheet, type Answered } from './PendingSheet';
 
 // Now: Tuesday 8 Jan 2030, 08:00 in Algiers.
@@ -46,23 +47,30 @@ function Harness({ bookings, onOpen, onClose }: { bookings: AdminBooking[]; onOp
 
 function renderSheet(bookings: AdminBooking[], onOpen = vi.fn(), onClose = vi.fn()) {
   const view = render(
-    <LanguageProvider>
+    <LanguageProvider><FeedbackProvider>
       <Harness bookings={bookings} onOpen={onOpen} onClose={onClose} />
-    </LanguageProvider>
+    </FeedbackProvider></LanguageProvider>
   );
   return {
     onOpen,
     onClose,
     rerender: (next: AdminBooking[]) =>
       view.rerender(
-        <LanguageProvider>
+        <LanguageProvider><FeedbackProvider>
           <Harness bookings={next} onOpen={onOpen} onClose={onClose} />
-        </LanguageProvider>
+        </FeedbackProvider></LanguageProvider>
       ),
   };
 }
 
 const cards = () => screen.getAllByRole('listitem');
+
+/** Answers "Annuler ce rendez-vous ?" with `choice`, and waits for the dialog to close. */
+async function answerCancel(choice: 'Oui, annuler' | 'Garder le rendez-vous') {
+  const dialog = await screen.findByRole('alertdialog', { name: 'Annuler ce rendez-vous ?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: choice }));
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -108,19 +116,18 @@ describe('PendingSheet', () => {
     expect(screen.getByText('Nour K. confirmée')).toBeInTheDocument();
   });
 
-  it('refusing asks first; declining calls nothing', () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('refusing asks first; declining calls nothing', async () => {
     renderSheet([nour]);
     fireEvent.click(screen.getByRole('button', { name: 'Refuser' }));
-    expect(confirm).toHaveBeenCalled();
+    await answerCancel('Garder le rendez-vous');
     expect(setStatus).not.toHaveBeenCalled();
   });
 
-  it('refusing, once accepted, shows the cancelled row with its message', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('refusing, once accepted, shows the cancelled row with its message', async () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet([nour]);
     fireEvent.click(screen.getByRole('button', { name: 'Refuser' }));
+    await answerCancel('Oui, annuler');
     expect(setStatus).toHaveBeenCalledWith({ id: 'p1', status: 'cancelled' }, expect.anything());
     expect(screen.getByText('Nour K. annulée')).toBeInTheDocument();
     const href = screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')!;
@@ -156,21 +163,21 @@ describe('PendingSheet', () => {
     expect(screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')!.startsWith('https://wa.me/213555001122?text=')).toBe(true);
   });
 
-  it('a declined Refuser leaves the error under the card that failed', () => {
+  it('a declined Refuser leaves the error under the card that failed', async () => {
     setStatus.mockImplementationOnce((_input, opts) => opts.onError({ message: 'slot_taken' }));
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderSheet([nour, sabrina]);
     fireEvent.click(within(cards()[0]).getByRole('button', { name: 'Confirmer' }));
     fireEvent.click(within(cards()[1]).getByRole('button', { name: 'Refuser' }));
+    await answerCancel('Garder le rendez-vous');
     expect(within(cards()[0]).getByRole('alert')).toBeInTheDocument();
     expect(within(cards()[1]).queryByRole('alert')).toBeNull();
   });
 
-  it('says "Tout est traité." once every request was answered, refusals included', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('says "Tout est traité." once every request was answered, refusals included', async () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet([nour]);
     fireEvent.click(screen.getByRole('button', { name: 'Refuser' }));
+    await answerCancel('Oui, annuler');
     expect(screen.getByRole('heading', { name: 'Tout est traité.' })).toBeInTheDocument();
   });
 

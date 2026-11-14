@@ -20,6 +20,7 @@ import { SelectField } from '../form/SelectField';
 import { FormSummary } from '../form/FormSummary';
 import { applyServerError } from '../form/serverErrors';
 import { QueryFallback, queriesReady } from './QueryFallback';
+import { useToast } from '../admin/feedback';
 
 const DURATIONS = Array.from({ length: 40 }, (_, i) => (i + 1) * 15); // 15 … 600
 const ERROR_KEYS = ['invalid_name', 'invalid_price', 'invalid_duration', 'not_found', 'not_authorized'];
@@ -169,6 +170,7 @@ export function ServicesSettings() {
   const servicesQuery = useAllServices();
   const services = servicesQuery.data ?? [];
   const setActive = useSetServiceActive();
+  const toast = useToast();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
@@ -186,7 +188,13 @@ export function ServicesSettings() {
     setError(null);
     setActive.mutate(
       { id: s.id, active: !s.active },
-      { onSuccess: () => setShowAffected(true), onError: fail }
+      {
+        onSuccess: () => {
+          setShowAffected(true);
+          toast(t(s.active ? 'settings.toast.serviceHidden' : 'settings.toast.serviceShown'));
+        },
+        onError: fail,
+      }
     );
   };
 
@@ -195,6 +203,7 @@ export function ServicesSettings() {
       <ServiceFormCard
         draft={draft}
         onSaved={() => {
+          toast(t(draft.id ? 'settings.toast.serviceSaved' : 'settings.toast.serviceAdded'));
           setDraft(null);
           setShowAffected(true);
         }}

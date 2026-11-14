@@ -10,6 +10,7 @@ import { TextField } from '../form/TextField';
 import { FormSummary } from '../form/FormSummary';
 import { applyServerError } from '../form/serverErrors';
 import { QueryFallback } from './QueryFallback';
+import { useToast } from '../admin/feedback';
 
 const ERROR_KEYS = ['invalid_name', 'not_authorized'];
 // Counted without surrounding spaces, as the server does (btrim) — the value itself is sent unchanged.
@@ -40,14 +41,13 @@ function SalonInfoForm({ info }: { info: SalonInfo }) {
   const { t } = useLang();
   const save = useSaveSalonInfo();
   const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const toast = useToast();
   const {
     register, handleSubmit, setError, getValues,
     formState: { errors, submitCount },
   } = useForm<InfoForm>({ mode: 'onTouched', resolver: zodResolver(infoSchema), defaultValues: toValues(info) });
 
   const submit = handleSubmit((v) => {
-    setSaved(false);
     setFormError(null);
     save.mutate(
       {
@@ -59,7 +59,7 @@ function SalonInfoForm({ info }: { info: SalonInfo }) {
         facebookUrl: v.facebook.trim(),
       },
       {
-        onSuccess: () => setSaved(true),
+        onSuccess: () => toast(t('settings.info.saved')),
         onError: (err) => {
           const code = toSettingsError(err);
           // invalid_url: the first link our own check rejects, else Instagram (the server named neither)
@@ -80,7 +80,7 @@ function SalonInfoForm({ info }: { info: SalonInfo }) {
   });
 
   return (
-    <form noValidate className="card p-4 space-y-4" onSubmit={submit} onChange={() => setSaved(false)}>
+    <form noValidate className="card p-4 space-y-4" onSubmit={submit}>
       <TextField id="info-address-fr" label={t('settings.info.addressFr')} multiline error={errors.addressFr?.message} {...register('addressFr')} />
       <TextField id="info-address-ar" label={t('settings.info.addressAr')} multiline optional help={t('form.help.arFallback')} dir="rtl" error={errors.addressAr?.message} {...register('addressAr')} />
       <TextField id="info-city-fr" label={t('settings.info.cityFr')} error={errors.cityFr?.message} {...register('cityFr')} />
@@ -90,7 +90,6 @@ function SalonInfoForm({ info }: { info: SalonInfo }) {
       <TextField id="info-facebook" label={t('settings.info.facebook')} optional type="url" dir="ltr" placeholder="https://" error={errors.facebook?.message} {...register('facebook')} />
       {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
       {formError && <p role="alert" className="text-sm text-rust-600">{formError}</p>}
-      {saved && <p role="status" className="text-sm text-sage-700">{t('settings.info.saved')}</p>}
       <button type="submit" className="btn-primary w-full" disabled={save.isPending}>{t('settings.info.save')}</button>
     </form>
   );

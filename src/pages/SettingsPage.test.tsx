@@ -170,25 +170,27 @@ describe('SettingsPage', () => {
   describe('demo reset', () => {
     const label = 'Réinitialiser la démo';
 
-    it('is shown to the owner of a demo salon and resets after confirm', () => {
+    it('is shown to the owner of a demo salon and resets after confirm, then says so', async () => {
       setCurrentSalon({ ...ELEGANCE, demo: true });
-      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      resetDemo.mockImplementation((_v, opts) => opts.onSuccess());
       renderPage();
       fireEvent.click(screen.getByRole('button', { name: label }));
-      expect(confirm).toHaveBeenCalledWith(
-        'Remettre la démo à zéro ? Les rendez-vous et changements des visiteurs seront effacés.'
-      );
-      expect(resetDemo).toHaveBeenCalledTimes(1);
-      confirm.mockRestore();
+      const dialog = await screen.findByRole('alertdialog', { name: 'Remettre la démo à zéro ?' });
+      expect(dialog).toHaveTextContent('Les rendez-vous et changements des visiteurs seront effacés.');
+      expect(resetDemo).not.toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Remettre à zéro' }));
+      await waitFor(() => expect(resetDemo).toHaveBeenCalledTimes(1));
+      expect(await screen.findByText('Démo remise à zéro.')).toBeInTheDocument();
     });
 
-    it('does nothing when the confirmation is declined', () => {
+    it('does nothing when the confirmation is declined', async () => {
       setCurrentSalon({ ...ELEGANCE, demo: true });
-      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
       renderPage();
       fireEvent.click(screen.getByRole('button', { name: label }));
+      const dialog = await screen.findByRole('alertdialog');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Annuler' }));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
       expect(resetDemo).not.toHaveBeenCalled();
-      confirm.mockRestore();
     });
 
     it('is hidden for the demo account', () => {

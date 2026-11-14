@@ -17,15 +17,16 @@ vi.mock('../../data/salonSettings', async (orig) => ({
 
 import { pickOption } from '../../test/select';
 import { LanguageProvider } from '../../context/LanguageContext';
+import { FeedbackProvider } from '../admin/feedback';
 import { HoursSettings } from './HoursSettings';
 
 function renderIt() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <LanguageProvider>
+        <LanguageProvider><FeedbackProvider>
           <HoursSettings />
-        </LanguageProvider>
+        </FeedbackProvider></LanguageProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -59,6 +60,7 @@ describe('HoursSettings', () => {
     expect(p).toHaveLength(7);
     expect(p[0]).toEqual({ weekday: 1, opens: null, closes: null });
     expect(p[3]).toEqual({ weekday: 4, opens: '09:00', closes: '13:00' });
+    expect(await screen.findByText('Horaires enregistrés')).toBeInTheDocument();
   });
 
   it('closing Sunday sends nulls', async () => {

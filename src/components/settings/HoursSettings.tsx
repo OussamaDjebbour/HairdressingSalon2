@@ -13,6 +13,7 @@ import { SwitchField } from '../form/SwitchField';
 import { FormSummary } from '../form/FormSummary';
 import { AffectedBookings } from './AffectedBookings';
 import { QueryFallback } from './QueryFallback';
+import { useToast } from '../admin/feedback';
 
 const WEEKDAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 7];
 const ERROR_KEYS = ['invalid_hours', 'not_authorized'];
@@ -50,6 +51,7 @@ const toValues = (hours: SalonHours): HoursForm => ({
 function HoursFormCard({ hours }: { hours: SalonHours }) {
   const { t, lang } = useLang();
   const save = useSetHours();
+  const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
   const {
@@ -66,7 +68,10 @@ function HoursFormCard({ hours }: { hours: SalonHours }) {
       payload[d] = day.on ? { opens: toMinutes(day.opens), closes: toMinutes(day.closes) } : null;
     });
     save.mutate(payload, {
-      onSuccess: () => setShowAffected(true),
+      onSuccess: () => {
+        setShowAffected(true);
+        toast(t('settings.toast.hoursSaved'));
+      },
       onError: (err) => {
         const code = toSettingsError(err);
         setError(t(`settings.error.${ERROR_KEYS.includes(code) ? code : 'unknown'}`));

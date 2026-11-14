@@ -19,15 +19,16 @@ vi.mock('../../data/queries', () => ({
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
+import { FeedbackProvider } from '../admin/feedback';
 import { ServicesSettings } from './ServicesSettings';
 
 function renderIt() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <LanguageProvider>
+        <LanguageProvider><FeedbackProvider>
           <ServicesSettings />
-        </LanguageProvider>
+        </FeedbackProvider></LanguageProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -136,6 +137,7 @@ describe('ServicesSettings', () => {
     renderIt();
     fireEvent.click(screen.getAllByRole('button', { name: 'Masquer' })[0]);
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_set_service_active', { p_id: 'a1', p_active: false }));
+    expect(await screen.findByText('Prestation masquée')).toBeInTheDocument();
     const link = await screen.findByRole('link', { name: /Sara/ });
     expect(link).toHaveAttribute('href', '/admin?day=2030-01-08&booking=b1');
   });

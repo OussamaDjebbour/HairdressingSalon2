@@ -12,15 +12,16 @@ vi.mock('../../data/salonSettings', async (orig) => ({
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
+import { FeedbackProvider } from '../admin/feedback';
 import { ClosedDatesSettings } from './ClosedDatesSettings';
 
 function renderIt() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <LanguageProvider>
+        <LanguageProvider><FeedbackProvider>
           <ClosedDatesSettings />
-        </LanguageProvider>
+        </FeedbackProvider></LanguageProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -56,6 +57,7 @@ describe('ClosedDatesSettings', () => {
     await waitFor(() =>
       expect(rpc).toHaveBeenCalledWith('admin_add_closed_dates', { p_from: '2030-05-16', p_to: '2030-05-17', p_label: 'Aïd' })
     );
+    expect(await screen.findByText('Fermeture ajoutée')).toBeInTheDocument();
   });
 
   it('empty submit asks for a period', async () => {
@@ -91,5 +93,6 @@ describe('ClosedDatesSettings', () => {
     renderIt();
     fireEvent.click(screen.getByRole('button', { name: 'Supprimer cette fermeture' }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_delete_closed_dates', { p_id: 'c1' }));
+    expect(await screen.findByText('Fermeture supprimée')).toBeInTheDocument();
   });
 });

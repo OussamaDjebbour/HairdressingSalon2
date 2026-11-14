@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLang } from '../../context/LanguageContext';
 import { toAdminError, useSetBookingStatus, type AdminBooking } from '../../data/admin';
 import type { ClientMessageKind } from '../../data/whatsapp';
+import { useConfirm } from './feedback';
 
 /** A status change or move that just happened, with what the client message needs. */
 export type Notice = {
@@ -16,6 +17,7 @@ export type Notice = {
 export function useBookingActions(onDone?: (booking: AdminBooking, status: 'confirmed' | 'cancelled') => void) {
   const { t } = useLang();
   const setStatus = useSetBookingStatus();
+  const ask = useConfirm();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Which booking the error belongs to (a list shows it under that one only).
@@ -46,8 +48,15 @@ export function useBookingActions(onDone?: (booking: AdminBooking, status: 'conf
   return {
     confirm: (b: AdminBooking) => run(b, 'confirmed'),
     /** Refusing a request and cancelling a booking are the same change: ask once, then free the slot. */
-    refuse: (b: AdminBooking) => {
-      if (window.confirm(t('admin.cancelConfirm'))) run(b, 'cancelled');
+    refuse: async (b: AdminBooking) => {
+      const ok = await ask({
+        title: t('admin.cancelConfirm.title'),
+        text: t('admin.cancelConfirm.text'),
+        confirmLabel: t('admin.cancelConfirm.yes'),
+        cancelLabel: t('admin.cancelConfirm.no'),
+        danger: true,
+      });
+      if (ok) run(b, 'cancelled');
     },
     pendingId,
     error,
