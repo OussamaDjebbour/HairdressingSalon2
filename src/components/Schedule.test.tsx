@@ -55,15 +55,16 @@ vi.mock('../data/admin', async (importOriginal) => ({
 }));
 
 import { LanguageProvider } from '../context/LanguageContext';
+import { FeedbackProvider } from './admin/feedback';
 import { Schedule } from './Schedule';
 
 function renderSchedule(url = '/admin') {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[url]}>
-        <LanguageProvider>
+        <LanguageProvider><FeedbackProvider>
           <Schedule userId="user-1" />
-        </LanguageProvider>
+        </FeedbackProvider></LanguageProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -158,9 +159,9 @@ describe('Schedule', () => {
     rerender(
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter initialEntries={['/admin']}>
-          <LanguageProvider>
+          <LanguageProvider><FeedbackProvider>
             <Schedule userId="user-1" />
-          </LanguageProvider>
+          </FeedbackProvider></LanguageProvider>
         </MemoryRouter>
       </QueryClientProvider>
     );

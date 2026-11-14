@@ -26,6 +26,7 @@ import { FormSummary } from '../form/FormSummary';
 import { applyServerError } from '../form/serverErrors';
 import { AffectedBookings } from './AffectedBookings';
 import { QueryFallback, queriesReady } from './QueryFallback';
+import { useToast } from '../admin/feedback';
 
 const ERROR_KEYS = ['invalid_name', 'invalid_weekday', 'invalid_dates', 'unknown_service', 'not_found', 'not_authorized'];
 const WEEKDAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 7];
@@ -238,6 +239,7 @@ export function StylistsSettings() {
   const daysOff = daysOffQuery.data ?? [];
   const setActive = useSetStylistActive();
   const delOff = useDeleteStylistDaysOff();
+  const toast = useToast();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
@@ -260,7 +262,16 @@ export function StylistsSettings() {
 
   const toggleActive = (s: Stylist) => {
     setError(null);
-    setActive.mutate({ id: s.id, active: !s.active }, { onSuccess: () => setShowAffected(true), onError: fail });
+    setActive.mutate(
+      { id: s.id, active: !s.active },
+      {
+        onSuccess: () => {
+          setShowAffected(true);
+          toast(t(s.active ? 'settings.toast.stylistHidden' : 'settings.toast.stylistShown'));
+        },
+        onError: fail,
+      }
+    );
   };
 
   if (draft) {
@@ -276,6 +287,7 @@ export function StylistsSettings() {
           onFail={fail}
           onStart={() => setError(null)}
           onSaved={() => {
+            toast(t(draft.id ? 'settings.toast.stylistSaved' : 'settings.toast.stylistAdded'));
             setDraft(null);
             setShowAffected(true);
           }}
@@ -301,7 +313,9 @@ export function StylistsSettings() {
                       className="btn-ghost btn-sm shrink-0"
                       aria-label={t('settings.stylists.deleteDayOff')}
                       disabled={delOff.isPending}
-                      onClick={() => delOff.mutate({ id: d.id }, { onError: fail })}
+                      onClick={() =>
+                        delOff.mutate({ id: d.id }, { onSuccess: () => toast(t('settings.toast.dayOffDeleted')), onError: fail })
+                      }
                     >
                       <Trash2 className="w-4 h-4" strokeWidth={1.8} aria-hidden />
                     </button>
@@ -309,7 +323,7 @@ export function StylistsSettings() {
                 ))}
               </ul>
             )}
-            <AddDayOff stylistId={draft.id} onStart={() => setError(null)} onAdded={() => { setError(null); setShowAffected(true); }} onFail={fail} />
+            <AddDayOff stylistId={draft.id} onStart={() => setError(null)} onAdded={() => { setError(null); setShowAffected(true); toast(t('settings.toast.dayOffAdded')); }} onFail={fail} />
           </section>
         )}
       </div>

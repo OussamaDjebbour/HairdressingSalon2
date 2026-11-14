@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { StylistDayOff } from '../../data/types';
 import { services, stylists, adminBooking } from './fixtures';
 import { openSelect, optionNames, pickOption } from '../../test/select';
@@ -45,6 +45,7 @@ vi.mock('../../data/admin', async (importOriginal) => ({
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
+import { FeedbackProvider } from './feedback';
 import { BookingSheet, type SheetState } from './BookingSheet';
 
 const tuesday = new Date(2030, 0, 8);
@@ -52,9 +53,9 @@ const addState: SheetState = { mode: 'add', stylistId: 'sara', date: tuesday, ti
 
 function renderSheet(state: SheetState, onClose = vi.fn()) {
   render(
-    <LanguageProvider>
+    <LanguageProvider><FeedbackProvider>
       <BookingSheet state={state} onClose={onClose} />
-    </LanguageProvider>
+    </FeedbackProvider></LanguageProvider>
   );
   return onClose;
 }
@@ -74,6 +75,13 @@ async function save() {
 const combo = (name: string) => screen.getByRole('combobox', { name });
 
 /** Existing bookings open on the summary; the form is one tap away. */
+/** Answers the confirm dialog titled `title` with the button `choice`, and waits for it to close. */
+async function answer(title: string, choice: string) {
+  const dialog = await screen.findByRole('alertdialog', { name: title });
+  fireEvent.click(within(dialog).getByRole('button', { name: choice }));
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+}
+
 function openForm() {
   fireEvent.click(screen.getByRole('button', { name: 'Modifier ou déplacer' }));
 }
@@ -152,6 +160,7 @@ describe('BookingSheet — add', () => {
     fillClient('Rania', '0555123456');
     await save();
     expect(onClose).toHaveBeenCalled();
+    expect(await screen.findByText('Rendez-vous ajouté')).toBeInTheDocument();
   });
 
   it('save disabled while pending', () => {
@@ -173,12 +182,16 @@ describe('BookingSheet — edit', () => {
     expect(whatsappText()).toContain('تم تأكيد موعدكِ');
   });
 
-  it('cancelling asks first, then offers the cancellation message', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('cancelling asks first, then offers the cancellation message', async () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet({ mode: 'edit', booking: adminBooking({ status: 'confirmed' }) });
     expect(screen.queryByRole('button', { name: /Confirmer/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Annuler le rendez-vous' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Annuler ce rendez-vous ?' });
+    expect(dialog).toHaveTextContent('Le créneau sera libéré.');
+    expect(setStatus).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Oui, annuler' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(setStatus).toHaveBeenCalledWith({ id: 'b1', status: 'cancelled' }, expect.anything());
     expect(whatsappText()).toContain('est annulé');
   });
@@ -201,6 +214,7 @@ describe('BookingSheet — edit', () => {
     await save();
     expect(onClose).toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: /Envoyer sur WhatsApp/ })).toBeNull();
+    expect(await screen.findByText('Modifications enregistrées')).toBeInTheDocument();
   });
 });
 
@@ -258,22 +272,21 @@ describe('BookingSheet — summary first', () => {
     expect(screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')).toBe('https://wa.me/213555001122');
   });
 
-  it('“Retour au résumé” goes back from the form, asking first if something changed', () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('“Retour au résumé” goes back from the form, asking first if something changed', async () => {
     renderSheet({ mode: 'edit', booking: adminBooking() });
     openForm();
     fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
-    expect(confirm).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
 
     openForm();
     fireEvent.change(screen.getByLabelText('Nom de la cliente'), { target: { value: 'Yasmine B' } });
     fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
-    expect(confirm).toHaveBeenCalledWith('Abandonner les modifications non enregistrées ?');
+    await answer('Abandonner les modifications non enregistrées ?', 'Continuer');
     expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Yasmine B'); // declined: stays
 
-    confirm.mockReturnValue(true);
     fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+    await answer('Abandonner les modifications non enregistrées ?', 'Abandonner');
     openForm();
     expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Yasmine'); // accepted: edits dropped
   });
@@ -323,23 +336,34 @@ describe('BookingSheet — summary first', () => {
 });
 
 describe('BookingSheet — polish', () => {
-  it('asks before discarding a half-typed booking on a backdrop tap or Escape', () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('asks before discarding a half-typed booking on a backdrop tap or Escape', async () => {
     const onClose = renderSheet(addState);
     fillClient('Rania', '');
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(confirm).toHaveBeenCalledWith('Abandonner ce rendez-vous non enregistré ?');
+    await answer('Abandonner ce rendez-vous non enregistré ?', 'Continuer');
     expect(onClose).not.toHaveBeenCalled();
-    confirm.mockReturnValue(true);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('dialog').parentElement!);
-    expect(onClose).toHaveBeenCalled();
+    await answer('Abandonner ce rendez-vous non enregistré ?', 'Abandonner');
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it('an Escape while the question is open answers it, and leaves the sheet open', async () => {
+    const onClose = renderSheet(addState);
+    fillClient('Rania', '');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Nom de la cliente')).toHaveValue('Rania');
   });
 
   it('closes without asking when nothing was typed', () => {
-    const confirm = vi.spyOn(window, 'confirm');
     const onClose = renderSheet(addState);
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(onClose).toHaveBeenCalled();
   });
 

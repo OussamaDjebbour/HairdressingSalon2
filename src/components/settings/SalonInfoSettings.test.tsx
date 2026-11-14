@@ -20,15 +20,16 @@ vi.mock('../../data/salonSettings', async (orig) => ({
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
+import { FeedbackProvider } from '../admin/feedback';
 import { SalonInfoSettings } from './SalonInfoSettings';
 
 function renderIt() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <LanguageProvider>
+        <LanguageProvider><FeedbackProvider>
           <SalonInfoSettings />
-        </LanguageProvider>
+        </FeedbackProvider></LanguageProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -56,6 +57,7 @@ describe('SalonInfoSettings', () => {
         p_facebook_url: '',
       })
     );
+    expect(await screen.findByText('Infos enregistrées.')).toBeInTheDocument();
   });
 
   it('allows an empty WhatsApp', async () => {

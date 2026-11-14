@@ -14,6 +14,7 @@ import { DateRangeField } from '../form/DateRangeField';
 import { FormSummary } from '../form/FormSummary';
 import { AffectedBookings } from './AffectedBookings';
 import { QueryFallback, queriesReady } from './QueryFallback';
+import { useToast } from '../admin/feedback';
 
 const ERROR_KEYS = ['invalid_dates', 'not_authorized'];
 
@@ -34,6 +35,7 @@ export function ClosedDatesSettings() {
   const closed = closedQuery.data ?? [];
   const add = useAddClosedDates();
   const del = useDeleteClosedDates();
+  const toast = useToast();
   const {
     register, control, handleSubmit, reset,
     formState: { errors, submitCount },
@@ -58,6 +60,7 @@ export function ClosedDatesSettings() {
         onSuccess: () => {
           reset({ period: null, label: '' });
           setShowAffected(true);
+          toast(t('settings.toast.closedAdded'));
         },
         onError: fail,
       }
@@ -89,7 +92,7 @@ export function ClosedDatesSettings() {
                   disabled={del.isPending}
                   onClick={() => {
                     setShowAffected(false);
-                    del.mutate({ id: c.id }, { onError: fail });
+                    del.mutate({ id: c.id }, { onSuccess: () => toast(t('settings.toast.closedDeleted')), onError: fail });
                   }}
                 >
                   <Trash2 className="w-4 h-4" strokeWidth={1.8} aria-hidden />

@@ -25,6 +25,7 @@ import { MessageReady } from './MessageReady';
 import { useBookingActions, type Notice } from './useBookingActions';
 import { Sheet } from './Sheet';
 import { useSheetMotion } from './useSheetMotion';
+import { useConfirm, useToast } from './feedback';
 
 export type SheetState =
   // serviceId: pre-filled when the time was found for a service in the calendar.
@@ -94,6 +95,8 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const create = useCreateStaffBooking();
   const update = useUpdateStaffBooking();
   const actions = useBookingActions();
+  const ask = useConfirm();
+  const toast = useToast();
 
   const editing = state.mode === 'edit' ? state.booking : null;
   const keptPhone = demo && editing ? editing.clientPhone : null;
@@ -158,15 +161,19 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const close = () => motion.dismiss(onClose);
 
   /** Backdrop, Escape and ✕ go through here: a half-typed booking or unsaved edit isn't thrown away silently. */
-  const requestClose = () => {
-    const message = state.mode === 'add' ? t('admin.sheet.discardNew') : t('admin.sheet.discardChanges');
-    if (!notice && view === 'form' && dirty && !window.confirm(message)) return;
+  const requestClose = async () => {
+    if (!notice && view === 'form' && dirty && !(await askDiscard(state.mode === 'add' ? 'admin.sheet.discardNew' : 'admin.sheet.discardChanges'))) {
+      return;
+    }
     close();
   };
 
+  const askDiscard = (titleKey: string) =>
+    ask({ title: t(titleKey), confirmLabel: t('admin.sheet.discard'), cancelLabel: t('admin.sheet.keepEditing'), danger: true });
+
   /** Back from the form to the summary; unsaved edits are dropped (after asking). */
-  const backToSummary = () => {
-    if (dirty && !window.confirm(t('admin.sheet.discardChanges'))) return;
+  const backToSummary = async () => {
+    if (dirty && !(await askDiscard('admin.sheet.discardChanges'))) return;
     reset(initialForm(state, lang));
     setFormError(null);
     setView('summary');
@@ -178,7 +185,13 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     const input = { ...values, serviceId };
 
     if (state.mode === 'add') {
-      create.mutate(input, { onSuccess: () => close(), onError });
+      create.mutate(input, {
+        onSuccess: () => {
+          toast(t('admin.toast.bookingAdded'));
+          close();
+        },
+        onError,
+      });
       return;
     }
     const b = state.booking;
@@ -187,16 +200,21 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     update.mutate(
       { ...input, id: b.id },
       {
-        onSuccess: () =>
-          moved
-            ? setNotice({
-                kind: 'moved',
-                booking: {
-                  clientName: input.clientName, clientPhone: input.clientPhone, lang: input.lang,
-                  startsAt: salonInstant(input.date, input.time), serviceName: service.name,
-                },
-              })
-            : close(),
+        onSuccess: () => {
+          // A move shows "Rendez-vous déplacé" and the client's message; any other edit just closes.
+          if (moved) {
+            setNotice({
+              kind: 'moved',
+              booking: {
+                clientName: input.clientName, clientPhone: input.clientPhone, lang: input.lang,
+                startsAt: salonInstant(input.date, input.time), serviceName: service.name,
+              },
+            });
+            return;
+          }
+          toast(t('admin.toast.bookingSaved'));
+          close();
+        },
         onError,
       }
     );

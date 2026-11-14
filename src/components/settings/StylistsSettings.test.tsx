@@ -24,15 +24,16 @@ vi.mock('../../data/salonSettings', async (orig) => ({
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
+import { FeedbackProvider } from '../admin/feedback';
 import { StylistsSettings } from './StylistsSettings';
 
 function renderIt() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <LanguageProvider>
+        <LanguageProvider><FeedbackProvider>
           <StylistsSettings />
-        </LanguageProvider>
+        </FeedbackProvider></LanguageProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -208,6 +209,7 @@ describe('StylistsSettings', () => {
     fireEvent.click(screen.getByText('Amina'));
     fireEvent.click(screen.getByRole('button', { name: 'Supprimer ce congé' }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_delete_stylist_days_off', { p_id: 'd2' }));
+    expect(await screen.findByText('Congé supprimé')).toBeInTheDocument();
   });
 
   it('hiding a stylist lists affected bookings', async () => {
@@ -217,6 +219,7 @@ describe('StylistsSettings', () => {
     renderIt();
     fireEvent.click(screen.getAllByRole('button', { name: 'Masquer' })[0]);
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_set_stylist_active', { p_id: 'amina', p_active: false }));
+    expect(await screen.findByText('Coiffeuse masquée')).toBeInTheDocument();
     expect(await screen.findByRole('link', { name: /Sara/ })).toHaveAttribute('href', '/admin?day=2030-01-08&booking=b1');
   });
 });

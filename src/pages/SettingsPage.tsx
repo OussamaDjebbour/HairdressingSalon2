@@ -14,6 +14,7 @@ import { useSalon } from '../data/salon';
 import { useLogout } from '../lib/useLogout';
 import { SettingsLayout } from '../components/settings/SettingsLayout';
 import { NotificationsCard } from '../components/admin/NotificationsCard';
+import { useConfirm, useToast } from '../components/admin/feedback';
 
 // Sunday first, as in the owner's calendar ("dim., lun.").
 const CLOSED_DAY_ORDER: Weekday[] = [7, 1, 2, 3, 4, 5, 6];
@@ -64,6 +65,16 @@ function Group({ title, children }: { title?: string; children: ReactNode }) {
 }
 
 export function SettingsPage() {
+  const { t } = useLang();
+  return (
+    <SettingsLayout title={t('settings.title')} backTo="/admin">
+      <SettingsHome />
+    </SettingsLayout>
+  );
+}
+
+/** Inside the layout, so it can use the admin's confirm dialog and toasts. */
+function SettingsHome() {
   const { lang, t } = useLang();
   const services = useAllServices();
   const stylists = useAllStylists();
@@ -74,9 +85,22 @@ export function SettingsPage() {
   const role = useMyRole();
   const reset = useResetDemo();
   const showReset = salon.demo && role === 'owner';
+  const ask = useConfirm();
+  const toast = useToast();
+
+  const resetDemo = async () => {
+    const ok = await ask({
+      title: t('settings.resetDemoConfirm.title'),
+      text: t('settings.resetDemoConfirm.text'),
+      confirmLabel: t('settings.resetDemoConfirm.yes'),
+      cancelLabel: t('settings.services.cancel'),
+      danger: true,
+    });
+    if (ok) reset.mutate(undefined, { onSuccess: () => toast(t('settings.resetDemoDone')) });
+  };
 
   return (
-    <SettingsLayout title={t('settings.title')} backTo="/admin">
+    <>
       <Group>
         <div className="card overflow-hidden !p-0">
           <Row
@@ -110,15 +134,12 @@ export function SettingsPage() {
             <button
               type="button"
               disabled={reset.isPending}
-              onClick={() => {
-                if (window.confirm(t('settings.resetDemoConfirm'))) reset.mutate();
-              }}
+              onClick={resetDemo}
               className="card w-full mb-3 flex items-center gap-3 px-4 py-3.5 min-h-[56px] text-start font-medium text-rose-800 hover:bg-cream-50 transition-colors"
             >
               <RotateCcw className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
               {t('settings.resetDemo')}
             </button>
-            {reset.isSuccess && <p role="status" className="-mt-1 mb-3 px-1 text-sm text-sage-700">{t('settings.resetDemoDone')}</p>}
             {reset.isError && <p role="alert" className="-mt-1 mb-3 px-1 text-sm text-rust-700">{t('admin.error.unknown')}</p>}
           </>
         )}
@@ -131,6 +152,6 @@ export function SettingsPage() {
           {t('admin.logout')}
         </button>
       </Group>
-    </SettingsLayout>
+    </>
   );
 }
