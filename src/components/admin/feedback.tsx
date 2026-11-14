@@ -83,13 +83,13 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
       {toasts.map((item) => (
         <Toast.Root key={item.id} type="foreground" onOpenChange={(open) => !open && remove(item.id)} className="toast">
-          <span className="grid place-items-center w-7 h-7 shrink-0 rounded-full bg-sage-500 text-white">
+          <span className="grid place-items-center w-7 h-7 shrink-0 rounded-full bg-sage-100 text-sage-700">
             <Check className="w-4 h-4" strokeWidth={2.4} aria-hidden="true" />
           </span>
           <Toast.Title className="flex-1 min-w-0 text-sm font-medium">{item.message}</Toast.Title>
           <Toast.Close
             aria-label={t('admin.sheet.close')}
-            className="tap -me-2 grid place-items-center shrink-0 rounded-full text-cream-200 hover:text-cream-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400"
+            className="tap -me-2 grid place-items-center shrink-0 rounded-full text-rose-700 hover:text-rose-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400"
           >
             <X className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
           </Toast.Close>
