@@ -24,6 +24,8 @@ export interface AdminBooking {
   source: BookingSource;
   /** When the booking was made (online: when the client asked). */
   createdAt: Date;
+  /** The visit this booking is a part of (a single-service booking is a visit of one). */
+  visitId: string;
 }
 
 interface AdminBookingRow {
@@ -41,6 +43,7 @@ interface AdminBookingRow {
   stylist_name: string;
   created_at: string;
   source: BookingSource;
+  visit_id: string;
 }
 
 const algiersTime = new Intl.DateTimeFormat('fr-FR', {
@@ -158,7 +161,48 @@ export async function fetchAdminBookings(from: Date, to: Date): Promise<AdminBoo
     stylistName: r.stylist_name,
     source: r.source,
     createdAt: new Date(r.created_at),
+    visitId: r.visit_id,
   }));
+}
+
+/** All the parts the client booked in one go: one start, several services. */
+export interface AdminVisit {
+  id: string;
+  /** Sorted by start time. */
+  parts: AdminBooking[];
+  first: AdminBooking;
+  price: number;
+  /** Each language's service names, joined with " + ". */
+  serviceName: Record<Lang, string>;
+}
+
+function makeVisit(id: string, list: AdminBooking[]): AdminVisit {
+  const parts = [...list].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  const names = (lang: Lang) => parts.map((p) => p.serviceName[lang]).join(' + ');
+  return {
+    id,
+    parts,
+    first: parts[0],
+    price: parts.reduce((sum, p) => sum + p.price, 0),
+    serviceName: { fr: names('fr'), ar: names('ar') },
+  };
+}
+
+/** One visit per `visitId`, earliest first. */
+export function groupVisits(bookings: AdminBooking[]): AdminVisit[] {
+  const byVisit = new Map<string, AdminBooking[]>();
+  for (const b of bookings) byVisit.set(b.visitId, [...(byVisit.get(b.visitId) ?? []), b]);
+  return [...byVisit.entries()]
+    .map(([id, list]) => makeVisit(id, list))
+    .sort((a, b) => a.first.startsAt.getTime() - b.first.startsAt.getTime());
+}
+
+/** The booking's visit as found in `pool` (de-duplicated by id); the booking itself is always part of it. */
+export function visitOf(booking: AdminBooking, pool: AdminBooking[]): AdminVisit {
+  const parts = new Map<string, AdminBooking>();
+  for (const b of pool) if (b.visitId === booking.visitId) parts.set(b.id, b);
+  parts.set(booking.id, booking);
+  return makeVisit(booking.visitId, [...parts.values()]);
 }
 
 export const ADMIN_REFRESH_MS = 60_000;

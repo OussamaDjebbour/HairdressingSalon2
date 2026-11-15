@@ -1,6 +1,6 @@
 import { Check, MessageCircle } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
-import { formatAlgiersTime, useMyRole, type AdminBooking } from '../../data/admin';
+import { formatAlgiersTime, useMyRole, visitOf, type AdminBooking } from '../../data/admin';
 import { countText, formatAgo, nameInText, formatDayMonth, formatDuration, formatPrice, formatShortDayName } from '../../data/formatters';
 import { useSalonInfo } from '../../data/salonSettings';
 import { salonDate } from '../../data/week';
@@ -37,7 +37,7 @@ export function PendingSheet({ bookings, answered, onAnswered, onOpen, onClose }
   const { lang, t } = useLang();
   const demo = useMyRole() === 'demo';
   const salonWhatsapp = useSalonInfo().data?.whatsapp ?? null;
-  const actions = useBookingActions((booking, kind) => onAnswered({ booking, kind }));
+  const actions = useBookingActions((visit, kind) => onAnswered({ booking: visit.first, kind }));
   const done = new Set(answered.map((a) => a.booking.id));
   const motion = useSheetMotion();
 
@@ -104,15 +104,15 @@ export function PendingSheet({ bookings, answered, onAnswered, onOpen, onClose }
                   <span className="whitespace-nowrap">{formatPrice(item.booking.price, lang)}</span>
                 </span>
               </button>
-              {actions.error && actions.errorId === item.booking.id && (
+              {actions.error && actions.errorId === item.booking.visitId && (
                 <p role="alert" className="mt-3 rounded-xl border border-rust-200 bg-rust-50 px-3 py-2 text-sm text-rust-700">{actions.error}</p>
               )}
               <div className="mt-3 flex gap-2">
-                <button type="button" disabled={busy} onClick={() => actions.confirm(item.booking)} className="btn-primary btn-sm h-11 flex-1">
+                <button type="button" disabled={busy} onClick={() => actions.confirm(visitOf(item.booking, [item.booking]))} className="btn-primary btn-sm h-11 flex-1">
                   <Check className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
                   {t('admin.confirm')}
                 </button>
-                <button type="button" disabled={busy} onClick={() => actions.refuse(item.booking)} className="btn-ghost btn-sm h-11 text-rust-700 hover:bg-rust-50">
+                <button type="button" disabled={busy} onClick={() => actions.refuse(visitOf(item.booking, [item.booking]))} className="btn-ghost btn-sm h-11 text-rust-700 hover:bg-rust-50">
                   {t('admin.summary.refuse')}
                 </button>
               </div>

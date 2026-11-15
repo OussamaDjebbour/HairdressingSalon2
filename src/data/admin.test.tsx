@@ -7,10 +7,11 @@ vi.mock('../lib/supabase', () => ({ supabase: { rpc: vi.fn() } }));
 
 import { supabase } from '../lib/supabase';
 import {
-  algiersToday, formatAlgiersTime, isNotAuthorized, toAdminError, useAdminBookings, useCreateStaffBooking,
+  algiersToday, formatAlgiersTime, groupVisits, isNotAuthorized, toAdminError, visitOf, useAdminBookings, useCreateStaffBooking,
   useSetBookingStatus, useUpdateStaffBooking,
 } from './admin';
 import { toYmd } from './bookings';
+import { adminBooking } from '../components/admin/fixtures';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
 
@@ -31,6 +32,7 @@ describe('useAdminBookings', () => {
           status: 'pending', price: 2500, client_name: 'Yasmine', client_phone: '0555123456', lang: 'fr',
           service_id: 'coupe-femme', service_name: { fr: 'Coupe & Brushing', ar: 'قص' },
           stylist_id: 'amina', stylist_name: 'Amina', created_at: '2030-01-01T00:00:00+00:00', source: 'online',
+          visit_id: 'v9',
         },
       ],
       error: null,
@@ -42,6 +44,7 @@ describe('useAdminBookings', () => {
     expect(rpc).toHaveBeenCalledWith('admin_list_bookings', { p_from: '2030-01-08', p_to: '2030-01-08' });
     const b = result.current.data![0];
     expect(b.clientName).toBe('Yasmine');
+    expect(b.visitId).toBe('v9');
     expect(b.startsAt).toBeInstanceOf(Date);
     expect(formatAlgiersTime(b.startsAt)).toBe('09:00');
   });
@@ -148,5 +151,33 @@ describe('algiersToday', () => {
     vi.setSystemTime(new Date('2030-01-07T23:30:00Z'));
     expect(toYmd(algiersToday())).toBe('2030-01-08');
     vi.useRealTimers();
+  });
+});
+
+describe('visits', () => {
+  const coupe = adminBooking({ id: 'p1', visitId: 'v1', startIso: '2030-01-08T09:00:00Z' });
+  const color = adminBooking({
+    id: 'p2', visitId: 'v1', startIso: '2030-01-08T10:00:00Z', price: 6000, serviceId: 'coloration',
+    serviceName: { fr: 'Coloration', ar: 'صبغة' }, stylistId: 'sara', stylistName: 'Sara',
+  });
+  const other = adminBooking({ id: 'p3', visitId: 'v2', startIso: '2030-01-08T08:00:00Z' });
+
+  it('groupVisits joins the parts of a visit', () => {
+    const visits = groupVisits([color, other, coupe]);
+    expect(visits).toHaveLength(2);
+    expect(visits[0].id).toBe('v2');
+    const v1 = visits[1];
+    expect(v1.id).toBe('v1');
+    expect(v1.parts.map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(v1.price).toBe(8500);
+    expect(v1.serviceName.fr).toBe('Coupe & Brushing + Coloration');
+    expect(v1.serviceName.ar).toBe('قص وتصفيف + صبغة');
+    expect(v1.first).toBe(coupe);
+  });
+
+  it('visitOf finds the other parts in the pool and always keeps the booking', () => {
+    const v = visitOf(color, [coupe, color, other, coupe]);
+    expect(v.parts.map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(visitOf(color, [other]).parts.map((p) => p.id)).toEqual(['p2']);
   });
 });

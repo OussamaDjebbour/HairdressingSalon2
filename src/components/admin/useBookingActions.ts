@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLang } from '../../context/LanguageContext';
-import { toAdminError, useSetBookingStatus, type AdminBooking } from '../../data/admin';
+import { toAdminError, useSetBookingStatus, type AdminBooking, type AdminVisit } from '../../data/admin';
 import type { ClientMessageKind } from '../../data/whatsapp';
 import { useConfirm } from './feedback';
 
@@ -11,10 +11,11 @@ export type Notice = {
 };
 
 /**
- * Confirm or refuse/cancel a booking; on success, `notice` holds the message to offer the client
- * and `onDone` (if given) hears which booking changed.
+ * Confirm or refuse/cancel a visit (the server changes every part of it); on success, `notice`
+ * holds the message to offer the client and `onDone` (if given) hears which visit changed.
+ * `pendingId` and `errorId` are visit ids.
  */
-export function useBookingActions(onDone?: (booking: AdminBooking, status: 'confirmed' | 'cancelled') => void) {
+export function useBookingActions(onDone?: (visit: AdminVisit, status: 'confirmed' | 'cancelled') => void) {
   const { t } = useLang();
   const setStatus = useSetBookingStatus();
   const ask = useConfirm();
@@ -24,31 +25,31 @@ export function useBookingActions(onDone?: (booking: AdminBooking, status: 'conf
   const [errorId, setErrorId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  const run = (b: AdminBooking, status: 'confirmed' | 'cancelled') => {
+  const run = (v: AdminVisit, status: 'confirmed' | 'cancelled') => {
     setError(null);
     setErrorId(null);
-    setPendingId(b.id);
+    setPendingId(v.id);
     setStatus.mutate(
-      { id: b.id, status },
+      { id: v.first.id, status },
       {
         onSuccess: () => {
           setPendingId(null);
-          setNotice({ kind: status, booking: b });
-          onDone?.(b, status);
+          setNotice({ kind: status, booking: { ...v.first, serviceName: v.serviceName } });
+          onDone?.(v, status);
         },
         onError: (err) => {
           setPendingId(null);
           setError(t(`admin.error.${toAdminError(err)}`));
-          setErrorId(b.id);
+          setErrorId(v.id);
         },
       }
     );
   };
 
   return {
-    confirm: (b: AdminBooking) => run(b, 'confirmed'),
+    confirm: (v: AdminVisit) => run(v, 'confirmed'),
     /** Refusing a request and cancelling a booking are the same change: ask once, then free the slot. */
-    refuse: async (b: AdminBooking) => {
+    refuse: async (v: AdminVisit) => {
       const ok = await ask({
         title: t('admin.cancelConfirm.title'),
         text: t('admin.cancelConfirm.text'),
@@ -56,7 +57,7 @@ export function useBookingActions(onDone?: (booking: AdminBooking, status: 'conf
         cancelLabel: t('admin.cancelConfirm.no'),
         danger: true,
       });
-      if (ok) run(b, 'cancelled');
+      if (ok) run(v, 'cancelled');
     },
     pendingId,
     error,

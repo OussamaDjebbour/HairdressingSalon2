@@ -47,14 +47,15 @@ vi.mock('../../data/admin', async (importOriginal) => ({
 import { LanguageProvider } from '../../context/LanguageContext';
 import { FeedbackProvider } from './feedback';
 import { BookingSheet, type SheetState } from './BookingSheet';
+import { visitOf, type AdminVisit } from '../../data/admin';
 
 const tuesday = new Date(2030, 0, 8);
 const addState: SheetState = { mode: 'add', stylistId: 'sara', date: tuesday, time: '10:00' };
 
-function renderSheet(state: SheetState, onClose = vi.fn()) {
+function renderSheet(state: SheetState, onClose = vi.fn(), visit?: AdminVisit) {
   render(
     <LanguageProvider><FeedbackProvider>
-      <BookingSheet state={state} onClose={onClose} />
+      <BookingSheet state={state} onClose={onClose} visit={visit} />
     </FeedbackProvider></LanguageProvider>
   );
   return onClose;
@@ -600,5 +601,42 @@ describe('BookingSheet — motion', () => {
     expect(onClose).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(250));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('BookingSheet — visit', () => {
+  const first = adminBooking({ id: 'p1', visitId: 'v1', startIso: '2030-01-08T09:00:00Z' });
+  const second = adminBooking({
+    id: 'p2', visitId: 'v1', startIso: '2030-01-08T10:00:00Z', price: 6000, serviceId: 'coloration',
+    serviceName: { fr: 'Coloration', ar: 'صبغة' }, stylistId: 'sara', stylistName: 'Sara',
+  });
+  const visit = visitOf(first, [first, second]);
+
+  it('a part of a visit shows the whole visit', () => {
+    renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);
+    const list = screen.getByRole('list', { name: 'Toute la visite' });
+    const items = within(list).getAllByRole('listitem');
+    expect(items[0]).toHaveTextContent('10:00 Coupe & Brushing · Amina');
+    expect(items[1]).toHaveTextContent('11:00 Coloration · Sara');
+    expect(items[1]).toHaveAttribute('aria-current', 'true');
+    expect(items[0]).not.toHaveAttribute('aria-current');
+    expect(screen.getByText('Total')).toBeInTheDocument();
+    expect(screen.getByText('8 500 DA')).toBeInTheDocument();
+  });
+
+  it('confirming a visit confirms it once and the message names every service', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(setStatus).toHaveBeenCalledTimes(1);
+    expect(setStatus).toHaveBeenCalledWith({ id: 'p1', status: 'confirmed' }, expect.anything());
+    const text = whatsappText();
+    expect(text).toContain('Coupe & Brushing + Coloration');
+    expect(text).toContain('à 10:00');
+  });
+
+  it('a visit of one looks as before', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    expect(screen.queryByRole('list', { name: 'Toute la visite' })).toBeNull();
   });
 });

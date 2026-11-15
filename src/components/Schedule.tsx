@@ -4,7 +4,7 @@ import { Clock, Check, X, Phone, ChevronLeft, ChevronRight, Plus, BellRing } fro
 import { useLang } from '../context/LanguageContext';
 import { toYmd } from '../data/bookings';
 import {
-  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings,
+  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings, visitOf,
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
 import { useAllStylists } from '../data/queries';
@@ -351,6 +351,7 @@ function ScheduleBody() {
           // One sheet per booking: fresh data (below) updates it without resetting what it shows.
           key={sheet.mode === 'edit' ? sheet.booking.id : JSON.stringify(sheet)}
           state={sheet.mode === 'edit' ? { mode: 'edit', booking: latest(sheet.booking) } : sheet}
+          visit={sheet.mode === 'edit' ? visitOf(latest(sheet.booking), [...(weekQuery.data ?? []), ...(pendingQuery.data ?? [])]) : undefined}
           onClose={() => {
             setSheet(null);
             if (backToWaiting) {
