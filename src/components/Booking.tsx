@@ -9,11 +9,16 @@ import {
   MessageCircle, Sparkle, AlertCircle,
 } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
-import { useSlots, useCreateBooking, toBookingError, type BookingErrorCode } from '../data/bookings';
+import {
+  useVisitSlots, useCreateVisit, toBookingError, type BookingErrorCode, type CreatedPart, type VisitItem,
+} from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
-import { formatPrice, formatDuration, formatLongDate } from '../data/formatters';
+import { countText, formatPrice, formatDuration, formatLongDate } from '../data/formatters';
+import { MAX_VISIT_SERVICES, joinNames, planVisit, visitOrder, visitTotals } from '../data/visit';
+import { VisitStylists } from './booking/VisitStylists';
+import { VisitParts, type VisitPart } from './booking/VisitParts';
 import { TimeSlotChip } from './TimeSlotChip';
 import { dayHours } from '../data/hours';
 import { useClosedDates, useSalonHours, useSalonInfo } from '../data/salonSettings';
@@ -50,8 +55,9 @@ export function Booking() {
     for (const q of queries) if (q.isError) q.refetch();
   };
   const [step, setStep] = useState<Step>(0);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [selectedStylist, setSelectedStylist] = useState<string | null>(null);
+  // The ticked services (any order) and the staff chosen for each (null or absent = no preference).
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [stylistFor, setStylistFor] = useState<Record<string, string | null>>({});
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const {
@@ -67,8 +73,9 @@ export function Booking() {
     defaultValues: { clientName: '', clientPhone: '' },
   });
   const [submitted, setSubmitted] = useState(false);
-  const createBookingMutation = useCreateBooking();
-  const [assignedStylistId, setAssignedStylistId] = useState<string | null>(null);
+  const createVisitMutation = useCreateVisit();
+  // The parts as booked (with the staff the salon assigned for "no preference").
+  const [assigned, setAssigned] = useState<CreatedPart[] | null>(null);
   const [submitError, setSubmitError] = useState<Exclude<BookingErrorCode, 'slot_taken'> | null>(null);
   const [slotNotice, setSlotNotice] = useState<'booking.slotTaken' | 'booking.slotPassed' | null>(null);
 
@@ -84,25 +91,41 @@ export function Booking() {
     return days;
   }, [salonHours, closedDates]);
 
-  const slotsQuery = useSlots(selectedDate, selectedService?.id ?? null, selectedStylist);
+  // The visit in the salon's order (not the tick order): the server indexes its answers by this order.
+  const visit = useMemo(
+    () => visitOrder(services.filter((s) => selectedIds.includes(s.id))),
+    [services, selectedIds]
+  );
+  const items: VisitItem[] = useMemo(
+    () => visit.map((s) => ({ serviceId: s.id, stylistId: stylistFor[s.id] ?? null })),
+    [visit, stylistFor]
+  );
+  const totals = visitTotals(visit);
+  const single = visit.length === 1 ? visit[0] : null;
+  const selectedStylist = single ? stylistFor[single.id] ?? null : null;
+  const atMax = visit.length >= MAX_VISIT_SERVICES;
+
+  const slotsQuery = useVisitSlots(selectedDate, items);
   const slots = slotsQuery.data ?? [];
 
-  const offeringStylists = useMemo(
-    () => (selectedService ? stylists.filter((s) => s.serviceIds.includes(selectedService.id)) : stylists),
-    [stylists, selectedService]
-  );
-
-  const selectService = (service: Service) => {
-    setSelectedService(service);
-    setSelectedTime(null);
-    const current = stylists.find((s) => s.id === selectedStylist);
-    if (current && !current.serviceIds.includes(service.id)) setSelectedStylist(null);
-  };
-
-  const selectStylist = (id: string | null) => {
-    setSelectedStylist(id);
+  const toggleService = (service: Service) => {
+    if (selectedIds.includes(service.id)) {
+      setSelectedIds((ids) => ids.filter((id) => id !== service.id));
+      setStylistFor(({ [service.id]: _dropped, ...rest }) => rest);
+    } else {
+      if (atMax) return;
+      setSelectedIds((ids) => [...ids, service.id]);
+    }
     setSelectedTime(null);
   };
+
+  const chooseStylist = (serviceId: string, stylistId: string | null) => {
+    setStylistFor((m) => ({ ...m, [serviceId]: stylistId }));
+    setSelectedTime(null);
+  };
+
+  const stylistLabel = (id: string | null | undefined, none: string) =>
+    id ? stylists.find((s) => s.id === id)?.name ?? '' : none;
 
   const steps = [
     { label: t('booking.step.service'), icon: Sparkle },
@@ -112,7 +135,7 @@ export function Booking() {
   ];
 
   const canProceed = () => {
-    if (step === 0) return selectedService !== null;
+    if (step === 0) return visit.length > 0;
     if (step === 1) return true;
     if (step === 2) return selectedDate !== null && selectedTime !== null;
     // Step 3: the button stays enabled; pressing it validates and shows every error.
@@ -122,18 +145,24 @@ export function Booking() {
   const handleNext = () => { if (step < 3) setStep((s) => (s + 1) as Step); };
   const handleBack = () => { if (step > 0) setStep((s) => (s - 1) as Step); };
 
-  const effectiveStylistId = assignedStylistId ?? selectedStylist;
-  const stylistName = effectiveStylistId
-    ? stylists.find((s) => s.id === effectiveStylistId)?.name ?? ''
-    : t('booking.noPreference');
+  /** Who does a part: the assigned staff once booked, else the client's choice. */
+  const partStylistId = (serviceId: string) =>
+    assigned?.find((p) => p.serviceId === serviceId)?.stylistId ?? stylistFor[serviceId] ?? null;
+  const stylistName = single ? stylistLabel(partStylistId(single.id), t('booking.noPreference')) : '';
+  const plannedParts: VisitPart[] = selectedTime
+    ? planVisit(visit, selectedTime).map(({ service, time }) => ({
+        time,
+        service,
+        stylistName: stylistLabel(partStylistId(service.id), t('booking.visit.anyStylist')),
+      }))
+    : [];
 
   const handleConfirm = ({ clientName, clientPhone }: ClientDetails) => {
-    if (!selectedService || !selectedDate || !selectedTime) return;
+    if (items.length === 0 || items.length > MAX_VISIT_SERVICES || !selectedDate || !selectedTime) return;
     setSubmitError(null);
-    createBookingMutation.mutate(
+    createVisitMutation.mutate(
       {
-        serviceId: selectedService.id,
-        stylistId: selectedStylist,
+        items,
         date: selectedDate,
         time: selectedTime,
         clientName,
@@ -142,7 +171,7 @@ export function Booking() {
       },
       {
         onSuccess: (created) => {
-          setAssignedStylistId(created.stylistId);
+          setAssigned(created);
           setSubmitted(true);
         },
         onError: (err) => {
@@ -181,15 +210,15 @@ export function Booking() {
 
   const restart = (keepClient = false) => {
     setStep(0);
-    setSelectedService(null);
-    setSelectedStylist(null);
+    setSelectedIds([]);
+    setStylistFor({});
     setSelectedDate(null);
     setSelectedTime(null);
     if (!keepClient) reset();
-    setAssignedStylistId(null);
+    setAssigned(null);
     setSubmitError(null);
     setSlotNotice(null);
-    createBookingMutation.reset();
+    createVisitMutation.reset();
     setSubmitted(false);
   };
 
@@ -212,7 +241,7 @@ export function Booking() {
   // dropped if a booking is being sent.
   const { request } = useBookingIntent();
   const appliedSeq = useRef(0);
-  const sending = createBookingMutation.isPending;
+  const sending = createVisitMutation.isPending;
   useEffect(() => {
     if (!request || request.seq === appliedSeq.current) return;
     // Tapped while a booking is being sent: drop it, so the confirmation (or the error) stays as it is.
@@ -224,7 +253,7 @@ export function Booking() {
     if (!service) return;
     appliedSeq.current = request.seq;
     restart(true);
-    setSelectedService(service);
+    setSelectedIds([service.id]);
     clearErrors();
     // Already on that step: setStep won't re-render, so focus now instead of leaving the flag set.
     if (stepRef.current === 1) headingRef.current?.focus({ preventScroll: true });
@@ -233,19 +262,31 @@ export function Booking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is recreated each render; applied once per seq
   }, [request, services, sending]);
 
-  const recap = selectedService && (
+  const recap = visit.length > 0 && (
     <div className="flex items-center justify-between gap-2 rounded-xl bg-cream-100 ps-3 pe-1 text-sm text-rose-700 mb-5">
       <p className="min-w-0 py-2">
-        <span className="font-medium text-rose-900">{selectedService.name[lang]}</span>
+        <span className="font-medium text-rose-900">{joinNames(visit.map((s) => s.name[lang]))}</span>
         {' · '}
-        {formatPrice(selectedService.price, lang)}
+        <span className="whitespace-nowrap">{formatPrice(totals.price, lang)}</span>
         {' · '}
-        {formatDuration(selectedService.duration, lang)}
+        <span className="whitespace-nowrap">{formatDuration(totals.duration, lang)}</span>
       </p>
       <button type="button" onClick={() => { focusHeading.current = true; setStep(0); }} className="tap flex-shrink-0 px-3 font-medium text-rose-800 underline underline-offset-2 hover:text-rose-900">
         {t('booking.recap.change')}
       </button>
     </div>
+  );
+
+  // Several parts: the date, then each part (time · service · staff) and the total.
+  const visitSummary = (
+    <>
+      <div className="flex justify-between items-center gap-4 mb-4">
+        <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
+        <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
+      </div>
+      <p className="text-sm text-rose-600 mb-2">{t('booking.summary.services')}</p>
+      <VisitParts parts={plannedParts} total={totals.price} />
+    </>
   );
 
   if (submitted) {
@@ -259,30 +300,34 @@ export function Booking() {
           <h2 className="font-display text-3xl font-semibold text-rose-800 mb-3">{t('booking.successTitle')}</h2>
           <p className="text-rose-600 text-lg mb-6">{t('booking.successText')}</p>
 
-          <div className="rounded-2xl bg-white border border-cream-200 p-5 space-y-3 text-start mb-6">
-            <div className="flex justify-between items-center gap-4">
-              <span className="text-sm text-rose-600">{t('booking.summary.service')}</span>
-              <span className="text-sm font-medium text-rose-800">{selectedService?.name[lang]}</span>
+          {single ? (
+            <div className="rounded-2xl bg-white border border-cream-200 p-5 space-y-3 text-start mb-6">
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-sm text-rose-600">{t('booking.summary.service')}</span>
+                <span className="text-sm font-medium text-rose-800">{single.name[lang]}</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-sm text-rose-600">{t('booking.summary.stylist')}</span>
+                <span className="text-sm font-medium text-rose-800">{stylistName}</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
+                <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-sm text-rose-600">{t('booking.summary.time')}</span>
+                <span className="text-sm font-medium text-rose-800">{selectedTime ?? '—'}</span>
+              </div>
+              <div className="border-t border-cream-200 pt-3 flex justify-between items-center gap-4">
+                <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
+                <span className="text-lg font-display font-semibold text-rose-800">{formatPrice(single.price, lang)}</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center gap-4">
-              <span className="text-sm text-rose-600">{t('booking.summary.stylist')}</span>
-              <span className="text-sm font-medium text-rose-800">{stylistName}</span>
+          ) : (
+            <div className="rounded-2xl bg-white border border-cream-200 p-5 text-start mb-6">
+              {visitSummary}
             </div>
-            <div className="flex justify-between items-center gap-4">
-              <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
-              <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
-            </div>
-            <div className="flex justify-between items-center gap-4">
-              <span className="text-sm text-rose-600">{t('booking.summary.time')}</span>
-              <span className="text-sm font-medium text-rose-800">{selectedTime ?? '—'}</span>
-            </div>
-            <div className="border-t border-cream-200 pt-3 flex justify-between items-center gap-4">
-              <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
-              <span className="text-lg font-display font-semibold text-rose-800">
-                {selectedService ? formatPrice(selectedService.price, lang) : '—'}
-              </span>
-            </div>
-          </div>
+          )}
 
           {waNumber && (
             <a
@@ -353,7 +398,8 @@ export function Booking() {
           {/* Step 0 — Service */}
           {step === 0 && (
             <div className="animate-fadeIn">
-              <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-5 focus:outline-none">{t('booking.selectService')}</h3>
+              <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-1 focus:outline-none">{t('booking.selectService')}</h3>
+              <p className="text-sm text-rose-600 mb-5">{t('booking.selectServiceHint')}</p>
               <div className="space-y-6">
                 {serviceGroups.map((group) => (
                   <div key={group.category}>
@@ -363,14 +409,20 @@ export function Booking() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {group.items.map((service) => {
                   const Icon = serviceIcon(service.icon);
-                  const isSelected = selectedService?.id === service.id;
+                  const isSelected = selectedIds.includes(service.id);
+                  const blocked = !isSelected && atMax;
                   return (
                     <button
                       key={service.id}
-                      onClick={() => selectService(service)}
+                      type="button"
+                      aria-pressed={isSelected}
+                      aria-disabled={blocked || undefined}
+                      onClick={() => toggleService(service)}
                       className={`flex items-start gap-4 p-4 rounded-2xl border text-start transition-all duration-200 ease-silk ${
                         isSelected
                           ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
+                          : blocked
+                          ? 'border-cream-200 bg-cream-50 opacity-50 cursor-not-allowed'
                           : 'border-cream-200 bg-cream-50 hover:border-gold-200 hover:bg-rose-50/50'
                       }`}
                     >
@@ -406,65 +458,69 @@ export function Booking() {
             <div className="animate-fadeIn">
               <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-3 focus:outline-none">{t('booking.selectStylist')}</h3>
               {recap}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <button
-                  onClick={() => selectStylist(null)}
-                  className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
-                    selectedStylist === null
-                      ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
-                      : 'border-cream-200 bg-cream-50 hover:border-gold-200'
-                  }`}
-                >
-                  <div className="w-16 h-16 rounded-full bg-cream-200 flex items-center justify-center">
-                    <User className="w-7 h-7 text-cream-500" strokeWidth={1.5} />
-                  </div>
-                  <span className="text-xs font-medium text-rose-600 text-center">{t('booking.noPreference')}</span>
-                </button>
+              {single ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <button
+                    onClick={() => chooseStylist(single.id, null)}
+                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
+                      selectedStylist === null
+                        ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
+                        : 'border-cream-200 bg-cream-50 hover:border-gold-200'
+                    }`}
+                  >
+                    <div className="w-16 h-16 rounded-full bg-cream-200 flex items-center justify-center">
+                      <User className="w-7 h-7 text-cream-500" strokeWidth={1.5} />
+                    </div>
+                    <span className="text-xs font-medium text-rose-600 text-center">{t('booking.noPreference')}</span>
+                  </button>
 
-                {offeringStylists.map((stylist) => {
-                  const isSelected = selectedStylist === stylist.id;
-                  return (
-                    <button
-                      key={stylist.id}
-                      onClick={() => selectStylist(stylist.id)}
-                      className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
-                        isSelected
-                          ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
-                          : 'border-cream-200 bg-cream-50 hover:border-gold-200'
-                      }`}
-                    >
-                      <div className="relative">
-                        {stylist.image ? (
-                          <SmartImage
-                            src={stylist.image}
-                            alt={stylist.name}
-                            aspect="aspect-square"
-                            rounded="rounded-full"
-                            className="w-16 h-16"
-                          />
-                        ) : (
-                          // A stylist added in the settings has no photo yet: show her initials.
-                          <div
-                            aria-hidden="true"
-                            className="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center font-display text-xl font-semibold text-rose-700"
-                          >
-                            {initials(stylist.name)}
-                          </div>
-                        )}
-                        {isSelected && (
-                          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center border-2 border-white">
-                            <Check className="w-3.5 h-3.5 text-cream-50" strokeWidth={3} />
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-rose-800">{stylist.name}</p>
-                        <p className="text-xs text-rose-600">{stylist.role[lang]}</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                  {stylists.filter((s) => s.serviceIds.includes(single.id)).map((stylist) => {
+                    const isSelected = selectedStylist === stylist.id;
+                    return (
+                      <button
+                        key={stylist.id}
+                        onClick={() => chooseStylist(single.id, stylist.id)}
+                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
+                          isSelected
+                            ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
+                            : 'border-cream-200 bg-cream-50 hover:border-gold-200'
+                        }`}
+                      >
+                        <div className="relative">
+                          {stylist.image ? (
+                            <SmartImage
+                              src={stylist.image}
+                              alt={stylist.name}
+                              aspect="aspect-square"
+                              rounded="rounded-full"
+                              className="w-16 h-16"
+                            />
+                          ) : (
+                            // A stylist added in the settings has no photo yet: show her initials.
+                            <div
+                              aria-hidden="true"
+                              className="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center font-display text-xl font-semibold text-rose-700"
+                            >
+                              {initials(stylist.name)}
+                            </div>
+                          )}
+                          {isSelected && (
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center border-2 border-white">
+                              <Check className="w-3.5 h-3.5 text-cream-50" strokeWidth={3} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-rose-800">{stylist.name}</p>
+                          <p className="text-xs text-rose-600">{stylist.role[lang]}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <VisitStylists visit={visit} stylists={stylists} value={stylistFor} onChange={chooseStylist} />
+              )}
             </div>
           )}
 
@@ -518,6 +574,7 @@ export function Booking() {
                     <DataError onRetry={() => slotsQuery.refetch()} />
                   ) : slots.some((s) => s.available) ? (
                     <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2.5">
+                      {/* A time where some parts can't be placed is simply unavailable for now. */}
                       {slots.map(({ slot, available }) => (
                         <TimeSlotChip
                           key={slot}
@@ -536,6 +593,12 @@ export function Booking() {
                   ) : (
                     <p className="text-rose-600 text-sm py-8 text-center">{t('booking.noSlots')}</p>
                   )}
+                  {visit.length > 1 && selectedTime && (
+                    <section aria-labelledby="booking-plan" className="mt-6 rounded-2xl bg-cream-50 border border-cream-200 p-4">
+                      <h4 id="booking-plan" className="text-sm font-semibold text-rose-700 mb-3">{t('booking.visit.plan')}</h4>
+                      <VisitParts parts={plannedParts} />
+                    </section>
+                  )}
                 </div>
               )}
             </div>
@@ -546,32 +609,36 @@ export function Booking() {
             <div className="animate-fadeIn space-y-6">
               <h3 className="font-display text-xl font-semibold text-rose-800 mb-2">{t('booking.summary')}</h3>
 
-              <div className="rounded-2xl bg-cream-50 border border-cream-200 p-5 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-600">{t('booking.summary.service')}</span>
-                  <span className="text-sm font-medium text-rose-800">{selectedService?.name[lang]}</span>
+              {single ? (
+                <div className="rounded-2xl bg-cream-50 border border-cream-200 p-5 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-rose-600">{t('booking.summary.service')}</span>
+                    <span className="text-sm font-medium text-rose-800">{single.name[lang]}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-rose-600">{t('booking.summary.stylist')}</span>
+                    <span className="text-sm font-medium text-rose-800">{stylistName}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
+                    <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-rose-600">{t('booking.summary.time')}</span>
+                    <span className="text-sm font-medium text-rose-800">{selectedTime ?? '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-rose-600">{t('booking.summary.duration')}</span>
+                    <span className="text-sm font-medium text-rose-800">{formatDuration(single.duration, lang)}</span>
+                  </div>
+                  <div className="border-t border-cream-200 pt-3 flex justify-between items-center">
+                    <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
+                    <span className="text-lg font-display font-semibold text-rose-800">{formatPrice(single.price, lang)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-600">{t('booking.summary.stylist')}</span>
-                  <span className="text-sm font-medium text-rose-800">{stylistName}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
-                  <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-600">{t('booking.summary.time')}</span>
-                  <span className="text-sm font-medium text-rose-800">{selectedTime ?? '—'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-rose-600">{t('booking.summary.duration')}</span>
-                  <span className="text-sm font-medium text-rose-800">{selectedService ? formatDuration(selectedService.duration, lang) : '—'}</span>
-                </div>
-                <div className="border-t border-cream-200 pt-3 flex justify-between items-center">
-                  <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
-                  <span className="text-lg font-display font-semibold text-rose-800">{selectedService ? formatPrice(selectedService.price, lang) : '—'}</span>
-                </div>
-              </div>
+              ) : (
+                <div className="rounded-2xl bg-cream-50 border border-cream-200 p-5">{visitSummary}</div>
+              )}
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <TextField
@@ -620,8 +687,25 @@ export function Booking() {
             </div>
           )}
 
-          {/* Navigation */}
-          <div className="flex items-center justify-between mt-auto pt-6">
+          {/* Navigation (on the service step it sticks to the bottom of the screen with the running total) */}
+          <div
+            className={
+              step === 0
+                ? 'sticky bottom-0 z-10 mt-auto -mx-6 sm:-mx-8 lg:-mx-10 px-6 sm:px-8 lg:px-10 pt-4 pb-2 bg-white border-t border-cream-200'
+                : 'mt-auto pt-6'
+            }
+          >
+            {step === 0 && (
+              <div aria-live="polite" className="text-center text-sm mb-3 empty:hidden">
+                {visit.length > 0 && (
+                  <p className="font-medium text-rose-800">
+                    {[countText(t, lang, 'booking.visit.count', visit.length), formatPrice(totals.price, lang), formatDuration(totals.duration, lang)].join(' · ')}
+                  </p>
+                )}
+                {atMax && <p className="text-rose-600 mt-0.5">{t('booking.visit.max')}</p>}
+              </div>
+            )}
+          <div className="flex items-center justify-between">
             <button onClick={handleBack} disabled={step === 0} className="btn-ghost">
               <ChevronLeft className="w-4 h-4" strokeWidth={1.8} />
               {t('booking.back')}
@@ -634,17 +718,18 @@ export function Booking() {
             ) : (
               <button
                 onClick={handleSubmit(handleConfirm)}
-                disabled={createBookingMutation.isPending}
+                disabled={createVisitMutation.isPending}
                 className="btn-primary"
               >
-                {createBookingMutation.isPending ? (
+                {createVisitMutation.isPending ? (
                   <span className="w-4 h-4 rounded-full border-2 border-cream-200 border-t-cream-50 animate-spin" />
                 ) : (
                   <Check className="w-4 h-4" strokeWidth={2} />
                 )}
-                {createBookingMutation.isPending ? t('booking.submitting') : t('booking.confirm')}
+                {createVisitMutation.isPending ? t('booking.submitting') : t('booking.confirm')}
               </button>
             )}
+          </div>
           </div>
         </div>
         )}

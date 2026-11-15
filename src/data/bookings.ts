@@ -58,65 +58,6 @@ export function isValidPhone(input: string): boolean {
   return /^0[5-7][0-9]{8}$/.test(normalizePhone(input));
 }
 
-export async function fetchSlots(date: Date, serviceId: string, stylistId: string | null): Promise<Slot[]> {
-  const { data, error } = await supabase.rpc('get_slots', {
-    p_salon_id: currentSalonId(),
-    p_date: toYmd(date),
-    p_service_id: serviceId,
-    p_stylist_id: stylistId,
-  });
-  if (error) throw error;
-  return (data ?? []) as Slot[];
-}
-
-export function useSlots(date: Date | null, serviceId: string | null, stylistId: string | null) {
-  return useQuery({
-    queryKey: ['slots', date ? toYmd(date) : null, serviceId, stylistId],
-    queryFn: () => fetchSlots(date as Date, serviceId as string, stylistId),
-    enabled: date !== null && serviceId !== null,
-    staleTime: 0,
-  });
-}
-
-export interface CreateBookingInput {
-  serviceId: string;
-  stylistId: string | null;
-  date: Date;
-  time: string;
-  clientName: string;
-  clientPhone: string;
-  lang: Lang;
-}
-
-export interface CreatedBooking {
-  bookingId: string;
-  stylistId: string;
-}
-
-export async function createBooking(input: CreateBookingInput): Promise<CreatedBooking> {
-  const { data, error } = await supabase.rpc('create_booking', {
-    p_salon_id: currentSalonId(),
-    p_service_id: input.serviceId,
-    p_stylist_id: input.stylistId,
-    p_date: toYmd(input.date),
-    p_time: input.time,
-    p_client_name: input.clientName,
-    p_client_phone: input.clientPhone,
-    p_lang: input.lang,
-  });
-  if (error) throw error;
-  const row = (data as { booking_id: string; stylist_id: string }[])[0];
-  return { bookingId: row.booking_id, stylistId: row.stylist_id };
-}
-
-export function useCreateBooking() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: createBooking,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['slots'] }),
-  });
-}
-
 export interface VisitItem {
   serviceId: string;
   stylistId: string | null;

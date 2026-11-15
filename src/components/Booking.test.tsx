@@ -3,13 +3,29 @@ import { render, screen, fireEvent, within, cleanup, waitFor, act } from '@testi
 
 const service = {
   id: 'coupe-femme', category: 'hair', icon: 'scissors', image: '', price: 2500, duration: 60,
-  name: { fr: 'Coupe & Brushing', ar: 'قص' }, description: { fr: 'd', ar: 'd' }, active: true,
+  name: { fr: 'Coupe & Brushing', ar: 'قص' }, description: { fr: 'd', ar: 'd' }, active: true, sortOrder: 0,
 };
+const coloration = {
+  ...service, id: 'coloration', sortOrder: 1, price: 6000, duration: 120,
+  name: { fr: 'Coloration & Balayage', ar: 'صبغة' },
+};
+const manucure = {
+  ...service, id: 'manucure', sortOrder: 3, price: 2000, duration: 45,
+  name: { fr: 'Manucure & Vernis', ar: 'مانيكير' },
+};
+const threeServices = [service, coloration, manucure];
 
-let serviceList = [service];
+const stylist = (id: string, name: string, serviceIds: string[]) => ({
+  id, name, role: { fr: `Rôle ${name}`, ar: name }, specialties: [], image: '', serviceIds, active: true,
+  workdays: [1, 2, 3, 4, 5, 6, 7],
+});
+const amina = stylist('amina', 'Amina', ['coupe-femme', 'coloration']);
+const sara = stylist('sara', 'Sara', ['manucure']);
+
+let serviceList: (typeof service)[] = [service];
 vi.mock('../data/queries', () => ({
   useServices: () => ({ data: serviceList, isLoading: false, isError: false, refetch: vi.fn() }),
-  useStylists: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
+  useStylists: () => ({ data: [amina, sara], isLoading: false, isError: false, refetch: vi.fn() }),
 }));
 
 let hours: SalonHours;
@@ -27,8 +43,10 @@ const mutate = vi.fn();
 let pending = false;
 vi.mock('../data/bookings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/bookings')>()),
-  useSlots: () => ({ data: [{ slot: '10:00', available: true }], isLoading: false, isError: false, refetch: vi.fn() }),
-  useCreateBooking: () => ({ mutate, reset: vi.fn(), isPending: pending }),
+  useVisitSlots: () => ({
+    data: [{ slot: '10:00', available: true, missing: [] }], isLoading: false, isError: false, refetch: vi.fn(),
+  }),
+  useCreateVisit: () => ({ mutate, reset: vi.fn(), isPending: pending }),
 }));
 
 import { eleganceHours } from './admin/fixtures';
@@ -67,6 +85,8 @@ function Chooser({ id }: { id: string }) {
   const { chooseService } = useBookingIntent();
   return <button onClick={() => chooseService(id)}>choose-{id}</button>;
 }
+
+const SUCCESS_PARTS = [{ bookingId: 'b1', serviceId: 'coupe-femme', stylistId: 'amina', startsAt: new Date() }];
 
 function failWith(message: string) {
   mutate.mockImplementation((_input, opts: { onError: (e: unknown) => void }) => opts.onError({ message }));
@@ -156,7 +176,7 @@ describe('Booking confirm errors', () => {
 describe('Booking success screen', () => {
   it('success screen promises a WhatsApp confirmation from the salon', async () => {
     mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) =>
-      opts.onSuccess({ bookingId: 'b1', stylistId: 'amina' })
+      opts.onSuccess([{ bookingId: 'b1', serviceId: 'coupe-femme', stylistId: 'amina', startsAt: new Date() }])
     );
     goToConfirmStep();
     fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
@@ -176,7 +196,7 @@ describe('Booking client details validation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
     await waitFor(() => expect(mutate).toHaveBeenCalled());
     expect(mutate.mock.calls[0][0]).toMatchObject({
-      serviceId: 'coupe-femme', time: '10:00', clientName: 'Yasmine', clientPhone: '0555 12 34 56', lang: 'fr',
+      items: [{ serviceId: 'coupe-femme', stylistId: null }], time: '10:00', clientName: 'Yasmine', clientPhone: '0555 12 34 56', lang: 'fr',
     });
   });
 
@@ -247,10 +267,18 @@ describe('Booking step 0 grouping', () => {
 
 describe('Booking intent from a service tile', () => {
   it('selects the requested service and opens the stylist step', () => {
+    serviceList = threeServices;
     render(<LanguageProvider><BookingIntentProvider><Chooser id="coupe-femme" /><Booking /></BookingIntentProvider></LanguageProvider>);
     expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
     fireEvent.click(screen.getByText('choose-coupe-femme'));
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+    // Back on the service step, it is ticked and another can be added.
+    fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
+    expect(serviceButton('Coupe & Brushing')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    expect(serviceButton('Coupe & Brushing')).toHaveAttribute('aria-pressed', 'true');
+    expect(serviceButton('Manucure & Vernis')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('2 prestations · 4 500 DA · 105 min')).toBeInTheDocument();
   });
 
   it('ignores an unknown service', () => {
@@ -296,7 +324,7 @@ describe('Booking intent from a service tile', () => {
   });
 
   it('starts over from the success screen', async () => {
-    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess({ bookingId: 'b1', stylistId: 'amina' }));
+    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
     render(ui());
     fireEvent.click(screen.getByText('Coupe & Brushing'));
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
@@ -351,7 +379,7 @@ describe('Booking intent from a service tile', () => {
     await waitFor(() => expect(done).toBeDefined());
     fireEvent.click(screen.getByText('choose-coupe-femme'));
     pending = false;
-    act(() => done!({ bookingId: 'b1', stylistId: 'amina' }));
+    act(() => done!(SUCCESS_PARTS));
     rerender(ui());
     expect(await screen.findByText(SUCCESS)).toBeInTheDocument();
   });
@@ -374,7 +402,7 @@ describe('Booking intent from a service tile', () => {
   });
 
   it('a tile tapped on the success screen starts a new booking at the stylist step', async () => {
-    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess({ bookingId: 'b1', stylistId: 'amina' }));
+    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
     render(ui());
     toConfirm();
     fillClient();
@@ -438,5 +466,160 @@ describe('Booking intent from a service tile', () => {
     fireEvent.click(screen.getByText('choose-coupe-femme'));
     fireEvent.click(screen.getByRole('button', { name: 'Changer' }));
     expect(document.activeElement).toBe(screen.getByText('Choisissez votre prestation'));
+  });
+});
+
+/** The service toggle on step 0. */
+function serviceButton(name: string): HTMLElement {
+  return screen.getByText(name).closest('button') as HTMLElement;
+}
+
+function renderWizard() {
+  return render(
+    <LanguageProvider>
+      <Booking />
+    </LanguageProvider>
+  );
+}
+
+const next = () => fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+const pickFirstDay = () => fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+/** The row of the staff step for a service (its heading's group). */
+const staffRow = (name: string) => within(screen.getByRole('group', { name }));
+const textOf = (el: Element) => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+describe('Booking several services', () => {
+  beforeEach(() => {
+    serviceList = threeServices;
+  });
+
+  it('ticks several services and sums them in the summary bar', () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Coloration & Balayage'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    expect(serviceButton('Coloration & Balayage')).toHaveAttribute('aria-pressed', 'true');
+    expect(serviceButton('Coupe & Brushing')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('2 prestations · 8 500 DA · 180 min')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Continuer/ })).toHaveLength(1);
+  });
+
+  it('un-ticking a service removes it', () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    expect(serviceButton('Coupe & Brushing')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+  });
+
+  it('stops at 4 services', () => {
+    const extra = (id: string, fr: string, sortOrder: number) => ({ ...service, id, sortOrder, name: { fr, ar: fr } });
+    serviceList = [...threeServices, extra('soin', 'Soin visage', 4), extra('epilation', 'Épilation', 5)];
+    renderWizard();
+    for (const name of ['Coupe & Brushing', 'Coloration & Balayage', 'Manucure & Vernis', 'Soin visage']) {
+      fireEvent.click(serviceButton(name));
+    }
+    const fifth = serviceButton('Épilation');
+    expect(fifth).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(fifth);
+    expect(fifth).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText(/^4 prestations · /)).toBeInTheDocument();
+    expect(screen.getByText('4 prestations maximum par rendez-vous')).toBeInTheDocument();
+  });
+
+  it("one row per service, in the salon's order, on the staff step", () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    expect(screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual([
+      'Coupe & Brushing',
+      'Manucure & Vernis',
+    ]);
+    const coupe = staffRow('Coupe & Brushing');
+    expect(coupe.getByRole('button', { name: 'Amina' })).toBeInTheDocument();
+    expect(coupe.getByRole('button', { name: 'Sans préférence' })).toBeInTheDocument();
+    expect(coupe.queryByRole('button', { name: 'Sara' })).toBeNull();
+  });
+
+  it("a single service keeps today's staff grid", () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    expect(screen.queryAllByRole('heading', { level: 4 })).toHaveLength(0);
+    expect(screen.queryByRole('group', { name: 'Coupe & Brushing' })).toBeNull();
+    expect(screen.getByText('Rôle Amina')).toBeInTheDocument();
+    expect(screen.getByText('Sans préférence')).toBeInTheDocument();
+  });
+
+  it('the recap names every service', () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Coloration & Balayage'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    const recap = screen.getByRole('button', { name: 'Changer' }).parentElement!;
+    expect(textOf(recap.querySelector('p')!)).toBe('Coupe & Brushing + Coloration & Balayage · 8 500 DA · 180 min');
+  });
+
+  it('sends the items in visit order with each chosen staff member', async () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    fireEvent.click(staffRow('Coupe & Brushing').getByRole('button', { name: 'Amina' }));
+    next();
+    pickFirstDay();
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    next();
+    fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
+    fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(mutate.mock.calls[0][0].items).toEqual([
+      { serviceId: 'coupe-femme', stylistId: 'amina' },
+      { serviceId: 'manucure', stylistId: null },
+    ]);
+  });
+
+  const toTime = () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    fireEvent.click(staffRow('Coupe & Brushing').getByRole('button', { name: 'Amina' }));
+    next();
+    pickFirstDay();
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+  };
+
+  it('shows the plan after a time is chosen', () => {
+    toTime();
+    const plan = screen.getByRole('region', { name: 'Déroulé' });
+    expect(within(plan).getAllByRole('listitem').map(textOf)).toEqual([
+      '10:00 Coupe & Brushing · Amina',
+      '11:00 Manucure & Vernis · sans préférence',
+    ]);
+  });
+
+  it('the confirm step and success screen list each part and the total', async () => {
+    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) =>
+      opts.onSuccess([
+        { bookingId: 'b1', serviceId: 'coupe-femme', stylistId: 'amina', startsAt: new Date() },
+        { bookingId: 'b2', serviceId: 'manucure', stylistId: 'sara', startsAt: new Date() },
+      ])
+    );
+    toTime();
+    next();
+    const parts = screen.getAllByRole('listitem').map(textOf);
+    expect(parts).toEqual(['10:00 Coupe & Brushing · Amina', '11:00 Manucure & Vernis · sans préférence']);
+    expect(textOf(screen.getByText('Total').parentElement!)).toBe('Total 4 500 DA');
+    fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
+    fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    expect(screen.getAllByRole('listitem').map(textOf)).toEqual([
+      '10:00 Coupe & Brushing · Amina',
+      '11:00 Manucure & Vernis · Sara',
+    ]);
+    expect(textOf(screen.getByText('Total').parentElement!)).toBe('Total 4 500 DA');
   });
 });
