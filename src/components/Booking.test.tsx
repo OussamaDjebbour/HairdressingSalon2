@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, within, cleanup, waitFor, act } from '@testing-library/react';
 
 const service = {
   id: 'coupe-femme', category: 'hair', icon: 'scissors', image: '', price: 2500, duration: 60,
@@ -301,7 +301,7 @@ describe('Booking intent from a service tile', () => {
     fireEvent.click(screen.getByText('Coupe & Brushing'));
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
-        fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+    fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
     fireEvent.click(screen.getByRole('button', { name: '10:00' }));
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
     fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
@@ -326,14 +326,88 @@ describe('Booking intent from a service tile', () => {
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
   });
 
-  it('waits for a booking being sent to settle, then applies the request', () => {
-    pending = true;
+  const toConfirm = () => {
+    fireEvent.click(screen.getByText('Coupe & Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+  };
+  const fillClient = () => {
+    fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
+    fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+  };
+  const SUCCESS = 'Le salon vous confirmera votre rendez-vous sur WhatsApp.';
+
+  it('drops a request made while a booking is sent: the success screen stays', async () => {
+    let done: ((r: unknown) => void) | undefined;
+    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) => { done = opts.onSuccess; });
     const { rerender } = render(ui());
+    toConfirm();
+    fillClient();
+    pending = true;
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(done).toBeDefined());
     fireEvent.click(screen.getByText('choose-coupe-femme'));
-    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
     pending = false;
+    act(() => done!({ bookingId: 'b1', stylistId: 'amina' }));
     rerender(ui());
+    expect(await screen.findByText(SUCCESS)).toBeInTheDocument();
+  });
+
+  it('drops a request made while a booking is sent and fails: the wizard is unchanged', async () => {
+    let fail: ((e: unknown) => void) | undefined;
+    mutate.mockImplementation((_i, opts: { onError: (e: unknown) => void }) => { fail = opts.onError; });
+    const { rerender } = render(ui());
+    toConfirm();
+    fillClient();
+    pending = true;
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(fail).toBeDefined());
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    pending = false;
+    act(() => fail!({ message: 'rate_limited' }));
+    rerender(ui());
+    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
+    expect(screen.getByLabelText('Votre nom')).toHaveValue('Yasmine');
+  });
+
+  it('a tile tapped on the success screen starts a new booking at the stylist step', async () => {
+    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess({ bookingId: 'b1', stylistId: 'amina' }));
+    render(ui());
+    toConfirm();
+    fillClient();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByText(SUCCESS);
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+  });
+
+  it('clears stale field errors on a tile restart', async () => {
+    failWith('invalid_phone');
+    render(ui());
+    toConfirm();
+    fillClient();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(screen.getByLabelText('Votre téléphone')).toHaveAttribute('aria-invalid', 'true'));
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(screen.getByLabelText('Votre téléphone')).not.toHaveAttribute('aria-invalid', 'true');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByLabelText('Votre nom')).toHaveValue('Yasmine');
+  });
+
+  it('does not leave the focus flag set when the wizard is already on the stylist step', () => {
+    render(ui());
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('keeps the typed name and phone, clears stylist/date/time, when a tile restarts the wizard', () => {

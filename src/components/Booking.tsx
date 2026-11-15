@@ -59,6 +59,7 @@ export function Booking() {
     handleSubmit,
     reset,
     setError,
+    clearErrors,
     formState: { errors, submitCount },
   } = useForm<ClientDetails>({
     resolver: zodResolver(clientDetailsSchema),
@@ -196,6 +197,8 @@ export function Booking() {
   // Moving the wizard programmatically (tile request, "Changer") puts focus on the new step's heading.
   const headingRef = useRef<HTMLHeadingElement>(null);
   const focusHeading = useRef(false);
+  const stepRef = useRef(step);
+  stepRef.current = step;
   useLayoutEffect(() => {
     if (focusHeading.current) {
       focusHeading.current = false;
@@ -204,19 +207,27 @@ export function Booking() {
   }, [step]);
 
   // A service tile on the page chose a service: restart with it picked (keeping what the client typed)
-  // and go to the stylist step. Applied once per request; waits for the services to load and for a
-  // booking being sent to settle, so the success screen is never lost.
+  // and go to the stylist step. Applied once per request; waits for the services to load, and is
+  // dropped if a booking is being sent.
   const { request } = useBookingIntent();
   const appliedSeq = useRef(0);
   const sending = createBookingMutation.isPending;
   useEffect(() => {
-    if (!request || request.seq === appliedSeq.current || sending) return;
+    if (!request || request.seq === appliedSeq.current) return;
+    // Tapped while a booking is being sent: drop it, so the confirmation (or the error) stays as it is.
+    if (sending) {
+      appliedSeq.current = request.seq;
+      return;
+    }
     const service = services.find((s) => s.id === request.serviceId);
     if (!service) return;
     appliedSeq.current = request.seq;
     restart(true);
     setSelectedService(service);
-    focusHeading.current = true;
+    clearErrors();
+    // Already on that step: setStep won't re-render, so focus now instead of leaving the flag set.
+    if (stepRef.current === 1) headingRef.current?.focus({ preventScroll: true });
+    else focusHeading.current = true;
     setStep(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is recreated each render; applied once per seq
   }, [request, services, sending]);
