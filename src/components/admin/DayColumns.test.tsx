@@ -189,4 +189,15 @@ describe('DayColumns legibility', () => {
     expect(screen.getByText('10:00')).toHaveClass('text-xs');
     expect(document.querySelector('[class*="text-[10px]"], [class*="text-[11px]"]')).toBeNull();
   });
+
+  it('marks the parts of a visit', () => {
+    renderColumns([
+      adminBooking({ id: 'a', visitId: 'v1', startIso: '2030-01-08T09:00:00Z' }),
+      adminBooking({ id: 'b', visitId: 'v1', startIso: '2030-01-08T10:00:00Z', stylistId: 'leila', stylistName: 'Leila' }),
+      adminBooking({ id: 'c', clientName: 'Solo', startIso: '2030-01-08T12:00:00Z', stylistId: 'sara', stylistName: 'Sara' }),
+    ]);
+    expect(screen.getByText('Partie 1 sur 2 d’une visite')).toHaveClass('sr-only');
+    expect(screen.getByText('Partie 2 sur 2 d’une visite')).toBeInTheDocument();
+    expect(within(screen.getByRole('button', { name: /Solo/ })).queryByText(/Partie/)).toBeNull();
+  });
 });

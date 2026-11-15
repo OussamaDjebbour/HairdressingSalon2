@@ -4,7 +4,7 @@ import { Clock, Check, X, Phone, ChevronLeft, ChevronRight, Plus, BellRing } fro
 import { useLang } from '../context/LanguageContext';
 import { toYmd } from '../data/bookings';
 import {
-  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings, visitOf,
+  algiersToday, formatAlgiersTime, groupVisits, isNotAuthorized, useAdminBookings, visitOf,
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
 import { useAllStylists } from '../data/queries';
@@ -125,9 +125,8 @@ function ScheduleBody() {
     return t('schedule.nextOn').replace('{day}', `${dayName} ${d.getDate()}`).replace('{time}', time);
   };
 
-  const waiting = (pendingQuery.data ?? [])
-    .filter((b) => b.status === 'pending' && b.startsAt > now)
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  // One entry per visit: a visit moved across days is still one request.
+  const waitingVisits = groupVisits((pendingQuery.data ?? []).filter((b) => b.status === 'pending' && b.startsAt > now));
 
   /** A booking as the latest loaded data has it (its status may have changed since it was opened). */
   const latest = (b: AdminBooking) =>
@@ -188,7 +187,7 @@ function ScheduleBody() {
                   {t('schedule.today')}
                 </button>
               )}
-              {waiting.length > 0 && (
+              {waitingVisits.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowWaiting(true)}
@@ -196,12 +195,12 @@ function ScheduleBody() {
                 >
                   <BellRing className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
                   {isToday ? (
-                    t('schedule.pendingCount').replace('{n}', String(waiting.length))
+                    t('schedule.pendingCount').replace('{n}', String(waitingVisits.length))
                   ) : (
                     // Away from today "Aujourd'hui" joins the bar: on a phone the pill shrinks to its count.
                     <>
-                      <span aria-hidden="true" className="sm:hidden">{waiting.length}</span>
-                      <span className="sr-only sm:not-sr-only">{t('schedule.pendingCount').replace('{n}', String(waiting.length))}</span>
+                      <span aria-hidden="true" className="sm:hidden">{waitingVisits.length}</span>
+                      <span className="sr-only sm:not-sr-only">{t('schedule.pendingCount').replace('{n}', String(waitingVisits.length))}</span>
                     </>
                   )}
                 </button>
@@ -315,7 +314,7 @@ function ScheduleBody() {
 
       {showWaiting && (
         <PendingSheet
-          bookings={waiting}
+          visits={waitingVisits}
           answered={answered}
           onAnswered={(a) => setAnswered((list) => [...list, a])}
           onOpen={(booking) => {

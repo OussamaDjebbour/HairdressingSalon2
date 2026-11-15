@@ -1,4 +1,4 @@
-import { Globe, PenLine } from 'lucide-react';
+import { Globe, Link2, PenLine } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { algiersToday, type AdminBooking } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
@@ -138,6 +138,7 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
                     const SourceIcon = b.source === 'staff' ? PenLine : Globe;
                     const start = salonMinutes(b.startsAt);
                     const minutes = minutesOf(b);
+                    const siblings = visible.filter((x) => x.visitId === b.visitId).sort((x, y) => x.startsAt.getTime() - y.startsAt.getTime());
                     const outside = outsideHours(start, start + minutes);
                     return (
                       <button
@@ -152,7 +153,13 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
                         {/* Two lines only (three when outside the hours), so a 45-minute booking shows everything; the source is an icon. */}
                         <span className="flex items-center gap-1">
                           <span dir="auto" className="flex-1 min-w-0 text-start text-xs leading-tight font-semibold text-rose-800 truncate">{b.clientName}</span>
+                          {siblings.length > 1 && <Link2 className="w-2.5 h-2.5 flex-shrink-0 text-rose-500" strokeWidth={2} aria-hidden="true" />}
                           <SourceIcon className="w-2.5 h-2.5 flex-shrink-0 text-rose-500" strokeWidth={2} aria-hidden="true" />
+                          {siblings.length > 1 && (
+                            <span className="sr-only">
+                              {t('schedule.visitPart').replace('{i}', String(siblings.indexOf(b) + 1)).replace('{n}', String(siblings.length))}
+                            </span>
+                          )}
                           <span className="sr-only">{t(b.source === 'staff' ? 'schedule.source.staff' : 'schedule.source.online')}</span>
                         </span>
                         {/* Outside the hours, the marker takes the second line: it matters more than the service. */}

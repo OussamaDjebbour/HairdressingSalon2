@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useState } from 'react';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import type { AdminBooking } from '../../data/admin';
+import { groupVisits, type AdminBooking } from '../../data/admin';
 import { adminBooking } from './fixtures';
 
 let salonWhatsapp: string | null = '0555 00 11 22';
@@ -36,7 +36,7 @@ function Harness({ bookings, onOpen, onClose }: { bookings: AdminBooking[]; onOp
   const [answered, setAnswered] = useState<Answered[]>([]);
   return (
     <PendingSheet
-      bookings={bookings}
+      visits={groupVisits(bookings)}
       answered={answered}
       onAnswered={(a) => setAnswered((list) => [...list, a])}
       onOpen={onOpen}
@@ -62,6 +62,18 @@ function renderSheet(bookings: AdminBooking[], onOpen = vi.fn(), onClose = vi.fn
       ),
   };
 }
+
+const twoParts = [
+  adminBooking({
+    id: 'v1a', visitId: 'v1', clientName: 'Lina M.', clientPhone: '0661223344', startIso: '2030-01-11T13:00:00Z',
+    price: 2500, createdAt: new Date('2030-01-08T05:00:00Z'),
+  }),
+  adminBooking({
+    id: 'v1b', visitId: 'v1', clientName: 'Lina M.', clientPhone: '0661223344', startIso: '2030-01-11T14:00:00Z',
+    price: 6000, serviceId: 'manucure', serviceName: { fr: 'Manucure', ar: 'مانيكير' },
+    stylistId: 'leila', stylistName: 'Leila', createdAt: new Date('2030-01-08T05:00:00Z'),
+  }),
+];
 
 const cards = () => screen.getAllByRole('listitem');
 
@@ -90,6 +102,29 @@ describe('PendingSheet', () => {
     expect(within(cards()[1]).getByText('Sabrina T.')).toBeInTheDocument();
     expect(within(cards()[0]).getByText('il y a 2 h')).toBeInTheDocument();
     expect(within(cards()[0]).getByText('14:00')).toBeInTheDocument();
+  });
+
+  it('one card per visit, listing its parts and the total', () => {
+    renderSheet(twoParts);
+    expect(cards()).toHaveLength(1);
+    const card = cards()[0];
+    expect(within(card).getByText(/Coupe & Brushing/)).toBeInTheDocument();
+    expect(within(card).getByText(/Manucure/)).toBeInTheDocument();
+    expect(within(card).getByText(/Amina/)).toBeInTheDocument();
+    expect(within(card).getByText(/Leila/)).toBeInTheDocument();
+    expect(card).toHaveTextContent('8 500 DA');
+    expect(within(card).getAllByRole('button', { name: 'Confirmer' })).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: '1 réservation à confirmer' })).toBeInTheDocument();
+  });
+
+  it('confirming a visit card turns the whole visit green', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet(twoParts);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(setStatus).toHaveBeenCalledTimes(1);
+    expect(setStatus).toHaveBeenCalledWith({ id: 'v1a', status: 'confirmed' }, expect.anything());
+    expect(cards()).toHaveLength(1);
+    expect(screen.getByText('Lina M. confirmée')).toBeInTheDocument();
   });
 
   it('confirming turns the card into a green row with the WhatsApp message, then says all is done', () => {
