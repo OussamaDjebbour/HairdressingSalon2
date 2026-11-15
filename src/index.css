@@ -310,6 +310,10 @@
   .text-on-photo {
     text-shadow: 0 1px 2px rgb(var(--brand-900) / 0.7), 0 0 14px rgb(var(--brand-900) / 0.45);
   }
+  /* A solid button inside .text-on-photo (the tile's "Réserver") needs no shadow. */
+  .text-shadow-none {
+    text-shadow: none;
+  }
   .text-balance {
     text-wrap: balance;
   }

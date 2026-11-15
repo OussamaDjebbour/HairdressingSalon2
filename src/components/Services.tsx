@@ -47,9 +47,10 @@ function ServiceTile({ service }: { service: Service }) {
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <span className="font-display text-lg font-semibold">{formatPrice(service.price, lang)}</span>
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gold-300">
+          {/* Looks like a button so it reads as the thing to tap; the whole tile is the link. */}
+          <span className="text-shadow-none mt-1 inline-flex items-center gap-1.5 rounded-full bg-cream-50 px-4 py-2 text-sm font-semibold text-rose-900 shadow-soft transition-colors duration-200 ease-silk group-hover:bg-gold-200">
             {t('services.book')}
-            <ArrowRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
+            <ArrowRight className="w-4 h-4 rtl:rotate-180" strokeWidth={2} aria-hidden="true" />
           </span>
         </div>
       </div>
