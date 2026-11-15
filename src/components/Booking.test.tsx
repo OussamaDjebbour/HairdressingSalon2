@@ -269,4 +269,45 @@ describe('Booking intent from a service tile', () => {
     rerender(ui());
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
   });
+
+  const other = { ...service, id: 'soin', name: { fr: 'Soin visage', ar: 'س' } };
+  const ui = () => (
+    <LanguageProvider>
+      <BookingIntentProvider><Chooser id="coupe-femme" /><Chooser id="soin" /><Booking /></BookingIntentProvider>
+    </LanguageProvider>
+  );
+
+  it('brings a later step back to the stylist step with the new service, also for the same one again', () => {
+    serviceList = [service, other];
+    render(ui());
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
+    fireEvent.click(screen.getByText('choose-soin'));
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
+    expect(screen.getByText('Soin visage').closest('button')?.className).toMatch(/selected|ring|border-rose/);
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(screen.getByText('choose-soin'));
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+  });
+
+  it('starts over from the success screen', async () => {
+    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess({ bookingId: 'b1', stylistId: 'amina' }));
+    render(ui());
+    fireEvent.click(screen.getByText('Coupe & Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    const { container } = { container: document.body };
+    fireEvent.click(container.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
+    fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+  });
 });

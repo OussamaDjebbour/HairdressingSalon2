@@ -22,13 +22,9 @@ function ServiceTile({ service }: { service: Service }) {
       className="group relative block overflow-hidden rounded-2xl aspect-[16/10] sm:aspect-[4/3] bg-rose-100 transition-shadow duration-300 ease-silk hover:shadow-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2"
     >
       {service.image ? (
-        <SmartImage
-          src={service.image}
-          alt=""
-          aspect=""
-          rounded=""
-          className="absolute inset-0 group-hover:scale-[1.04] transition-transform duration-700 ease-silk"
-        />
+        <div className="absolute inset-0 transition-transform duration-700 ease-silk group-hover:scale-[1.04]">
+          <SmartImage src={service.image} alt="" aspect="h-full w-full" rounded="" />
+        </div>
       ) : (
         // A service added in the settings has no photo yet: show its category icon instead of a shimmer.
         <Icon
@@ -38,13 +34,13 @@ function ServiceTile({ service }: { service: Service }) {
           aria-hidden="true"
         />
       )}
-      <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-rose-900/90 via-rose-900/50 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-rose-900/90 via-rose-900/70 to-transparent" />
 
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 sm:p-5 text-cream-50">
         <div className="min-w-0">
           <h3 className="font-display text-xl font-semibold leading-snug">{service.name[lang]}</h3>
-          <p className="line-clamp-1 text-sm text-cream-50/80">{service.description[lang]}</p>
-          <span className="mt-1 flex items-center gap-1.5 text-xs text-cream-50/80">
+          <p className="line-clamp-1 text-sm text-cream-50/90">{service.description[lang]}</p>
+          <span className="mt-1 flex items-center gap-1.5 text-xs text-cream-50/90">
             <Clock className="w-3.5 h-3.5" strokeWidth={1.8} aria-hidden="true" />
             {formatDuration(service.duration, lang)}
           </span>

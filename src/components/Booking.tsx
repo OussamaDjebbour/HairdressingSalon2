@@ -203,7 +203,8 @@ export function Booking() {
     resetBooking();
     setSelectedService(service);
     setStep(1);
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resetBooking is recreated each render; applied once per seq
+  }, [request, services]);
 
   if (submitted) {
     return (
