@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Service, Stylist, Weekday } from './types';
 import { currentSalonId } from './salon';
+import { photoUrl } from './photoUrl';
 
 interface ServiceRow {
   id: string;
@@ -45,7 +46,7 @@ export async function fetchServices(includeInactive = false): Promise<Service[]>
     description: r.description,
     price: r.price,
     duration: r.duration,
-    image: r.image,
+    image: photoUrl(r.image),
     icon: r.icon,
     active: r.active,
     sortOrder: r.sort_order,
