@@ -117,6 +117,19 @@ describe('PendingSheet', () => {
     expect(screen.getByRole('heading', { name: '1 réservation à confirmer' })).toBeInTheDocument();
   });
 
+  it('a part on another day carries its date in the card', () => {
+    renderSheet([twoParts[0], { ...twoParts[1], startsAt: new Date('2030-01-12T09:00:00Z'), endsAt: new Date('2030-01-12T10:00:00Z') }]);
+    expect(within(cards()[0]).getByText(/Sam 12 janvier/)).toBeInTheDocument();
+  });
+
+  it('the WhatsApp message of a multi-part visit names every service', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet(twoParts);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    const text = decodeURIComponent(screen.getByRole('link', { name: 'WhatsApp' }).getAttribute('href')!.split('?text=')[1]);
+    expect(text).toContain('Coupe & Brushing + Manucure');
+  });
+
   it('confirming a visit card turns the whole visit green', () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet(twoParts);

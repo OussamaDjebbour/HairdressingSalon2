@@ -126,7 +126,12 @@ function ScheduleBody() {
   };
 
   // One entry per visit: a visit moved across days is still one request.
-  const waitingVisits = groupVisits((pendingQuery.data ?? []).filter((b) => b.status === 'pending' && b.startsAt > now));
+  // Grouped before filtering, so a card lists every loaded part; a visit whose first part has started drops off.
+  const waitingVisits = groupVisits((pendingQuery.data ?? []).filter((b) => b.status !== 'cancelled')).filter(
+    (v) => v.first.status === 'pending' && v.first.startsAt > now
+  );
+  // Every loaded row (the week and the waiting window), so a visit split across days is found whole.
+  const visitPool = [...new Map([...(weekQuery.data ?? []), ...(pendingQuery.data ?? [])].filter((b) => b.status !== 'cancelled').map((b) => [b.id, b])).values()];
 
   /** A booking as the latest loaded data has it (its status may have changed since it was opened). */
   const latest = (b: AdminBooking) =>
@@ -246,6 +251,7 @@ function ScheduleBody() {
                     hours={hoursFor(day)}
                     daysOff={daysOff}
                     bookings={all}
+                    visitPool={visitPool}
                     onSlotTap={(stylistId, time) => setSheet({ mode: 'add', stylistId, date: day, time })}
                     onBookingTap={(booking) => setSheet({ mode: 'edit', booking })}
                   />

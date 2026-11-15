@@ -200,4 +200,17 @@ describe('DayColumns legibility', () => {
     expect(screen.getByText('Partie 2 sur 2 d’une visite')).toBeInTheDocument();
     expect(within(screen.getByRole('button', { name: /Solo/ })).queryByText(/Partie/)).toBeNull();
   });
+
+  it('counts the parts of a visit split across days', () => {
+    const a = adminBooking({ id: 'a', visitId: 'v1', startIso: '2030-01-08T09:00:00Z' });
+    const b = adminBooking({ id: 'b', visitId: 'v1', startIso: '2030-01-08T10:00:00Z', stylistId: 'leila', stylistName: 'Leila' });
+    const c = adminBooking({ id: 'c', visitId: 'v1', startIso: '2030-01-10T09:00:00Z' });
+    render(
+      <LanguageProvider>
+        <DayColumns day={new Date(2030, 0, 8)} stylists={stylists} hours={eleganceHours[2]} daysOff={[]} bookings={[a, b]} visitPool={[a, b, c]} onSlotTap={vi.fn()} onBookingTap={vi.fn()} />
+      </LanguageProvider>
+    );
+    expect(screen.getByText('Partie 1 sur 3 d’une visite')).toBeInTheDocument();
+    expect(screen.getByText('Partie 2 sur 3 d’une visite')).toBeInTheDocument();
+  });
 });

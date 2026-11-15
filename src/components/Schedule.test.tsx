@@ -148,6 +148,26 @@ describe('Schedule', () => {
     expect(setStatus).toHaveBeenCalledWith({ id: 'a1', status: 'confirmed' }, expect.anything());
   });
 
+  it('the waiting card lists every loaded part even when one part is past the first', () => {
+    pendingBookings = [
+      adminBooking({ id: 'a1', visitId: 'v1', startIso: '2030-01-10T09:00:00Z' }),
+      adminBooking({ id: 'a2', visitId: 'v1', startIso: '2030-01-10T10:00:00Z', serviceName: { fr: 'Manucure', ar: 'مانيكير' }, price: 1500 }),
+    ];
+    renderSchedule();
+    fireEvent.click(screen.getByRole('button', { name: '1 en attente' }));
+    expect(within(screen.getByRole('listitem')).getByText(/Manucure/)).toBeInTheDocument();
+    expect(screen.getByRole('listitem')).toHaveTextContent('4 000 DA');
+  });
+
+  it('a visit whose first part has started is not waiting', () => {
+    pendingBookings = [
+      adminBooking({ id: 'a1', visitId: 'v1', startIso: '2030-01-08T06:00:00Z' }),
+      adminBooking({ id: 'a2', visitId: 'v1', startIso: '2030-01-10T10:00:00Z' }),
+    ];
+    renderSchedule();
+    expect(screen.queryByRole('button', { name: /en attente/ })).toBeNull();
+  });
+
   it('the waiting list comes back, with its answered rows, after closing a booking opened from it', () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
     pendingBookings = [
