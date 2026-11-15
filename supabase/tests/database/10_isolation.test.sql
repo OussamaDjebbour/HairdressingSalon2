@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(70);
+select plan(77);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -26,6 +26,11 @@ select throws_ok($$ select * from public.get_slots('elegance', pg_temp.open_day(
 select throws_ok($$ select * from public.create_booking('elegance', 'rival-cut', null, pg_temp.open_day(), '10:00', 'Amel', '0555123456', 'fr') $$, 'P0001', 'unknown_service', 'create_booking: other salon''s service');
 select throws_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'nadia', pg_temp.open_day(), '10:00', 'Amel', '0555123456', 'fr') $$, 'P0001', 'unknown_service', 'create_booking: other salon''s stylist');
 select is((select count(*)::int from private.bookings where client_name = 'Amel'), 0, 'nothing inserted');
+select throws_ok($$ select * from public.get_visit_slots('elegance', pg_temp.open_day(), '[{"service_id":"rival-cut","stylist_id":null}]') $$, 'P0001', 'unknown_service', 'get_visit_slots: other salon''s service');
+select throws_ok($$ select * from public.get_visit_slots('elegance', pg_temp.open_day(), '[{"service_id":"coupe-femme","stylist_id":"nadia"}]') $$, 'P0001', 'unknown_service', 'get_visit_slots: other salon''s stylist');
+select throws_ok($$ select * from public.create_visit('elegance', '[{"service_id":"coupe-femme","stylist_id":null},{"service_id":"rival-cut","stylist_id":null}]', pg_temp.open_day(), '10:00', 'Mixed', '0555123456', 'fr') $$, 'P0001', 'unknown_service', 'create_visit: other salon''s service in a visit');
+select is((select count(*)::int from private.bookings where client_name = 'Mixed'), 0, 'create_visit: nothing inserted');
+select throws_ok($$ select * from public.create_visit('elegance', '[{"service_id":"coupe-femme","stylist_id":"nadia"}]', pg_temp.open_day(), '10:00', 'Amel', '0555123456', 'fr') $$, 'P0001', 'unknown_service', 'create_visit: other salon''s stylist');
 
 -- 20 recent online bookings at rival (cancelled, so they stay out of the per-phone count) trip rival's circuit breaker, not elegance's
 insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status, source)
@@ -35,6 +40,8 @@ from generate_series(1, 20) i;
 select throws_ok($$ select * from public.create_booking('rival', 'rival-cut', 'nadia', pg_temp.open_day(2), '10:00', 'Zed', '0555888888', 'fr') $$, 'P0001', 'rate_limited', 'rival is rate limited by its own traffic');
 select lives_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(2), '10:00', 'Lina', '0555777777', 'fr') $$, 'rival''s traffic does not rate-limit elegance');
 select is((select salon_id from private.bookings where client_name = 'Lina'), 'elegance', 'booking stored in the right salon');
+select throws_ok($$ select * from public.create_visit('rival', '[{"service_id":"rival-cut","stylist_id":"nadia"}]', pg_temp.open_day(2), '10:00', 'Zed', '0555888888', 'fr') $$, 'P0001', 'rate_limited', 'rival visits are rate limited by its own traffic');
+select lives_ok($$ select * from public.create_visit('elegance', '[{"service_id":"manucure","stylist_id":null}]', pg_temp.open_day(2), '10:00', 'Vera', '0555777778', 'fr') $$, 'rival''s traffic does not rate-limit elegance visits');
 
 -- per-phone limit is per salon: 3 future bookings at rival don't block that phone at elegance
 delete from private.bookings where client_name = 'Flood';
