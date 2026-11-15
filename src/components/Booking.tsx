@@ -15,9 +15,10 @@ import {
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
+import { formatAlgiersTime } from '../data/algiersTime';
 import { countText, formatPrice, formatDuration, formatLongDate } from '../data/formatters';
 import {
-  MAX_VISIT_SERVICES, joinNames, missingAllDay, planVisit, salonHm, slotState, visitOrder, visitTotals,
+  MAX_VISIT_SERVICES, joinNames, missingAllDay, planVisit, slotState, visitOrder, visitTotals,
 } from '../data/visit';
 import { VisitStylists } from './booking/VisitStylists';
 import { VisitParts, type VisitPart } from './booking/VisitParts';
@@ -80,9 +81,10 @@ export function Booking() {
   const [booked, setBooked] = useState<{ parts: VisitPart[]; total: number; date: Date | null } | null>(null);
   const [submitError, setSubmitError] = useState<Exclude<BookingErrorCode, 'slot_taken'> | null>(null);
   const [slotNotice, setSlotNotice] = useState<'booking.slotTaken' | 'booking.slotPassed' | null>(null);
-  // A tapped time where some parts can't be placed, and a part that was just taken at confirm (index into visit).
-  const [partial, setPartial] = useState<{ time: string; missing: number[] } | null>(null);
-  const [race, setRace] = useState<number | null>(null);
+  // A tapped time where some parts can't be placed, and a part that was just taken at confirm (service ids, not
+  // indexes: a services refetch can reorder the visit while the notice is open).
+  const [partial, setPartial] = useState<{ time: string; missing: string[] } | null>(null);
+  const [race, setRace] = useState<string | null>(null);
   // A ticked service the salon no longer offers was removed.
   const [dropped, setDropped] = useState(false);
 
@@ -149,9 +151,9 @@ export function Booking() {
     clearTime();
   };
 
-  /** The client's choice to leave out these parts (indexes into visit). Keeps the chosen time. */
-  const removeParts = (indexes: number[]) => {
-    dropIds(indexes.flatMap((i) => (visit[i] ? [visit[i].id] : [])));
+  /** The client's choice to leave out these parts (service ids). Keeps the chosen time. */
+  const removeParts = (ids: string[]) => {
+    dropIds(ids);
     setPartial(null);
     setRace(null);
   };
@@ -208,7 +210,7 @@ export function Booking() {
             total: totals.price,
             parts: visit.flatMap((service) => {
               const part = created.find((p) => p.serviceId === service.id);
-              return part ? [{ service, time: salonHm(part.startsAt), stylistName: stylistLabel(part.stylistId, '') }] : [];
+              return part ? [{ service, time: formatAlgiersTime(part.startsAt), stylistName: stylistLabel(part.stylistId, '') }] : [];
             }),
           });
         },
@@ -217,7 +219,7 @@ export function Booking() {
           // One part of several was just taken: say which, and let the client choose (book the others or another time).
           const failed = code === 'slot_taken' && items.length > 1 ? failedItem(err) : null;
           if (failed !== null && failed < items.length) {
-            setRace(failed);
+            setRace(visit[failed].id);
             return;
           }
           // The chosen time is no longer bookable (taken, or it passed while
@@ -288,8 +290,8 @@ export function Booking() {
   };
 
   /** "Réserver les autres prestations": leave out these parts, keep the time (re-checked below), back to the times. */
-  const bookOthers = (time: string, indexes: number[]) => {
-    removeParts(indexes);
+  const bookOthers = (time: string, ids: string[]) => {
+    removeParts(ids);
     setSelectedTime(time);
     setSlotNotice(null);
     goTo(2);
@@ -413,7 +415,9 @@ export function Booking() {
     </p>
   );
 
-  const partNames = (indexes: number[]) => indexes.flatMap((i) => (visit[i] ? [visit[i].name[lang]] : []));
+  const idsAt = (indexes: number[]) => indexes.flatMap((i) => (visit[i] ? [visit[i].id] : []));
+  const namesOf = (ids: string[]) => ids.flatMap((id) => visit.filter((s) => s.id === id).map((s) => s.name[lang]));
+  const partNames = (indexes: number[]) => namesOf(idsAt(indexes));
   const dayMissing = missingAllDay(slots, items.length).filter((i) => visit[i]);
   const without = (indexes: number[]) => t('booking.visit.without').replace('{services}', joinNames(partNames(indexes)));
 
@@ -503,7 +507,7 @@ export function Booking() {
           {step === 0 && (
             <div className="animate-fadeIn">
               <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-1 focus:outline-none">{t('booking.selectService')}</h3>
-              <p className="text-sm text-rose-600 mb-5">{t('booking.selectServiceHint')}</p>
+              {services.length > 1 && <p className="text-sm text-rose-600 mb-5">{t('booking.selectServiceHint')}</p>}
               <div className="space-y-6">
                 {serviceGroups.map((group) => (
                   <div key={group.category}>
@@ -565,6 +569,8 @@ export function Booking() {
               {single ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <button
+                    type="button"
+                    aria-pressed={selectedStylist === null}
                     onClick={() => chooseStylist(single.id, null)}
                     className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
                       selectedStylist === null
@@ -583,6 +589,8 @@ export function Booking() {
                     return (
                       <button
                         key={stylist.id}
+                        type="button"
+                        aria-pressed={isSelected}
                         onClick={() => chooseStylist(single.id, stylist.id)}
                         className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
                           isSelected
@@ -668,7 +676,7 @@ export function Booking() {
                       const id = stylistFor[visit[i].id];
                       return { service: visit[i], stylistName: id ? stylistLabel(id, '') : null };
                     })}
-                    onRemove={(k) => { removeParts([dayMissing[k]]); goTo(2); }}
+                    onRemove={(k) => { removeParts(idsAt([dayMissing[k]])); goTo(2); }}
                     onChangeStylist={() => goTo(1)}
                   />
                   {slotsQuery.isLoading ? (
@@ -694,7 +702,7 @@ export function Booking() {
                               if (state === 'partial') {
                                 reveal.current = true;
                                 setSelectedTime(null);
-                                setPartial({ time: s.slot, missing: s.missing });
+                                setPartial({ time: s.slot, missing: idsAt(s.missing) });
                               } else if (s.slot !== selectedTime) {
                                 reveal.current = true;
                                 setSelectedTime(s.slot);
@@ -725,7 +733,7 @@ export function Booking() {
                     <div ref={(el) => { revealRef.current = el; }} className="mt-4">
                       <TimeMissing
                         kind="unavailable"
-                        names={partNames(partial.missing)}
+                        names={namesOf(partial.missing)}
                         time={partial.time}
                         onBookOthers={() => bookOthers(partial.time, partial.missing)}
                         onOtherTime={otherTime}
@@ -777,10 +785,10 @@ export function Booking() {
 
               {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
 
-              {race !== null && visit[race] && selectedTime && (
+              {race !== null && visit.some((s) => s.id === race) && selectedTime && (
                 <TimeMissing
                   kind="taken"
-                  names={partNames([race])}
+                  names={namesOf([race])}
                   time={selectedTime}
                   onBookOthers={() => bookOthers(selectedTime, [race])}
                   onOtherTime={otherTime}

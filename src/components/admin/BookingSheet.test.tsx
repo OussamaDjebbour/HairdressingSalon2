@@ -638,6 +638,24 @@ describe('BookingSheet — visit', () => {
     expect(text).toContain('à 10:00');
   });
 
+  it('cancelling a multi-part visit says it cancels every service', async () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);
+    fireEvent.click(screen.getByRole('button', { name: 'Refuser' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Annuler toute la visite ?' });
+    expect(dialog).toHaveTextContent('Les 2 prestations seront annulées : Coupe & Brushing + Coloration.');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Oui, annuler' }));
+    await waitFor(() => expect(setStatus).toHaveBeenCalledWith({ id: 'p1', status: 'cancelled' }, expect.anything()));
+  });
+
+  it('the visit message goes to the number of the part that was opened', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    const fixed = { ...second, clientPhone: '0770998877' };
+    renderSheet({ mode: 'edit', booking: fixed }, vi.fn(), visitOf(first, [first, fixed]));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')!.startsWith('https://wa.me/213770998877?text=')).toBe(true);
+  });
+
   it('a failed visit confirm shows why and keeps the sheet', () => {
     setStatus.mockImplementation((_input, opts) => opts.onError(new Error('slot_taken')));
     renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);

@@ -46,6 +46,7 @@ describe('visit helpers', () => {
     expect(missingAllDay([sl('09:00', false, [0, 1]), sl('10:00', false, [0, 1])], 2)).toEqual([]);
     expect(missingAllDay([sl('09:00', true, []), sl('10:00', false, [1])], 2)).toEqual([]);
     expect(missingAllDay([sl('09:00', false, [0]), sl('10:00', false, [0])], 1)).toEqual([]);
+    expect(missingAllDay([sl('09:00', false, [0]), sl('10:00', false, [1])], 2)).toEqual([]);
   });
 
   it('joinNames joins with +', () => expect(joinNames(['a', 'b', 'c'])).toBe('a + b + c'));

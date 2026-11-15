@@ -171,6 +171,15 @@ describe('PendingSheet', () => {
     expect(setStatus).not.toHaveBeenCalled();
   });
 
+  it('refusing a multi-part request names every service it cancels', async () => {
+    renderSheet(twoParts);
+    fireEvent.click(screen.getByRole('button', { name: 'Refuser' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Annuler toute la visite ?' });
+    expect(dialog).toHaveTextContent('Les 2 prestations seront annulées : Coupe & Brushing + Manucure.');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Garder le rendez-vous' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  });
+
   it('refusing, once accepted, shows the cancelled row with its message', async () => {
     setStatus.mockImplementation((_input, opts) => opts.onSuccess());
     renderSheet([nour]);

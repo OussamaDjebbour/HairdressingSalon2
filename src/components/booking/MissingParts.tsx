@@ -16,7 +16,7 @@ export function DayMissing({ parts, onRemove, onChangeStylist }: {
   const { lang, t } = useLang();
   if (parts.length === 0) return null;
   return (
-    <ul className={`${box} space-y-2`}>
+    <ul role="status" className={`${box} space-y-2`}>
       {parts.map(({ service, stylistName }, i) => (
         <li key={service.id}>
           <p>

@@ -278,6 +278,27 @@ describe('Booking step 0 grouping', () => {
   });
 });
 
+describe('Booking a single-service salon', () => {
+  it('hides the "choose several" hint only when one service is offered', () => {
+    serviceList = [service];
+    const { unmount } = render(<LanguageProvider><Booking /></LanguageProvider>);
+    expect(screen.queryByText(/Vous pouvez en choisir plusieurs/)).toBeNull();
+    unmount();
+    serviceList = threeServices;
+    render(<LanguageProvider><Booking /></LanguageProvider>);
+    expect(screen.getByText(/Vous pouvez en choisir plusieurs/)).toBeInTheDocument();
+  });
+
+  it('stylist buttons of a single service expose aria-pressed', () => {
+    serviceList = [service];
+    render(<LanguageProvider><Booking /></LanguageProvider>);
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    expect(screen.getByRole('button', { name: 'Sans préférence' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Amina/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
 describe('Booking intent from a service tile', () => {
   it('selects the requested service and opens the stylist step', () => {
     serviceList = threeServices;
@@ -886,6 +907,25 @@ describe('Booking unavailable parts', () => {
     expect(slotCalls.at(-1)).toHaveLength(2);
     expect(selectedChips()).toHaveLength(0);
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+  });
+
+  it('a services reorder while the notice is open does not change which service it names or removes', () => {
+    visitSlots[2] = [slot('10:00', false, [1])];
+    visitSlots[1] = [slot('10:00', true, [])];
+    const { rerender } = toTimes();
+    fireEvent.click(partialChip());
+    expect(screen.getByRole('alert')).toHaveTextContent('Manucure & Vernis n’est pas disponible à 10:00');
+    serviceList = [{ ...manucure, sortOrder: -1 }, service, coloration];
+    rerender(wizard());
+    expect(screen.getByRole('alert')).toHaveTextContent('Manucure & Vernis n’est pas disponible à 10:00');
+    fireEvent.click(screen.getByRole('button', { name: 'Réserver les autres prestations' }));
+    expect(recapText()).toMatch(/^Coupe & Brushing · /);
+  });
+
+  it('the day-level message is announced politely', () => {
+    visitSlots[2] = [slot('09:00', false, [0, 1]), slot('10:00', false, [1])];
+    toTimes();
+    expect(screen.getByText('Manucure & Vernis n’est pas disponible ce jour-là').closest('ul')).toHaveAttribute('role', 'status');
   });
 
   it('in Arabic the notices are Arabic and use logical alignment', () => {

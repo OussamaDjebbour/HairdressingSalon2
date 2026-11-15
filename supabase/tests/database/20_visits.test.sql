@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(66);
+select plan(69);
 
 -- Items shorthand in the descriptions: C = coupe-femme with Amina (60 min, 2500), K = coloration with Amina
 -- (120 min, 6000), M = manucure, no preference (45 min, Sara only). Élégance opens Tue–Sat 09:00–18:00.
@@ -196,10 +196,12 @@ select throws_ok($$ select * from public.create_visit('elegance', '[{"service_id
   'P0001', 'too_many_bookings', 'create_visit: a fourth upcoming visit for a phone');
 
 delete from private.bookings;
-select pg_temp.visits(2, pg_temp.open_day(4), '0770000010');
+select pg_temp.visits(1, pg_temp.open_day(4), '0770000010');
 select lives_ok($$ select * from public.create_visit('elegance',
   '[{"service_id":"coupe-femme","stylist_id":null},{"service_id":"coloration","stylist_id":null},{"service_id":"soin-keratine","stylist_id":null},{"service_id":"manucure","stylist_id":null}]',
   pg_temp.open_day(3), '09:00', 'Quatre', '0770000010', 'fr') $$, 'a 4-part visit counts once');
+select lives_ok($$ select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(2), '14:00', 'Apres', '0770000010', 'fr') $$,
+  'after one visit and a 4-part visit (6 rows), a third booking for the phone still goes through');
 
 delete from private.bookings;
 select set_config('request.headers', '{"cf-connecting-ip": "203.0.113.77"}', true);
@@ -253,6 +255,13 @@ delete from q0;
 insert into q0 select pg_temp.queued();
 select * from public.create_booking('elegance', 'coupe-femme', 'amina', pg_temp.open_day(5), '16:00', 'Single', '0551000006', 'fr');
 select is(pg_temp.queued() - (select n from q0), 1, 'single booking push unchanged');
+
+delete from q0;
+insert into q0 select pg_temp.queued();
+select is(pg_temp.error_of($$ select * from public.create_visit('elegance',
+    '[{"service_id":"coupe-femme","stylist_id":"amina"},{"service_id":"manucure","stylist_id":null}]',
+    pg_temp.open_day(5), '14:00', 'Failed', '0551000008', 'fr') $$), 'slot_taken item:0', 'a visit that fails (slot taken)');
+select is(pg_temp.queued() - (select n from q0), 0, 'a failed create_visit queues no push');
 
 delete from q0;
 insert into q0 select pg_temp.queued();
