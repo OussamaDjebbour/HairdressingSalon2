@@ -5,6 +5,7 @@ import { algiersToday } from './admin';
 import { toYmd } from './bookings';
 import { minutesToTime } from './week';
 import { currentSalonId } from './salon';
+import type { Category } from './categories';
 import { PHOTO_BUCKET } from './photoUrl';
 import type {
   AffectedBooking,
@@ -172,7 +173,7 @@ export interface SaveServiceInput {
   id: string | null;
   name: Record<Lang, string>;
   description: Record<Lang, string> | null;
-  category: 'coiffure' | 'beaute';
+  category: Category;
   price: number;
   duration: number;
   sortOrder: number | null;

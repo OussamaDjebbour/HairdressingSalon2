@@ -13,7 +13,7 @@ export type Weekday = (typeof WEEKDAYS)[number];
 
 export interface ServiceConfig {
   id: string;
-  category: 'coiffure' | 'beaute';
+  category: 'coiffure' | 'beaute' | 'spa';
   name: Bilingual;
   description?: Bilingual;
   price: number;
@@ -253,7 +253,7 @@ export function parseSalonConfig(json: unknown): SalonConfig {
       serviceIds.add(sid);
     }
     const category = s.category;
-    if (category !== 'coiffure' && category !== 'beaute') err(`${f}.category`, `must be "coiffure" or "beaute", got ${show(category)}`);
+    if (category !== 'coiffure' && category !== 'beaute' && category !== 'spa') err(`${f}.category`, `must be "coiffure", "beaute" or "spa", got ${show(category)}`);
     const sname = bilingual(s, 'name', `${f}.name`, { required: true, min: 2, max: 80 });
     const description = bilingual(s, 'description', `${f}.description`, { max: 500 });
     const price = integer(s, 'price', `${f}.price`, 0, 1_000_000);

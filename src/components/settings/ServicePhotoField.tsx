@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { ImagePlus, Scissors, Sparkles } from 'lucide-react';
+import { ImagePlus } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import type { PhotoChange } from '../../data/salonSettings';
 import { PhotoError, preparePhoto } from '../../lib/photo';
 import { SmartImage } from '../SmartImage';
+import type { Category } from '../../data/categories';
+import { categoryIcon } from '../serviceIcons';
 
 interface Props {
   id: string;
   currentUrl: string;
-  category: 'coiffure' | 'beaute';
+  category: Category;
   value: PhotoChange;
   onChange(v: PhotoChange): void;
   onBusyChange(busy: boolean): void;
@@ -36,7 +38,7 @@ export function ServicePhotoField({ id, currentUrl, category, value, onChange, o
   }, [blob]);
 
   const shown = blob ? preview : value.kind === 'remove' ? null : currentUrl || null;
-  const Icon = category === 'beaute' ? Sparkles : Scissors;
+  const Icon = categoryIcon(category);
 
   const open = () => {
     if (demo) { setDemoNote(true); return; }

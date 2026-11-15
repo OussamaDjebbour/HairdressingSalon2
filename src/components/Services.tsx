@@ -1,4 +1,4 @@
-import { Scissors, Palette, Sparkles, Hand, Brush, Heart, Clock, ArrowRight } from 'lucide-react';
+import { Clock, ArrowRight } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import type { Service } from '../data/types';
 import { useServices } from '../data/queries';
@@ -6,19 +6,12 @@ import { formatPrice, formatDuration } from '../data/formatters';
 import { SmartImage } from './SmartImage';
 import { ServiceCardSkeleton } from './ServiceCardSkeleton';
 import { DataError } from './DataError';
-
-const iconMap: Record<string, typeof Scissors> = {
-  scissors: Scissors,
-  palette: Palette,
-  sparkles: Sparkles,
-  hand: Hand,
-  brush: Brush,
-  heart: Heart,
-};
+import { groupByCategory } from '../data/categories';
+import { serviceIcon } from './serviceIcons';
 
 function ServiceCard({ service }: { service: Service }) {
   const { lang, t } = useLang();
-  const Icon = iconMap[service.icon] ?? Scissors;
+  const Icon = serviceIcon(service.icon);
 
   return (
     <article className="group flex flex-col bg-white rounded-2xl border border-cream-200 overflow-hidden transition-all duration-300 ease-silk hover:shadow-lift hover:-translate-y-0.5 hover:border-gold-200">
@@ -105,10 +98,22 @@ export function Services() {
         ) : isError ? (
           <DataError onRetry={() => refetch()} />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {(services ?? []).map((service: Service) => (
-              <ServiceCard key={service.id} service={service} />
-            ))}
+          <div className="space-y-12">
+            {(() => {
+              const groups = groupByCategory(services ?? []);
+              return groups.map((group) => (
+                <div key={group.category} className="space-y-6">
+                  {groups.length > 1 && (
+                    <h3 className="font-display text-xl font-semibold text-rose-800">{t(`category.${group.category}`)}</h3>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {group.items.map((service: Service) => (
+                      <ServiceCard key={service.id} service={service} />
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
       </div>

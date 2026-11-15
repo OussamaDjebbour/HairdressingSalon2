@@ -64,7 +64,7 @@ See `example.json`. Texts shown on the site are `{"fr": "…", "ar": "…"}`; a 
 | `founder` | no | `{"name": {fr, ar?}, "role": {fr, ar?}}` — signs the quote. |
 | `claims` | no | `{yearsOpen, clientCount, rating, reviewCount}`; each one left out is hidden. `rating` 1–5, one decimal. |
 | `hours` | yes | `monday` … `sunday`, each `"09:00-18:00"` (15-minute steps) or `"closed"`. |
-| `services[]` | yes | `{id, category: "coiffure" \| "beaute", name, description?, price (DA), duration (minutes, multiple of 15), photo?}`. |
+| `services[]` | yes | `{id, category: "coiffure" \| "beaute" \| "spa", name, description?, price (DA), duration (minutes, multiple of 15), photo?}`. |
 | `stylists[]` | yes | `{id, name, role?, services: [service ids], workdays?: ["tuesday", …], photo?}`. No `workdays`: the salon's open days. |
 | `owner` | yes | `{"email": "…"}` — the owner's `/admin` login. |
 | `heroPhoto` | no | The big photo at the top of the site. |
