@@ -16,7 +16,7 @@ export type BilingualText = { fr: string; ar: string };
 
 export interface ServicePayload {
   id: string;
-  category: 'coiffure' | 'beaute';
+  category: 'coiffure' | 'beaute' | 'spa';
   name: BilingualText;
   description?: BilingualText;
   price: number;

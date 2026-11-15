@@ -5,7 +5,6 @@ import { TextField } from './form/TextField';
 import { FormSummary } from './form/FormSummary';
 import { clientDetailsSchema, type ClientDetails } from '../data/schemas';
 import {
-  Scissors, Palette, Sparkles, Hand, Brush, Heart,
   Clock, Check, ChevronLeft, ChevronRight, Calendar, User,
   MessageCircle, Sparkle, AlertCircle,
 } from 'lucide-react';
@@ -20,11 +19,8 @@ import { dayHours } from '../data/hours';
 import { useClosedDates, useSalonHours, useSalonInfo } from '../data/salonSettings';
 import { toWaNumber, waLink } from '../data/whatsapp';
 import { SmartImage } from './SmartImage';
-
-const iconMap: Record<string, typeof Scissors> = {
-  scissors: Scissors, palette: Palette, sparkles: Sparkles,
-  hand: Hand, brush: Brush, heart: Heart,
-};
+import { groupByCategory } from '../data/categories';
+import { serviceIcon } from './serviceIcons';
 
 /** Up to two initials, e.g. "Lina Benali" → "LB" (Array.from keeps accented and Arabic letters whole). */
 const initials = (name: string) =>
@@ -43,6 +39,8 @@ export function Booking() {
   const whatsapp = useSalonInfo().data?.whatsapp;
   const waNumber = whatsapp ? toWaNumber(whatsapp) : null;
   const services = servicesQuery.data ?? [];
+  // Grouped under category headings when the salon offers more than one category (e.g. Coiffure and Spa).
+  const serviceGroups = groupByCategory(services);
   const stylists = stylistsQuery.data ?? [];
   const queries = [servicesQuery, stylistsQuery, hoursQuery, closedQuery];
   const dataLoading = queries.some((q) => q.isLoading);
@@ -298,9 +296,15 @@ export function Booking() {
           {step === 0 && (
             <div className="animate-fadeIn">
               <h3 className="font-display text-xl font-semibold text-rose-800 mb-5">{t('booking.selectService')}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {services.map((service) => {
-                  const Icon = iconMap[service.icon] ?? Scissors;
+              <div className="space-y-6">
+                {serviceGroups.map((group) => (
+                  <div key={group.category}>
+                    {serviceGroups.length > 1 && (
+                      <h4 className="text-sm font-semibold text-rose-700 uppercase tracking-wide mb-3">{t(`category.${group.category}`)}</h4>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {group.items.map((service) => {
+                  const Icon = serviceIcon(service.icon);
                   const isSelected = selectedService?.id === service.id;
                   return (
                     <button
@@ -317,7 +321,7 @@ export function Booking() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <h4 className="font-medium text-rose-800 text-sm">{service.name[lang]}</h4>
+                          <h5 className="font-medium text-rose-800 text-sm">{service.name[lang]}</h5>
                           {isSelected && <Check className="w-4 h-4 text-gold-600 flex-shrink-0" strokeWidth={2.5} />}
                         </div>
                         <p className="text-xs text-rose-600 mt-0.5 line-clamp-2">{service.description[lang]}</p>
@@ -332,6 +336,9 @@ export function Booking() {
                     </button>
                   );
                 })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

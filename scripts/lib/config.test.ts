@@ -27,6 +27,15 @@ describe('parseSalonConfig', () => {
     expect(config.owner.email).toBe('owner@salon-exemple.example');
   });
 
+  it('accepts the spa category and names all three in the error', () => {
+    const ok = example();
+    ok.services[0].category = 'spa';
+    expect(parseSalonConfig(ok).services[0].category).toBe('spa');
+    const bad = example();
+    bad.services[0].category = 'massage';
+    expect(errorOf(bad)).toContain('"coiffure", "beaute" or "spa"');
+  });
+
   it('rejects a bad colour, naming the field', () => {
     const json = { ...example(), color: 'rose' };
     expect(errorOf(json)).toMatch(/color: .*"rose".*#RRGGBB/);

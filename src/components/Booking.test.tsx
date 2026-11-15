@@ -6,8 +6,9 @@ const service = {
   name: { fr: 'Coupe & Brushing', ar: 'قص' }, description: { fr: 'd', ar: 'd' }, active: true,
 };
 
+let serviceList = [service];
 vi.mock('../data/queries', () => ({
-  useServices: () => ({ data: [service], isLoading: false, isError: false, refetch: vi.fn() }),
+  useServices: () => ({ data: serviceList, isLoading: false, isError: false, refetch: vi.fn() }),
   useStylists: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
 }));
 
@@ -69,6 +70,7 @@ beforeEach(() => {
   hours = eleganceHours;
   closed = [];
   hoursState = {};
+  serviceList = [service];
 });
 
 /** The next date (within the 14-day strip, after today) on the given ISO weekday. */
@@ -208,5 +210,29 @@ describe('Booking client details validation', () => {
     fireEvent.click(screen.getByRole('button', { name: translations.ar['booking.confirm'] }));
     expect(await screen.findByText(translations.ar['form.error.phone'])).toBeInTheDocument();
     expect(screen.getByLabelText(translations.ar['booking.clientPhone'])).toHaveAttribute('dir', 'ltr');
+  });
+});
+
+describe('Booking step 0 grouping', () => {
+  const mk = (id: string, category: string, fr: string) => ({ ...service, id, category, name: { fr, ar: fr } });
+
+  it('groups services under category headings when several categories are present', () => {
+    serviceList = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles')];
+    render(<LanguageProvider><Booking /></LanguageProvider>);
+    const headings = screen.getAllByRole('heading', { level: 4 }).filter((h) => ['Coiffure', 'Beauté', 'Spa'].includes(h.textContent ?? ''));
+    expect(headings.map((h) => h.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa']);
+    const group = (i: number) => within(headings[i].parentElement!);
+    expect(group(0).getByText('Coupe')).toBeInTheDocument();
+    expect(group(0).queryByText('Hammam')).toBeNull();
+    expect(group(1).getByText('Ongles')).toBeInTheDocument();
+    expect(group(2).getByText('Hammam')).toBeInTheDocument();
+    // Service names sit one level under their group heading.
+    expect(group(2).getByRole('heading', { level: 5, name: 'Hammam' })).toBeInTheDocument();
+  });
+
+  it('shows no heading with a single category', () => {
+    serviceList = [mk('s1', 'coiffure', 'Coupe')];
+    render(<LanguageProvider><Booking /></LanguageProvider>);
+    expect(screen.queryByRole('heading', { name: 'Coiffure' })).toBeNull();
   });
 });

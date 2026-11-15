@@ -100,6 +100,23 @@ describe('ServicesSettings', () => {
     expect(rpc).not.toHaveBeenCalledWith('admin_save_service', expect.anything());
   });
 
+  it('saves a service moved to the Spa category', async () => {
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    pickOption('Catégorie', 'Spa');
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.objectContaining({ p_id: 'a1', p_category: 'spa' }))
+    );
+  });
+
+  it('shows Spa selected when editing a spa service', () => {
+    services = [{ ...svc('sp', 'Hammam', true, 1), category: 'spa' }];
+    renderIt();
+    fireEvent.click(screen.getByText('Hammam'));
+    expect(screen.getByRole('combobox', { name: 'Catégorie' })).toHaveTextContent('Spa');
+  });
+
   it('shows an off-list duration with its unit', () => {
     services = [{ ...svc('a1', 'Brushing', true, 2), duration: 50 }];
     renderIt();
