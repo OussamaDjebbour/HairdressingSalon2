@@ -310,4 +310,18 @@ describe('Booking intent from a service tile', () => {
     fireEvent.click(screen.getByText('choose-coupe-femme'));
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
   });
+
+  it('shows a recap of the chosen service on the stylist step and Changer goes back to the service step', () => {
+    render(ui());
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    const changer = screen.getByRole('button', { name: 'Changer' });
+    const recap = changer.parentElement!;
+    expect(recap.textContent).toContain('Coupe & Brushing');
+    expect(recap.textContent).toMatch(/2\s?500/);
+    expect(recap.textContent).toMatch(/1\s?h|60/);
+    fireEvent.click(changer);
+    expect(screen.getByText('Choisissez votre prestation')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Changer' })).toBeNull();
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
+  });
 });

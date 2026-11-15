@@ -206,6 +206,21 @@ export function Booking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resetBooking is recreated each render; applied once per seq
   }, [request, services]);
 
+  const recap = selectedService && (
+    <div className="flex items-center justify-between gap-2 rounded-xl bg-cream-100 ps-3 pe-1 text-sm text-rose-700 mb-5">
+      <p className="min-w-0 py-2">
+        <span className="font-medium text-rose-900">{selectedService.name[lang]}</span>
+        {' · '}
+        {formatPrice(selectedService.price, lang)}
+        {' · '}
+        {formatDuration(selectedService.duration, lang)}
+      </p>
+      <button type="button" onClick={() => setStep(0)} className="tap flex-shrink-0 px-3 font-medium text-rose-800 underline underline-offset-2 hover:text-rose-900">
+        {t('booking.recap.change')}
+      </button>
+    </div>
+  );
+
   if (submitted) {
     return (
       <section id="booking" className="relative py-20 lg:py-28 bg-cream-100/50">
@@ -362,7 +377,8 @@ export function Booking() {
           {/* Step 1 — Stylist */}
           {step === 1 && (
             <div className="animate-fadeIn">
-              <h3 className="font-display text-xl font-semibold text-rose-800 mb-5">{t('booking.selectStylist')}</h3>
+              <h3 className="font-display text-xl font-semibold text-rose-800 mb-3">{t('booking.selectStylist')}</h3>
+              {recap}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <button
                   onClick={() => selectStylist(null)}
@@ -429,7 +445,8 @@ export function Booking() {
           {step === 2 && (
             <div className="animate-fadeIn space-y-6">
               <div>
-                <h3 className="font-display text-xl font-semibold text-rose-800 mb-4">{t('booking.selectDate')}</h3>
+                <h3 className="font-display text-xl font-semibold text-rose-800 mb-3">{t('booking.selectDate')}</h3>
+                {recap}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1">
                   {upcomingDays.map((day, i) => {
                     const isSelected = selectedDate?.toDateString() === day.toDateString();
