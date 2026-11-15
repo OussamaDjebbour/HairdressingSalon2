@@ -149,6 +149,19 @@ describe('preparePhoto', () => {
     expect(revoked).toEqual(['blob:photo']);
   });
 
+  it('keeps the object URL alive until the photo is drawn, then frees it', async () => {
+    vi.stubGlobal('createImageBitmap', undefined);
+    stubImage({ width: 800, height: 600 });
+    const order: string[] = [];
+    URL.createObjectURL = vi.fn(() => 'blob:photo');
+    URL.revokeObjectURL = vi.fn(() => void order.push('revoke'));
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({ fillRect() {}, drawImage: () => order.push('draw') })) as never;
+    HTMLCanvasElement.prototype.toBlob = ((cb: BlobCallback) => cb(new Blob(['j']))) as never;
+
+    await preparePhoto(new File(['x'], 'a.jpg', { type: 'image/jpeg' }));
+    expect(order).toEqual(['draw', 'revoke']);
+  });
+
   it('falls back to an <img> when createImageBitmap does not exist (iOS 14 and older)', async () => {
     vi.stubGlobal('createImageBitmap', undefined);
     stubImage({ width: 800, height: 600 });
