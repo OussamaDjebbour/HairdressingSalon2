@@ -22,6 +22,8 @@ describe('preparePhoto', () => {
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete (URL as { createObjectURL?: unknown }).createObjectURL;
+    delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL;
     HTMLCanvasElement.prototype.getContext = origGetContext;
     HTMLCanvasElement.prototype.toBlob = origToBlob;
   });
@@ -49,6 +51,8 @@ describe('preparePhoto', () => {
 
   it('reports an undecodable image', async () => {
     vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('bad')));
+    stubImage('fail');
+    stubObjectUrls();
     const f = new File(['x'], 'a.jpg', { type: 'image/jpeg' });
     expect(await codeOf(preparePhoto(f))).toBe('photo_unreadable');
   });
@@ -87,6 +91,93 @@ describe('preparePhoto', () => {
     expect(toBlob.mock.calls[0][1]).toBe('image/jpeg');
     expect(toBlob.mock.calls[0][2]).toBe(0.82);
     expect(bitmap.close).toHaveBeenCalled();
+  });
+
+  /** A canvas that records its size and what was drawn on it. */
+  function stubCanvas() {
+    const drawn: unknown[] = [];
+    let canvas: HTMLCanvasElement | undefined;
+    HTMLCanvasElement.prototype.getContext = vi.fn(function (this: HTMLCanvasElement) {
+      canvas = this;
+      return { fillRect() {}, drawImage: (src: unknown) => drawn.push(src) };
+    }) as never;
+    const out = new Blob(['j'], { type: 'image/jpeg' });
+    HTMLCanvasElement.prototype.toBlob = ((cb: BlobCallback) => cb(out)) as never;
+    return { out, drawn, size: () => ({ width: canvas!.width, height: canvas!.height }) };
+  }
+
+  /** An <img> whose decode() succeeds (with the given size) or fails. */
+  function stubImage(result: { width: number; height: number } | 'fail') {
+    const images: { src: string }[] = [];
+    vi.stubGlobal(
+      'Image',
+      class {
+        src = '';
+        naturalWidth = result === 'fail' ? 0 : result.width;
+        naturalHeight = result === 'fail' ? 0 : result.height;
+        constructor() {
+          images.push(this);
+        }
+        decode() {
+          return result === 'fail' ? Promise.reject(new Error('bad')) : Promise.resolve();
+        }
+      },
+    );
+    return images;
+  }
+
+  /** jsdom has no object URLs: install stand-ins (removed in afterEach). */
+  function stubObjectUrls() {
+    const revoked: string[] = [];
+    URL.createObjectURL = vi.fn(() => 'blob:photo');
+    URL.revokeObjectURL = vi.fn((u: string) => void revoked.push(u));
+    return revoked;
+  }
+
+  it('falls back to an <img> when createImageBitmap refuses the orientation option (iOS 15 and older)', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new TypeError('unsupported option')));
+    const images = stubImage({ width: 3024, height: 4032 });
+    const revoked = stubObjectUrls();
+    const c = stubCanvas();
+
+    const res = await preparePhoto(new File(['x'], 'a.jpg', { type: 'image/jpeg' }));
+
+    expect(res).toBe(c.out);
+    expect(images[0].src).toBe('blob:photo');
+    expect(c.drawn[0]).toBe(images[0]);
+    expect(c.size()).toEqual({ width: 1200, height: 1600 });
+    expect(revoked).toEqual(['blob:photo']);
+  });
+
+  it('falls back to an <img> when createImageBitmap does not exist (iOS 14 and older)', async () => {
+    vi.stubGlobal('createImageBitmap', undefined);
+    stubImage({ width: 800, height: 600 });
+    stubObjectUrls();
+    const c = stubCanvas();
+
+    expect(await preparePhoto(new File(['x'], 'a.jpg', { type: 'image/jpeg' }))).toBe(c.out);
+    expect(c.size()).toEqual({ width: 800, height: 600 });
+  });
+
+  it('reports unreadable when neither way can decode it, and frees the object URL', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('bad')));
+    stubImage('fail');
+    const revoked = stubObjectUrls();
+    expect(await codeOf(preparePhoto(new File(['x'], 'a.jpg', { type: 'image/jpeg' })))).toBe('photo_unreadable');
+    expect(revoked).toEqual(['blob:photo']);
+  });
+
+  it('accepts a photo whose file type is empty (some Android pickers) and lets decoding decide', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 10, height: 10, close() {} }));
+    const c = stubCanvas();
+    expect(await preparePhoto(new File(['x'], 'IMG_0001', { type: '' }))).toBe(c.out);
+  });
+
+  it('reports a typeless file that is not an image as unreadable', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('bad')));
+    stubImage('fail');
+    stubObjectUrls();
+    expect(await codeOf(preparePhoto(new File(['x'], 'notes', { type: '' })))).toBe('photo_unreadable');
   });
 
   it('reports a null blob as unreadable', async () => {
