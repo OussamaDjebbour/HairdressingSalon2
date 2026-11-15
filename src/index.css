@@ -305,6 +305,11 @@
 }
 
 @layer utilities {
+  /* Text laid over a photo (service tiles): a soft shadow in the salon's darkest colour keeps it legible
+     where the fade is light. */
+  .text-on-photo {
+    text-shadow: 0 1px 2px rgb(var(--brand-900) / 0.7), 0 0 14px rgb(var(--brand-900) / 0.45);
+  }
   .text-balance {
     text-wrap: balance;
   }

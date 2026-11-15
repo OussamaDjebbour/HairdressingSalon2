@@ -33,9 +33,10 @@ function ServiceTile({ service }: { service: Service }) {
           aria-hidden="true"
         />
       )}
-      <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-rose-900/90 from-30% via-rose-900/80 via-60% to-transparent" />
+      {/* Dark only behind the text: the top of the photo stays clear; the text shadow keeps it readable on bright photos. */}
+      <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-rose-900/85 via-rose-900/50 via-35% to-transparent to-75%" />
 
-      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 sm:p-5 text-cream-50">
+      <div className="text-on-photo absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 sm:p-5 text-cream-50">
         <div className="min-w-0">
           <h3 className="font-display text-xl font-semibold leading-snug">{service.name[lang]}</h3>
           <p className="line-clamp-1 text-sm text-cream-50/90">{service.description[lang]}</p>
