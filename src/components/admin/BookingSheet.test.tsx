@@ -35,6 +35,7 @@ const create = vi.fn();
 const update = vi.fn();
 const setStatus = vi.fn();
 let pending = false;
+let visitParts: import('../../data/admin').AdminBooking[] | undefined;
 let role: 'owner' | 'demo' | null = 'owner';
 vi.mock('../../data/admin', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../data/admin')>()),
@@ -42,19 +43,21 @@ vi.mock('../../data/admin', async (importOriginal) => ({
   useUpdateStaffBooking: () => ({ mutate: update, isPending: pending }),
   useSetBookingStatus: () => ({ mutate: setStatus, isPending: pending }),
   useMyRole: () => role,
+  useVisitParts: () => ({ data: visitParts }),
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
 import { FeedbackProvider } from './feedback';
 import { BookingSheet, type SheetState } from './BookingSheet';
+import { visitOf, type AdminVisit } from '../../data/admin';
 
 const tuesday = new Date(2030, 0, 8);
 const addState: SheetState = { mode: 'add', stylistId: 'sara', date: tuesday, time: '10:00' };
 
-function renderSheet(state: SheetState, onClose = vi.fn()) {
+function renderSheet(state: SheetState, onClose = vi.fn(), visit?: AdminVisit) {
   render(
     <LanguageProvider><FeedbackProvider>
-      <BookingSheet state={state} onClose={onClose} />
+      <BookingSheet state={state} onClose={onClose} visit={visit} />
     </FeedbackProvider></LanguageProvider>
   );
   return onClose;
@@ -94,6 +97,7 @@ function whatsappText(): string {
 beforeEach(() => {
   vi.clearAllMocks();
   pending = false;
+  visitParts = undefined;
   role = 'owner';
   servicesOverride = undefined;
   stylistsOverride = undefined;
@@ -600,5 +604,82 @@ describe('BookingSheet — motion', () => {
     expect(onClose).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(250));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('BookingSheet — visit', () => {
+  const first = adminBooking({ id: 'p1', visitId: 'v1', startIso: '2030-01-08T09:00:00Z' });
+  const second = adminBooking({
+    id: 'p2', visitId: 'v1', startIso: '2030-01-08T10:00:00Z', price: 6000, serviceId: 'coloration',
+    serviceName: { fr: 'Coloration', ar: 'صبغة' }, stylistId: 'sara', stylistName: 'Sara',
+  });
+  const visit = visitOf(first, [first, second]);
+
+  it('a part of a visit shows the whole visit', () => {
+    renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);
+    const list = screen.getByRole('list', { name: 'Toute la visite' });
+    const items = within(list).getAllByRole('listitem');
+    expect(items[0]).toHaveTextContent('10:00 Coupe & Brushing · Amina');
+    expect(items[1]).toHaveTextContent('11:00 Coloration · Sara');
+    expect(items[1]).toHaveAttribute('aria-current', 'true');
+    expect(items[0]).not.toHaveAttribute('aria-current');
+    expect(screen.getByText('Total')).toBeInTheDocument();
+    expect(screen.getByText('8 500 DA')).toBeInTheDocument();
+  });
+
+  it('confirming a visit confirms it once and the message names every service', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(setStatus).toHaveBeenCalledTimes(1);
+    expect(setStatus).toHaveBeenCalledWith({ id: 'p1', status: 'confirmed' }, expect.anything());
+    const text = whatsappText();
+    expect(text).toContain('Coupe & Brushing + Coloration');
+    expect(text).toContain('à 10:00');
+  });
+
+  it('cancelling a multi-part visit says it cancels every service', async () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);
+    fireEvent.click(screen.getByRole('button', { name: 'Refuser' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Annuler toute la visite ?' });
+    expect(dialog).toHaveTextContent('Les 2 prestations seront annulées : Coupe & Brushing + Coloration.');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Oui, annuler' }));
+    await waitFor(() => expect(setStatus).toHaveBeenCalledWith({ id: 'p1', status: 'cancelled' }, expect.anything()));
+  });
+
+  it('the visit message goes to the number of the part that was opened', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onSuccess());
+    const fixed = { ...second, clientPhone: '0770998877' };
+    renderSheet({ mode: 'edit', booking: fixed }, vi.fn(), visitOf(first, [first, fixed]));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')!.startsWith('https://wa.me/213770998877?text=')).toBe(true);
+  });
+
+  it('a failed visit confirm shows why and keeps the sheet', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onError(new Error('slot_taken')));
+    renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByText('Rendez-vous confirmé')).toBeNull();
+    expect(screen.getByRole('list', { name: 'Toute la visite' })).toBeInTheDocument();
+  });
+
+  it('shows a part from outside the loaded pool, from admin_visit_parts', () => {
+    const farAway = adminBooking({
+      id: 'p3', visitId: 'v1', startIso: '2030-01-08T11:00:00Z', price: 1500, serviceId: 'manucure',
+      serviceName: { fr: 'Manucure', ar: 'مانيكير' }, stylistId: 'leila', stylistName: 'Leila',
+    });
+    visitParts = [first, second, farAway];
+    renderSheet({ mode: 'edit', booking: first });
+    const items = within(screen.getByRole('list', { name: 'Toute la visite' })).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[2]).toHaveTextContent('12:00 Manucure · Leila');
+    expect(screen.getByText('10 000 DA')).toBeInTheDocument();
+  });
+
+  it('a visit of one looks as before', () => {
+    renderSheet({ mode: 'edit', booking: adminBooking() });
+    expect(screen.queryByRole('list', { name: 'Toute la visite' })).toBeNull();
   });
 });

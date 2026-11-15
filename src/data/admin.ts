@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import type { Lang } from '../context/LanguageContext';
 import { toYmd } from './bookings';
 import { useSession } from '../lib/auth';
+import { algiersToday, formatAlgiersTime } from './algiersTime';
+import { fetchDemoLogin } from './demoLogin';
 
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
 /** Where a booking came from: the public form, or added by the owner in /admin. */
@@ -24,6 +26,8 @@ export interface AdminBooking {
   source: BookingSource;
   /** When the booking was made (online: when the client asked). */
   createdAt: Date;
+  /** The visit this booking is a part of (a single-service booking is a visit of one). */
+  visitId: string;
 }
 
 interface AdminBookingRow {
@@ -41,31 +45,10 @@ interface AdminBookingRow {
   stylist_name: string;
   created_at: string;
   source: BookingSource;
+  visit_id: string;
 }
 
-const algiersTime = new Intl.DateTimeFormat('fr-FR', {
-  timeZone: 'Africa/Algiers',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-
-/** "HH:MM" in salon time, whatever the viewer's timezone. */
-export function formatAlgiersTime(d: Date): string {
-  return algiersTime.format(d);
-}
-
-/** Today's date in salon time (Africa/Algiers), as a local-midnight Date for the day picker. */
-export function algiersToday(): Date {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Algiers',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-  const [y, m, d] = parts.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
+export { algiersToday, formatAlgiersTime };
 
 export function isNotAuthorized(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { message?: unknown }).message === 'not_authorized';
@@ -114,13 +97,7 @@ export function useMyRole(): StaffRole | null {
   return useMe(session?.user.id).data?.role ?? null;
 }
 
-/** Credentials for a demo salon's public demo account, or null when the salon isn't a demo. */
-export async function fetchDemoLogin(salonId: string): Promise<{ email: string; password: string } | null> {
-  const { data, error } = await supabase.rpc('demo_login', { p_salon_id: salonId });
-  if (error) throw error;
-  const row = (data as { email: string; password: string }[] | null)?.[0];
-  return row ? { email: row.email, password: row.password } : null;
-}
+export { fetchDemoLogin };
 
 export async function resetDemo(): Promise<void> {
   const { error } = await supabase.rpc('admin_reset_demo');
@@ -140,25 +117,81 @@ export function useResetDemo() {
   });
 }
 
+const toBooking = (r: AdminBookingRow): AdminBooking => ({
+  id: r.id,
+  startsAt: new Date(r.starts_at),
+  endsAt: new Date(r.ends_at),
+  status: r.status,
+  price: r.price,
+  clientName: r.client_name,
+  clientPhone: r.client_phone,
+  lang: r.lang,
+  serviceId: r.service_id,
+  serviceName: r.service_name,
+  stylistId: r.stylist_id,
+  stylistName: r.stylist_name,
+  source: r.source,
+  createdAt: new Date(r.created_at),
+  visitId: r.visit_id,
+});
+
 export async function fetchAdminBookings(from: Date, to: Date): Promise<AdminBooking[]> {
   const { data, error } = await supabase.rpc('admin_list_bookings', { p_from: toYmd(from), p_to: toYmd(to) });
   if (error) throw error;
-  return ((data ?? []) as AdminBookingRow[]).map((r) => ({
-    id: r.id,
-    startsAt: new Date(r.starts_at),
-    endsAt: new Date(r.ends_at),
-    status: r.status,
-    price: r.price,
-    clientName: r.client_name,
-    clientPhone: r.client_phone,
-    lang: r.lang,
-    serviceId: r.service_id,
-    serviceName: r.service_name,
-    stylistId: r.stylist_id,
-    stylistName: r.stylist_name,
-    source: r.source,
-    createdAt: new Date(r.created_at),
-  }));
+  return ((data ?? []) as AdminBookingRow[]).map(toBooking);
+}
+
+/** Every part of the visit a booking belongs to, whatever week they fall in. */
+export function useVisitParts(bookingId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['admin', 'visit', bookingId],
+    enabled: enabled && bookingId !== null,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('admin_visit_parts', { p_booking_id: bookingId });
+      if (error) throw error;
+      return ((data ?? []) as AdminBookingRow[]).map(toBooking);
+    },
+  });
+}
+
+/** All the parts the client booked in one go: one start, several services. */
+export interface AdminVisit {
+  id: string;
+  /** Sorted by start time. */
+  parts: AdminBooking[];
+  first: AdminBooking;
+  price: number;
+  /** Each language's service names, joined with " + ". */
+  serviceName: Record<Lang, string>;
+}
+
+function makeVisit(id: string, list: AdminBooking[]): AdminVisit {
+  const parts = [...list].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  const names = (lang: Lang) => parts.map((p) => p.serviceName[lang]).join(' + ');
+  return {
+    id,
+    parts,
+    first: parts[0],
+    price: parts.reduce((sum, p) => sum + p.price, 0),
+    serviceName: { fr: names('fr'), ar: names('ar') },
+  };
+}
+
+/** One visit per `visitId`, earliest first. */
+export function groupVisits(bookings: AdminBooking[]): AdminVisit[] {
+  const byVisit = new Map<string, AdminBooking[]>();
+  for (const b of bookings) byVisit.set(b.visitId, [...(byVisit.get(b.visitId) ?? []), b]);
+  return [...byVisit.entries()]
+    .map(([id, list]) => makeVisit(id, list))
+    .sort((a, b) => a.first.startsAt.getTime() - b.first.startsAt.getTime());
+}
+
+/** The booking's visit as found in `pool` (de-duplicated by id); the booking itself is always part of it. */
+export function visitOf(booking: AdminBooking, pool: AdminBooking[]): AdminVisit {
+  const parts = new Map<string, AdminBooking>();
+  for (const b of pool) if (b.visitId === booking.visitId) parts.set(b.id, b);
+  parts.set(booking.id, booking);
+  return makeVisit(booking.visitId, [...parts.values()]);
 }
 
 export const ADMIN_REFRESH_MS = 60_000;

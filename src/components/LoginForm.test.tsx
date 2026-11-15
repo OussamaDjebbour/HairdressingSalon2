@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../lib/auth', () => ({ signIn: vi.fn() }));
-vi.mock('../data/admin', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../data/admin')>()),
+vi.mock('../data/demoLogin', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../data/demoLogin')>()),
   fetchDemoLogin: vi.fn(),
 }));
 
 import { signIn } from '../lib/auth';
-import { fetchDemoLogin } from '../data/admin';
+import { fetchDemoLogin } from '../data/demoLogin';
 import { setCurrentSalon } from '../data/salon';
 import { ELEGANCE } from '../test/salon';
 import { LanguageProvider } from '../context/LanguageContext';

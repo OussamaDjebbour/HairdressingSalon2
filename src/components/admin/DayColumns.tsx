@@ -1,6 +1,6 @@
-import { Globe, PenLine } from 'lucide-react';
+import { Globe, Link2, PenLine } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
-import { algiersToday, type AdminBooking } from '../../data/admin';
+import { algiersToday, visitOf, type AdminBooking } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
 import { stylistWorks } from '../../data/hours';
 import type { DayHours, Stylist, StylistDayOff } from '../../data/types';
@@ -23,6 +23,8 @@ interface DayColumnsProps {
   /** Stylists' days off, to grey out whoever isn't working that day. */
   daysOff: StylistDayOff[];
   bookings: AdminBooking[];
+  /** Where to find the other parts of a visit (they may be on another day); defaults to `bookings`. */
+  visitPool?: AdminBooking[];
   onSlotTap(stylistId: string, time: string): void;
   onBookingTap(b: AdminBooking): void;
 }
@@ -33,7 +35,7 @@ const minutesOf = (b: AdminBooking) => (b.endsAt.getTime() - b.startsAt.getTime(
  * One column per stylist; free time inside the day's hours is tappable to add a booking there.
  * The grid also stretches to bookings outside the hours (or on a closed day) so they can still be found.
  */
-export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap, onBookingTap }: DayColumnsProps) {
+export function DayColumns({ day, stylists, hours, daysOff, bookings, visitPool = bookings, onSlotTap, onBookingTap }: DayColumnsProps) {
   const { lang, t } = useLang();
   const ymd = toYmd(day);
   const visible = bookings.filter((b) => b.status !== 'cancelled' && toYmd(salonDate(b.startsAt)) === ymd);
@@ -138,6 +140,7 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
                     const SourceIcon = b.source === 'staff' ? PenLine : Globe;
                     const start = salonMinutes(b.startsAt);
                     const minutes = minutesOf(b);
+                    const siblings = visitOf(b, visitPool.filter((x) => x.status !== 'cancelled')).parts;
                     const outside = outsideHours(start, start + minutes);
                     return (
                       <button
@@ -152,7 +155,13 @@ export function DayColumns({ day, stylists, hours, daysOff, bookings, onSlotTap,
                         {/* Two lines only (three when outside the hours), so a 45-minute booking shows everything; the source is an icon. */}
                         <span className="flex items-center gap-1">
                           <span dir="auto" className="flex-1 min-w-0 text-start text-xs leading-tight font-semibold text-rose-800 truncate">{b.clientName}</span>
+                          {siblings.length > 1 && <Link2 className="w-2.5 h-2.5 flex-shrink-0 text-rose-500" strokeWidth={2} aria-hidden="true" />}
                           <SourceIcon className="w-2.5 h-2.5 flex-shrink-0 text-rose-500" strokeWidth={2} aria-hidden="true" />
+                          {siblings.length > 1 && (
+                            <span className="sr-only">
+                              {t('schedule.visitPart').replace('{i}', String(siblings.findIndex((x) => x.id === b.id) + 1)).replace('{n}', String(siblings.length))}
+                            </span>
+                          )}
                           <span className="sr-only">{t(b.source === 'staff' ? 'schedule.source.staff' : 'schedule.source.online')}</span>
                         </span>
                         {/* Outside the hours, the marker takes the second line: it matters more than the service. */}

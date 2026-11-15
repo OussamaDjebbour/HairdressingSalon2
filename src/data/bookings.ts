@@ -16,6 +16,7 @@ export type BookingErrorCode =
   | 'invalid_name'
   | 'outside_hours'
   | 'unknown_service'
+  | 'too_many_services'
   | 'unknown';
 
 const KNOWN_ERRORS: BookingErrorCode[] = [
@@ -26,6 +27,7 @@ const KNOWN_ERRORS: BookingErrorCode[] = [
   'invalid_name',
   'outside_hours',
   'unknown_service',
+  'too_many_services',
 ];
 
 export function toBookingError(err: unknown): BookingErrorCode {
@@ -56,29 +58,41 @@ export function isValidPhone(input: string): boolean {
   return /^0[5-7][0-9]{8}$/.test(normalizePhone(input));
 }
 
-export async function fetchSlots(date: Date, serviceId: string, stylistId: string | null): Promise<Slot[]> {
-  const { data, error } = await supabase.rpc('get_slots', {
-    p_salon_id: currentSalonId(),
-    p_date: toYmd(date),
-    p_service_id: serviceId,
-    p_stylist_id: stylistId,
-  });
-  if (error) throw error;
-  return (data ?? []) as Slot[];
+export interface VisitItem {
+  serviceId: string;
+  stylistId: string | null;
 }
 
-export function useSlots(date: Date | null, serviceId: string | null, stylistId: string | null) {
+export interface VisitSlot extends Slot {
+  /** 0-based indexes of the visit's parts that cannot be placed at this slot. */
+  missing: number[];
+}
+
+function toRpcItems(items: VisitItem[]) {
+  return items.map((i) => ({ service_id: i.serviceId, stylist_id: i.stylistId }));
+}
+
+export async function fetchVisitSlots(date: Date, items: VisitItem[]): Promise<VisitSlot[]> {
+  const { data, error } = await supabase.rpc('get_visit_slots', {
+    p_salon_id: currentSalonId(),
+    p_date: toYmd(date),
+    p_items: toRpcItems(items),
+  });
+  if (error) throw error;
+  return (data ?? []) as VisitSlot[];
+}
+
+export function useVisitSlots(date: Date | null, items: VisitItem[]) {
   return useQuery({
-    queryKey: ['slots', date ? toYmd(date) : null, serviceId, stylistId],
-    queryFn: () => fetchSlots(date as Date, serviceId as string, stylistId),
-    enabled: date !== null && serviceId !== null,
+    queryKey: ['slots', 'visit', date ? toYmd(date) : null, items],
+    queryFn: () => fetchVisitSlots(date as Date, items),
+    enabled: date !== null && items.length > 0,
     staleTime: 0,
   });
 }
 
-export interface CreateBookingInput {
-  serviceId: string;
-  stylistId: string | null;
+export interface CreateVisitInput {
+  items: VisitItem[];
   date: Date;
   time: string;
   clientName: string;
@@ -86,16 +100,17 @@ export interface CreateBookingInput {
   lang: Lang;
 }
 
-export interface CreatedBooking {
+export interface CreatedPart {
   bookingId: string;
+  serviceId: string;
   stylistId: string;
+  startsAt: Date;
 }
 
-export async function createBooking(input: CreateBookingInput): Promise<CreatedBooking> {
-  const { data, error } = await supabase.rpc('create_booking', {
+export async function createVisit(input: CreateVisitInput): Promise<CreatedPart[]> {
+  const { data, error } = await supabase.rpc('create_visit', {
     p_salon_id: currentSalonId(),
-    p_service_id: input.serviceId,
-    p_stylist_id: input.stylistId,
+    p_items: toRpcItems(input.items),
     p_date: toYmd(input.date),
     p_time: input.time,
     p_client_name: input.clientName,
@@ -103,14 +118,27 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
     p_lang: input.lang,
   });
   if (error) throw error;
-  const row = (data as { booking_id: string; stylist_id: string }[])[0];
-  return { bookingId: row.booking_id, stylistId: row.stylist_id };
+  return ((data ?? []) as { booking_id: string; service_id: string; stylist_id: string; starts_at: string }[]).map(
+    (r) => ({
+      bookingId: r.booking_id,
+      serviceId: r.service_id,
+      stylistId: r.stylist_id,
+      startsAt: new Date(r.starts_at),
+    }),
+  );
 }
 
-export function useCreateBooking() {
+export function useCreateVisit() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: createBooking,
+    mutationFn: createVisit,
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['slots'] }),
   });
+}
+
+/** Which part of the visit failed (`slot_taken` carries `details = 'item:<index>'`). */
+export function failedItem(err: unknown): number | null {
+  if (typeof err !== 'object' || err === null || !('details' in err)) return null;
+  const m = /^item:(\d+)$/.exec(String((err as { details: unknown }).details));
+  return m ? Number(m[1]) : null;
 }

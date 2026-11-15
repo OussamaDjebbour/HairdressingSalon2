@@ -44,6 +44,12 @@ describe('clientMessage', () => {
     expect(text).toContain('صالون \u2068Élégance\u2069');
   });
 
+  it('names every service of a visit', () => {
+    const text = clientMessage('confirmed', { ...booking, serviceName: { fr: 'Coupe & Brushing + Coloration', ar: 'قص + صبغة' }, lang: 'fr' });
+    expect(text).toContain('(Coupe & Brushing + Coloration)');
+    expect(text).toContain('à 10:00');
+  });
+
   it('has cancelled and moved variants', () => {
     expect(clientMessage('cancelled', { ...booking, lang: 'fr' })).toContain('est annulé');
     expect(clientMessage('moved', { ...booking, lang: 'fr' })).toContain('a été déplacé au Mardi 8 janvier à 10:00');

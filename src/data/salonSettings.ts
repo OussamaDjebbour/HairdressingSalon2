@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Lang } from '../context/LanguageContext';
 import { supabase } from '../lib/supabase';
-import { algiersToday } from './admin';
+import { algiersToday } from './algiersTime';
 import { toYmd } from './bookings';
 import { minutesToTime } from './week';
 import { currentSalonId } from './salon';

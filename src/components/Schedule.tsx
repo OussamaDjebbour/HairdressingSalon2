@@ -4,7 +4,7 @@ import { Clock, Check, X, Phone, ChevronLeft, ChevronRight, Plus, BellRing } fro
 import { useLang } from '../context/LanguageContext';
 import { toYmd } from '../data/bookings';
 import {
-  algiersToday, formatAlgiersTime, isNotAuthorized, useAdminBookings,
+  algiersToday, formatAlgiersTime, groupVisits, isNotAuthorized, useAdminBookings, visitOf,
   type AdminBooking, type BookingStatus,
 } from '../data/admin';
 import { useAllStylists } from '../data/queries';
@@ -125,9 +125,13 @@ function ScheduleBody() {
     return t('schedule.nextOn').replace('{day}', `${dayName} ${d.getDate()}`).replace('{time}', time);
   };
 
-  const waiting = (pendingQuery.data ?? [])
-    .filter((b) => b.status === 'pending' && b.startsAt > now)
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  // One entry per visit: a visit moved across days is still one request.
+  // Grouped before filtering, so a card lists every loaded part; a visit whose first part has started drops off.
+  const waitingVisits = groupVisits((pendingQuery.data ?? []).filter((b) => b.status !== 'cancelled')).filter(
+    (v) => v.first.status === 'pending' && v.first.startsAt > now
+  );
+  // Every loaded row (the week and the waiting window), so a visit split across days is found whole.
+  const visitPool = [...new Map([...(weekQuery.data ?? []), ...(pendingQuery.data ?? [])].filter((b) => b.status !== 'cancelled').map((b) => [b.id, b])).values()];
 
   /** A booking as the latest loaded data has it (its status may have changed since it was opened). */
   const latest = (b: AdminBooking) =>
@@ -188,7 +192,7 @@ function ScheduleBody() {
                   {t('schedule.today')}
                 </button>
               )}
-              {waiting.length > 0 && (
+              {waitingVisits.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowWaiting(true)}
@@ -196,12 +200,12 @@ function ScheduleBody() {
                 >
                   <BellRing className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
                   {isToday ? (
-                    t('schedule.pendingCount').replace('{n}', String(waiting.length))
+                    t('schedule.pendingCount').replace('{n}', String(waitingVisits.length))
                   ) : (
                     // Away from today "Aujourd'hui" joins the bar: on a phone the pill shrinks to its count.
                     <>
-                      <span aria-hidden="true" className="sm:hidden">{waiting.length}</span>
-                      <span className="sr-only sm:not-sr-only">{t('schedule.pendingCount').replace('{n}', String(waiting.length))}</span>
+                      <span aria-hidden="true" className="sm:hidden">{waitingVisits.length}</span>
+                      <span className="sr-only sm:not-sr-only">{t('schedule.pendingCount').replace('{n}', String(waitingVisits.length))}</span>
                     </>
                   )}
                 </button>
@@ -247,6 +251,7 @@ function ScheduleBody() {
                     hours={hoursFor(day)}
                     daysOff={daysOff}
                     bookings={all}
+                    visitPool={visitPool}
                     onSlotTap={(stylistId, time) => setSheet({ mode: 'add', stylistId, date: day, time })}
                     onBookingTap={(booking) => setSheet({ mode: 'edit', booking })}
                   />
@@ -315,7 +320,7 @@ function ScheduleBody() {
 
       {showWaiting && (
         <PendingSheet
-          bookings={waiting}
+          visits={waitingVisits}
           answered={answered}
           onAnswered={(a) => setAnswered((list) => [...list, a])}
           onOpen={(booking) => {
@@ -351,6 +356,7 @@ function ScheduleBody() {
           // One sheet per booking: fresh data (below) updates it without resetting what it shows.
           key={sheet.mode === 'edit' ? sheet.booking.id : JSON.stringify(sheet)}
           state={sheet.mode === 'edit' ? { mode: 'edit', booking: latest(sheet.booking) } : sheet}
+          visit={sheet.mode === 'edit' ? visitOf(latest(sheet.booking), [...(weekQuery.data ?? []), ...(pendingQuery.data ?? [])]) : undefined}
           onClose={() => {
             setSheet(null);
             if (backToWaiting) {

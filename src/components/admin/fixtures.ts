@@ -38,6 +38,7 @@ export function adminBooking(overrides: Partial<AdminBooking> & { startIso?: str
     clientName: 'Yasmine', clientPhone: '0555123456', lang: 'fr', serviceId: 'coupe-femme',
     serviceName: { fr: 'Coupe & Brushing', ar: 'قص وتصفيف' }, stylistId: 'amina', stylistName: 'Amina', source: 'online',
     createdAt: new Date('2030-01-06T08:00:00Z'),
+    visitId: rest.id ?? 'b1',
     ...rest,
   };
 }

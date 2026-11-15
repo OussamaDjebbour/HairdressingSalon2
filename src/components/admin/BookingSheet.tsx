@@ -5,8 +5,8 @@ import { z } from 'zod';
 import { ArrowLeft, Check } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
-  formatAlgiersTime, toAdminError, useMyRole, useCreateStaffBooking, useUpdateStaffBooking,
-  type AdminBooking, type StaffBookingInput,
+  formatAlgiersTime, toAdminError, useMyRole, useVisitParts, useCreateStaffBooking, useUpdateStaffBooking,
+  visitOf, type AdminBooking, type AdminVisit, type StaffBookingInput,
 } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
 import { clientNameSchema, mobilePhoneSchema } from '../../data/schemas';
@@ -34,6 +34,8 @@ export type SheetState =
 
 interface BookingSheetProps {
   state: SheetState;
+  /** The visit an existing booking belongs to; defaults to the booking alone. */
+  visit?: AdminVisit;
   onClose(): void;
 }
 
@@ -84,7 +86,7 @@ const SERVER_ERROR_FIELDS: Record<string, keyof StaffBookingInput> = {
  * opens the form. A new booking opens the form directly. After a confirm, cancel or move, the
  * sheet offers the prepared WhatsApp message to the client.
  */
-export function BookingSheet({ state, onClose }: BookingSheetProps) {
+export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetProps) {
   const { lang, t } = useLang();
   const allServices = useAllServices().data ?? [];
   const allStylists = useAllStylists().data ?? [];
@@ -99,6 +101,9 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
   const toast = useToast();
 
   const editing = state.mode === 'edit' ? state.booking : null;
+  // The whole visit comes from the server (its parts may be in another week); until then, what the caller had.
+  const parts = useVisitParts(editing?.id ?? null).data;
+  const visit = editing ? (parts ? visitOf(editing, parts) : (visitProp ?? visitOf(editing, [editing]))) : null;
   const keptPhone = demo && editing ? editing.clientPhone : null;
   const schema = useMemo(() => bookingSchema(keptPhone), [keptPhone]);
   const {
@@ -239,15 +244,16 @@ export function BookingSheet({ state, onClose }: BookingSheetProps) {
     >
       {notice ? (
         <MessageReady notice={notice} onSend={close} onLater={close} />
-      ) : editing && view === 'summary' ? (
+      ) : editing && visit && view === 'summary' ? (
         <BookingSummary
           booking={editing}
-          onConfirm={() => actions.confirm(editing)}
-          onRefuse={() => actions.refuse(editing)}
-          onCancel={() => actions.refuse(editing)}
-          onMessage={() => setNotice({ kind: 'confirmed', booking: editing })}
+          visit={visit}
+          onConfirm={() => actions.confirm(visit, editing)}
+          onRefuse={() => actions.refuse(visit, editing)}
+          onCancel={() => actions.refuse(visit, editing)}
+          onMessage={() => setNotice({ kind: 'confirmed', booking: { ...visit.first, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang, serviceName: visit.serviceName } })}
           onEdit={() => setView('form')}
-          busy={actions.pendingId === editing.id}
+          busy={actions.pendingId === visit.id}
           error={actions.error}
         />
       ) : (

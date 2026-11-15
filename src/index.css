@@ -253,6 +253,12 @@
     @apply chip bg-rose-800 text-cream-50 border border-rose-800 shadow-soft;
   }
 
+  /* Some parts of the visit can't be placed at this time: bookable without them, so not struck through. */
+  .chip-partial {
+    @apply chip flex-col gap-0 rounded-2xl py-1.5 leading-tight bg-amber-50 text-amber-800 border border-dashed border-amber-300
+           hover:bg-white hover:border-amber-400;
+  }
+
   .chip-disabled {
     @apply chip bg-cream-100/60 text-cream-500 border border-cream-200
            cursor-not-allowed line-through opacity-60;

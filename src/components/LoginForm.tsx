@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useLang } from '../context/LanguageContext';
 import { signIn } from '../lib/auth';
-import { fetchDemoLogin } from '../data/admin';
+import { fetchDemoLogin } from '../data/demoLogin';
 import { currentSalonId, useSalon } from '../data/salon';
 import { MSG } from '../data/schemas';
 import { TextField } from './form/TextField';

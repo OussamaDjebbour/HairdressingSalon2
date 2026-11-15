@@ -1,6 +1,6 @@
 import { Check, MessageCircle, Phone, X } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
-import { formatAlgiersTime, useMyRole, type AdminBooking } from '../../data/admin';
+import { formatAlgiersTime, useMyRole, type AdminBooking, type AdminVisit } from '../../data/admin';
 import { formatAgo, formatLongDate, formatPhone, formatPrice } from '../../data/formatters';
 import { useSalonInfo } from '../../data/salonSettings';
 import { salonDate } from '../../data/week';
@@ -8,7 +8,9 @@ import { toWaNumber, waLink } from '../../data/whatsapp';
 import { Badge } from '../Badge';
 
 interface BookingSummaryProps {
+  /** The part that was opened. */
   booking: AdminBooking;
+  visit: AdminVisit;
   onConfirm(): void;
   onRefuse(): void;
   onMessage(): void;
@@ -19,7 +21,7 @@ interface BookingSummaryProps {
 }
 
 /** An existing booking at a glance, with the one action the owner most likely wants first. */
-export function BookingSummary({ booking: b, onConfirm, onRefuse, onMessage, onCancel, onEdit, busy, error }: BookingSummaryProps) {
+export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessage, onCancel, onEdit, busy, error }: BookingSummaryProps) {
   const { lang, t } = useLang();
   const demo = useMyRole() === 'demo';
   const salonWhatsapp = useSalonInfo().data?.whatsapp ?? null;
@@ -63,11 +65,32 @@ export function BookingSummary({ booking: b, onConfirm, onRefuse, onMessage, onC
         </div>
       </div>
 
-      <dl className="text-sm">
-        <Row label={t('admin.sheet.service')} value={b.serviceName[lang]} />
-        <Row label={t('admin.sheet.stylist')} value={b.stylistName} />
-        <Row label={t('admin.summary.price')} value={formatPrice(b.price, lang)} />
-      </dl>
+      {visit.parts.length > 1 ? (
+        <div>
+          <p id="visit-parts" className="text-sm font-semibold text-rose-900">{t('admin.summary.visit')}</p>
+          <ul aria-labelledby="visit-parts" className="mt-1 text-sm">
+            {visit.parts.map((p) => (
+              <li
+                key={p.id}
+                aria-current={p.id === b.id ? 'true' : undefined}
+                className={`flex gap-2 py-2 border-b border-cream-200 ${p.id === b.id ? 'font-semibold text-rose-900' : 'text-rose-700'}`}
+              >
+                <span dir="ltr">{formatAlgiersTime(p.startsAt)}</span>{' '}
+                <span dir="auto" className="text-start">{p.serviceName[lang]} · {p.stylistName}</span>
+              </li>
+            ))}
+          </ul>
+          <dl className="text-sm">
+            <Row label={t('admin.summary.total')} value={formatPrice(visit.price, lang)} />
+          </dl>
+        </div>
+      ) : (
+        <dl className="text-sm">
+          <Row label={t('admin.sheet.service')} value={b.serviceName[lang]} />
+          <Row label={t('admin.sheet.stylist')} value={b.stylistName} />
+          <Row label={t('admin.summary.price')} value={formatPrice(b.price, lang)} />
+        </dl>
+      )}
 
       {error && (
         <p role="alert" className="rounded-xl border border-rust-200 bg-rust-50 px-3 py-2 text-sm text-rust-700">{error}</p>
