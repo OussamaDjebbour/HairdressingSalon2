@@ -59,11 +59,14 @@ select throws_ok($$ delete from public.salon_domains $$, '42501', null, 'authent
 select throws_ok($$ update public.salons set rating = 1 where id = 'elegance' $$, '42501', null, 'authenticated cannot write salons');
 reset role;
 
--- photo bucket: public read, nobody but the service role writes
+-- photo bucket: public read; only the service role writes, except the owner's uploads folder
+-- (insert/delete for authenticated, tested in 18_service_photos)
 select is((select public from storage.buckets where id = 'salon-photos'), true, 'salon-photos bucket is public');
-select is((select count(*)::int from pg_policies where schemaname = 'storage' and tablename = 'objects'
+select is((select string_agg(cmd || ' ' || array_to_string(roles, ','), '; ' order by cmd) from pg_policies
+           where schemaname = 'storage' and tablename = 'objects'
              and cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')
-             and (roles && array['anon', 'authenticated', 'public']::name[])), 0, 'no storage write policies for anon/authenticated');
+             and (roles && array['anon', 'authenticated', 'public']::name[])),
+  'DELETE authenticated; INSERT authenticated', 'storage write policies: only the owner uploads ones (no anon, no update)');
 
 -- provision_salon: service role only
 select ok(not has_function_privilege('anon', 'public.provision_salon(jsonb)', 'execute'), 'anon cannot provision');

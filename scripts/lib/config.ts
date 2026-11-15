@@ -132,6 +132,9 @@ export function parseSalonConfig(json: unknown): SalonConfig {
     if (v.startsWith('/') || v.includes('\\') || v.split('/').some((part) => part === '..' || part === '' || part === '.')) {
       err(field, `${show(v)} must be an https:// URL or a file name inside salons/<slug>/photos/`);
     }
+    if (!/\.(jpe?g|png|webp|avif|gif)$/i.test(v)) {
+      err(field, `${show(v)} must be a JPG, PNG, WebP, AVIF or GIF file (SVG is not accepted)`);
+    }
     return v;
   };
 

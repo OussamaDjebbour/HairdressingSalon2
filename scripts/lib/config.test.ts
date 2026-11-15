@@ -82,6 +82,17 @@ describe('parseSalonConfig', () => {
     expect(errorOf(json)).toMatch(/heroPhoto:/);
   });
 
+  it('rejects a local photo whose extension the bucket does not accept', () => {
+    for (const bad of ['logo.svg', 'photo.bmp', 'noext']) {
+      expect(errorOf({ ...example(), heroPhoto: bad })).toMatch(/heroPhoto:.*(jpg|JPG)/);
+    }
+    const ok = { ...example(), heroPhoto: 'Hero.JPEG' };
+    expect(parseSalonConfig(ok).heroPhoto).toBe('Hero.JPEG');
+    const svc = example();
+    svc.services[0].photo = 'a.svg';
+    expect(errorOf(svc)).toMatch(/services\[0\]\.photo:/);
+  });
+
   it('rejects an invalid domain', () => {
     const json = { ...example(), domains: ['https://sara.com/'] };
     expect(errorOf(json)).toMatch(/domains\[0\]:/);

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(68);
+select plan(70);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -166,10 +166,13 @@ reset role;
 -- catalogue RPCs: Élégance staff never see or change rival's services, stylists or days off
 insert into public.stylist_days_off (id, salon_id, stylist_id, starts_on, ends_on)
   values ('cccccccc-0000-0000-0000-000000000001', 'rival', 'nadia', '2030-05-01', '2030-05-02');
+insert into storage.objects (bucket_id, name) values ('salon-photos', 'rival/uploads/cccccccc-cccc-cccc-cccc-cccccccccccc.jpg');
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select throws_ok($$ select public.admin_save_service('rival-cut', '{"fr":"Hack","ar":""}', '{}', 'beaute', 1, 30, 0) $$, 'P0001', 'not_found', 'save_service: other salon''s service is not_found');
 select throws_ok($$ select public.admin_set_service_active('rival-cut', false) $$, 'P0001', 'not_found', 'set_service_active: other salon''s service is not_found');
+select throws_ok($$ select public.admin_set_service_photo('rival-cut', null) $$, 'P0001', 'not_found', 'set_service_photo: other salon''s service is not_found');
+select throws_ok($$ select public.admin_set_service_photo('coupe-femme', 'rival/uploads/cccccccc-cccc-cccc-cccc-cccccccccccc.jpg') $$, 'P0001', 'invalid_photo', 'set_service_photo: other salon''s upload is invalid_photo');
 select throws_ok($$ select public.admin_save_stylist('nadia', 'Hack', '{"fr":"x","ar":"x"}', '{}', '{}') $$, 'P0001', 'not_found', 'save_stylist: other salon''s stylist is not_found');
 select throws_ok($$ select public.admin_save_stylist(null, 'Xavier', '{"fr":"x","ar":"x"}', array['rival-cut'], '{}') $$, 'P0001', 'unknown_service', 'save_stylist: other salon''s service is unknown_service');
 select throws_ok($$ select public.admin_set_stylist_active('nadia', false) $$, 'P0001', 'not_found', 'set_stylist_active: other salon''s stylist is not_found');

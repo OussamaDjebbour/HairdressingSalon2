@@ -71,7 +71,9 @@ See `example.json`. Texts shown on the site are `{"fr": "…", "ar": "…"}`; a 
 
 Service and stylist ids are shared by all salons: start them with the salon id (`sara-coupe`).
 A photo is either a file name inside `salons/<slug>/photos/` (e.g. `"coupe.jpg"`, uploaded by the
-script) or an `https://` address used as is.
+script; JPG, PNG, WebP, AVIF or GIF, 20 MB max; SVG not accepted) or an `https://` address used as is.
+Owners can also set service photos themselves in Réglages (stored under `<salon id>/uploads/`);
+`--reapply-settings` overwrites those with the file's `photo` when the service has one; a service without `photo` keeps the owner's.
 
 ## The demo: `pnpm setup-demo <salon-id>`
 
