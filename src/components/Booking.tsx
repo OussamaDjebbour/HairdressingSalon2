@@ -115,13 +115,20 @@ export function Booking() {
   const slotsQuery = useVisitSlots(selectedDate, items);
   const slotData = slotsQuery.data;
   const slots = slotData ?? [];
-  // The chosen time is bookable for the current parts (by fetched data, not while the slots load).
-  const timeOk = !!slotData?.some((s) => s.slot === selectedTime && s.available);
+  // Fetched slots for the current parts: not while loading, nor a cached answer being re-fetched.
+  const freshSlots = slotsQuery.isFetching ? undefined : slotData;
+  // The chosen time is bookable for the current parts (by fresh data only).
+  const timeOk = !!freshSlots?.some((s) => s.slot === selectedTime && s.available);
+
+  // Set when the client picks a time: the plan (or notice) is then scrolled into view once.
+  const revealRef = useRef<HTMLElement | null>(null);
+  const reveal = useRef(false);
 
   /** No time chosen, and no "not available at this time" notice (its indexes would be stale). */
   const clearTime = () => {
     setSelectedTime(null);
     setPartial(null);
+    reveal.current = false;
   };
 
   const dropIds = (ids: string[]) => {
@@ -295,11 +302,11 @@ export function Booking() {
 
   // The chosen time must still be bookable for the current parts: checked against fetched data only.
   useEffect(() => {
-    if (step === 2 && selectedTime && slotData && !timeOk) {
+    if (step === 2 && selectedTime && freshSlots && !timeOk) {
       setSelectedTime(null);
       setSlotNotice('booking.slotPassed');
     }
-  }, [step, selectedTime, slotData, timeOk]);
+  }, [step, selectedTime, freshSlots, timeOk]);
 
   // A ticked service the salon stopped offering (services refetched): drop it, clear the time and say so.
   const offered = servicesQuery.data;
@@ -317,8 +324,6 @@ export function Booking() {
   }, [offered, selectedIds]);
 
   // On a phone the plan (or the "not available at" notice) sits below the times: bring it into view, focus stays.
-  const revealRef = useRef<HTMLElement | null>(null);
-  const reveal = useRef(false);
   useEffect(() => {
     if (!reveal.current) return;
     reveal.current = false;
@@ -410,6 +415,7 @@ export function Booking() {
 
   const partNames = (indexes: number[]) => indexes.flatMap((i) => (visit[i] ? [visit[i].name[lang]] : []));
   const dayMissing = missingAllDay(slots, items.length).filter((i) => visit[i]);
+  const without = (indexes: number[]) => t('booking.visit.without').replace('{services}', joinNames(partNames(indexes)));
 
   if (booked) {
     return (
@@ -684,12 +690,13 @@ export function Booking() {
                             state={selectedTime === s.slot ? 'selected' : state === 'full' ? 'disabled' : state}
                             disabled={state === 'full'}
                             onClick={() => {
-                              reveal.current = true;
                               setSlotNotice(null);
                               if (state === 'partial') {
+                                reveal.current = true;
                                 setSelectedTime(null);
                                 setPartial({ time: s.slot, missing: s.missing });
-                              } else {
+                              } else if (s.slot !== selectedTime) {
+                                reveal.current = true;
                                 setSelectedTime(s.slot);
                                 setPartial(null);
                               }
@@ -698,10 +705,13 @@ export function Booking() {
                             {s.slot}
                             {state === 'partial' && (
                               <>
-                                {' '}
-                                <span className="text-xs font-normal">
-                                  {t('booking.visit.without').replace('{services}', joinNames(partNames(s.missing)))}
-                                </span>
+                                {/* Parts missing all day are already said above: shown only to screen readers here. */}
+                                <span className="sr-only"> {without(s.missing)}</span>
+                                {s.missing.some((i) => !dayMissing.includes(i)) && (
+                                  <span aria-hidden="true" className="text-xs font-normal">
+                                    {without(s.missing.filter((i) => !dayMissing.includes(i)))}
+                                  </span>
+                                )}
                               </>
                             )}
                           </TimeSlotChip>

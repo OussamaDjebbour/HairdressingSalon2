@@ -45,11 +45,15 @@ let pending = false;
 const DEFAULT_SLOTS: VisitSlot[] = [{ slot: '10:00', available: true, missing: [] }];
 let visitSlots: Record<number, VisitSlot[]> = {};
 let slotCalls: VisitItem[][] = [];
+/** The slots query is re-fetching (its data is then the cached, possibly stale, answer). */
+let slotsFetching = false;
 vi.mock('../data/bookings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/bookings')>()),
   useVisitSlots: (_date: Date | null, items: VisitItem[]) => {
     slotCalls.push(items);
-    return { data: visitSlots[items.length] ?? DEFAULT_SLOTS, isLoading: false, isError: false, refetch: vi.fn() };
+    return {
+      data: visitSlots[items.length] ?? DEFAULT_SLOTS, isLoading: false, isError: false, isFetching: slotsFetching, refetch: vi.fn(),
+    };
   },
   useCreateVisit: () => ({ mutate, reset: vi.fn(), isPending: pending }),
 }));
@@ -107,6 +111,7 @@ beforeEach(() => {
   pending = false;
   visitSlots = {};
   slotCalls = [];
+  slotsFetching = false;
 });
 
 /** The next date (within the 14-day strip, after today) on the given ISO weekday. */
@@ -773,13 +778,14 @@ describe('Booking unavailable parts', () => {
 
   /** Coupe (Amina unless told otherwise) + Manucure, on the time step of the first day. */
   const toTimes = (amina = true) => {
-    renderWizard();
+    const result = renderWizard();
     fireEvent.click(serviceButton('Manucure & Vernis'));
     fireEvent.click(serviceButton('Coupe & Brushing'));
     next();
     if (amina) fireEvent.click(staffRow('Coupe & Brushing').getByRole('button', { name: 'Amina' }));
     next();
     pickFirstDay();
+    return result;
   };
   const partialChip = () => screen.getByRole('button', { name: /10:00.*sans Manucure & Vernis/ });
 
@@ -822,9 +828,10 @@ describe('Booking unavailable parts', () => {
     fireEvent.click(partialChip());
     const notice = screen.getByRole('alert');
     expect(notice).toHaveTextContent('Manucure & Vernis n’est pas disponible à 10:00');
-    expect(within(notice).getByRole('button', { name: 'Réserver les autres prestations' })).toBeInTheDocument();
+    expect(notice.querySelector('button')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Réserver les autres prestations' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
-    fireEvent.click(within(notice).getByRole('button', { name: 'Choisir une autre heure' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choisir une autre heure' }));
     expect(screen.queryByRole('alert')).toBeNull();
     expect(selectedChips()).toHaveLength(0);
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
@@ -864,7 +871,8 @@ describe('Booking unavailable parts', () => {
   it('a confirm race names the part and offers the same choice', async () => {
     const alert = await raceToConfirm();
     expect(alert).toHaveTextContent('Manucure & Vernis vient d’être réservée à cette heure');
-    fireEvent.click(within(alert).getByRole('button', { name: 'Réserver les autres prestations' }));
+    expect(alert.querySelector('button')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Réserver les autres prestations' }));
     expect(screen.getByText('Choisissez une date')).toBeInTheDocument();
     expect(slotCalls.at(-1)).toHaveLength(1);
     expect(recapText()).toMatch(/^Coupe & Brushing · /);
@@ -872,7 +880,8 @@ describe('Booking unavailable parts', () => {
     cleanup();
 
     const again = await raceToConfirm();
-    fireEvent.click(within(again).getByRole('button', { name: 'Choisir une autre heure' }));
+    expect(again).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Choisir une autre heure' }));
     expect(screen.getByText('Choisissez une date')).toBeInTheDocument();
     expect(slotCalls.at(-1)).toHaveLength(2);
     expect(selectedChips()).toHaveLength(0);
@@ -886,5 +895,39 @@ describe('Booking unavailable parts', () => {
     expect(screen.getByRole('button', { name: /10:00.*بدون/ })).toHaveClass('chip-partial');
     const day = screen.getByText(/غير متاحة في هذا اليوم/);
     expect(day.closest('ul')).toHaveClass('text-start');
+  });
+
+  it('a part missing all day is not repeated on the chips, but stays in their accessible name', () => {
+    visitSlots[2] = [slot('09:00', false, [0, 1]), slot('10:00', false, [1])];
+    toTimes();
+    const chip = partialChip();
+    expect(chip).toHaveClass('chip-partial');
+    const visible = Array.from(chip.querySelectorAll('span')).filter((el) => !el.classList.contains('sr-only'));
+    expect(visible.map((el) => el.textContent ?? '').join('')).not.toContain('sans');
+    fireEvent.click(chip);
+    expect(screen.getByRole('alert')).toHaveTextContent('Manucure & Vernis n’est pas disponible à 10:00');
+  });
+
+  it('a part missing only at some times still shows "sans X" on the chip', () => {
+    visitSlots[2] = [slot('10:00', false, [1]), slot('11:00', true, [])];
+    toTimes();
+    const visible = Array.from(partialChip().querySelectorAll('span')).filter((el) => !el.classList.contains('sr-only'));
+    expect(visible.map((el) => el.textContent).join('')).toBe('sans Manucure & Vernis');
+  });
+
+  it('a stale cached answer neither enables Continuer nor clears the kept time while re-fetching', () => {
+    visitSlots[2] = [slot('10:00', false, [1])];
+    visitSlots[1] = [slot('10:00', false, [0]), slot('11:00', true, [])];
+    slotsFetching = true;
+    const { rerender } = toTimes();
+    fireEvent.click(partialChip());
+    fireEvent.click(screen.getByRole('button', { name: 'Réserver les autres prestations' }));
+    expect(screen.getByRole('button', { name: '10:00' })).toHaveClass('chip-selected');
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+    visitSlots[1] = [slot('10:00', true, [])];
+    slotsFetching = false;
+    rerender(wizard());
+    expect(screen.getByRole('button', { name: '10:00' })).toHaveClass('chip-selected');
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
   });
 });

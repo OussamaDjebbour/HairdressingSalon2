@@ -54,8 +54,8 @@ export function TimeMissing({ names, time, kind, onBookOthers, onOtherTime }: {
           .replace('{services}', list)
           .replace('{time}', time);
   return (
-    <div role="alert" className={box}>
-      <p className="flex items-start gap-2">
+    <div className={box}>
+      <p role="alert" className="flex items-start gap-2">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" strokeWidth={1.8} />
         {text}
       </p>
