@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { TextField } from './form/TextField';
@@ -21,6 +21,7 @@ import { toWaNumber, waLink } from '../data/whatsapp';
 import { SmartImage } from './SmartImage';
 import { groupByCategory } from '../data/categories';
 import { serviceIcon } from './serviceIcons';
+import { useBookingIntent } from '../context/BookingIntentContext';
 
 /** Up to two initials, e.g. "Lina Benali" → "LB" (Array.from keeps accented and Arabic letters whole). */
 const initials = (name: string) =>
@@ -189,6 +190,20 @@ export function Booking() {
     createBookingMutation.reset();
     setSubmitted(false);
   };
+
+  // A service tile on the page chose a service: start over with it picked and go to the stylist step.
+  // Applied once per request; if the services haven't loaded yet it waits for them.
+  const { request } = useBookingIntent();
+  const appliedSeq = useRef(0);
+  useEffect(() => {
+    if (!request || request.seq === appliedSeq.current) return;
+    const service = services.find((s) => s.id === request.serviceId);
+    if (!service) return;
+    appliedSeq.current = request.seq;
+    resetBooking();
+    setSelectedService(service);
+    setStep(1);
+  });
 
   if (submitted) {
     return (

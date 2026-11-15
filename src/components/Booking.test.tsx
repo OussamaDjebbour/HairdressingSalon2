@@ -36,6 +36,7 @@ import { isoWeekday } from '../data/hours';
 import type { ClosedDates, SalonHours } from '../data/types';
 import { LanguageProvider, useLang, translations } from '../context/LanguageContext';
 import { Booking } from './Booking';
+import { BookingIntentProvider, useBookingIntent } from '../context/BookingIntentContext';
 
 function ToArabic() {
   const { toggleLang } = useLang();
@@ -59,6 +60,11 @@ function goToConfirmStep(fill = true) {
   if (!fill) return;
   fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
   fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+}
+
+function Chooser({ id }: { id: string }) {
+  const { chooseService } = useBookingIntent();
+  return <button onClick={() => chooseService(id)}>choose-{id}</button>;
 }
 
 function failWith(message: string) {
@@ -234,5 +240,33 @@ describe('Booking step 0 grouping', () => {
     serviceList = [mk('s1', 'coiffure', 'Coupe')];
     render(<LanguageProvider><Booking /></LanguageProvider>);
     expect(screen.queryByRole('heading', { name: 'Coiffure' })).toBeNull();
+  });
+});
+
+describe('Booking intent from a service tile', () => {
+  it('selects the requested service and opens the stylist step', () => {
+    render(<LanguageProvider><BookingIntentProvider><Chooser id="coupe-femme" /><Booking /></BookingIntentProvider></LanguageProvider>);
+    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+  });
+
+  it('ignores an unknown service', () => {
+    render(<LanguageProvider><BookingIntentProvider><Chooser id="nope" /><Booking /></BookingIntentProvider></LanguageProvider>);
+    fireEvent.click(screen.getByText('choose-nope'));
+    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
+  });
+
+  it('applies a request made before the services load', () => {
+    serviceList = [];
+    const ui = () => (
+      <LanguageProvider><BookingIntentProvider><Chooser id="coupe-femme" /><Booking /></BookingIntentProvider></LanguageProvider>
+    );
+    const { rerender } = render(ui());
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
+    serviceList = [service];
+    rerender(ui());
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
   });
 });
