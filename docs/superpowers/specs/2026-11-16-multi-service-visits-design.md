@@ -26,8 +26,14 @@ facial), so a client has to book twice, and the two bookings aren't connected fo
 - Gaps between services, parallel services (two staff at the same time), or a client-chosen order.
 - Packages / discounts for combinations.
 
+## What the user said about unavailable parts (2026-11-16)
+"The client should know that this service or stylist is not available and can book the rest." So a part that
+can't be booked never blocks the others: the client is told **which** service (or which staff member) is the
+problem and **chooses** to book the rest or to change her choice.
+
 ## Anti-goals
-- A visit half-booked: either every part is booked or none is.
+- A visit half-booked behind the client's back: the client always sees what will be booked before it is booked;
+  each `create_visit` call is all-or-nothing for the parts it is given, and on failure says which part failed.
 - One visit counting as several bookings against the client's abuse limits.
 - The owner confirming one part and forgetting the others.
 
@@ -45,14 +51,19 @@ facial), so a client has to book twice, and the two bookings aren't connected fo
   work that day, in staff sort order, first one free for that part's time range). Different parts may get the same
   or different staff. A part with a chosen staff member requires that member to offer the service and be active.
 - **New public functions** (take `p_salon_id`, `security definer`, salon-scoped like the others):
-  - `get_visit_slots(p_salon_id text, p_date date, p_items jsonb) returns table (slot text, available boolean)` —
-    `p_items` = `[{"service_id": "...", "stylist_id": "..." | null}, ...]` (1–4). Same errors as `get_slots`
-    (`unknown_service`) plus `too_many_services`; an empty or malformed list → `unknown_service`.
+  - `get_visit_slots(p_salon_id text, p_date date, p_items jsonb) returns table (slot text, available boolean,
+    missing integer[])` — `p_items` = `[{"service_id": "...", "stylist_id": "..." | null}, ...]` (1–4), already in
+    visit order. For each start time on the grid: `missing` = the 0-based indexes of the parts that can't be placed
+    at their time in the full sequence (no free, working, offering staff, or past closing); `available` = `missing`
+    is empty (and the start is in the future). A part that can't be done that day at all appears in `missing` for
+    every slot — the frontend turns that into a day-level message. Same errors as `get_slots` (`unknown_service`)
+    plus `too_many_services`; an empty or malformed list → `unknown_service`.
   - `create_visit(p_salon_id text, p_items jsonb, p_date date, p_time text, p_client_name text,
     p_client_phone text, p_lang text) returns table (booking_id uuid, service_id text, stylist_id text,
     starts_at timestamptz)` — validates like `create_booking`, inserts all parts in one transaction with the same
     `visit_id` and `source = 'online'`, status `pending`; any part impossible → `slot_taken` and **nothing** is
-    inserted.
+    inserted; the error says which part: `raise exception 'slot_taken' using detail = 'item:<index>'` (0-based
+    index into `p_items`), surfaced to the frontend through the Supabase error's `details`.
   - Isolation tests for both in `10_isolation.test.sql` and registration in `11_guard.test.sql`.
 - **Abuse limits count visits, not rows** (distinct `visit_id`), in `create_visit` **and** in the existing
   `create_booking`: per phone ≥ 3 future online visits, per IP ≥ 5 online visits in an hour, site-wide ≥ 20 online
@@ -81,11 +92,25 @@ facial), so a client has to book twice, and the two bookings aren't connected fo
     service's offering staff + "Sans préférence".
   - Step 3 (date & time): slots from `get_visit_slots`; after choosing a time, the plan is shown
     ("10:00 Coupe & Brushing · Amina → 11:00 Coloration · sans préférence").
+    - **Unavailable parts (user's rule):** a part missing from every slot that day → a message above the times
+      ("Coloration n'est pas disponible ce jour-là"; with a chosen staff member: "… avec Amina ce jour-là") with
+      **Retirer cette prestation** and, if a staff member was chosen, **Changer de coiffeuse**. A time where some
+      parts are missing is shown as a third state (not "full") labelled "sans Coloration"; tapping it shows
+      "Coloration n'est pas disponible à 10:00" with **Réserver les autres prestations** (removes the missing parts
+      from the selection; the rest are re-placed back to back from that time and the slots re-fetched; the chosen
+      time stays selected if it is still available) and **Choisir une autre heure**. A time where every part is
+      missing stays "full" as today.
+    - **Race at confirm:** `slot_taken` with `item:<n>` → "Coloration vient d'être réservée à cette heure" with
+      **Réserver les autres prestations** (same as above) and **Choisir une autre heure** (back to the times).
+      With a single service it behaves as today.
   - Step 4 (confirm) and the success screen list each part with its time and staff (assigned staff after booking)
     and the total price.
   - The recap line on steps 2–3 shows "Coupe & Brushing + Coloration · 8 500 DA · 3 h".
   - FR + AR for every new string; RTL.
 - **Demo:** fake bookings stay visits of one; demo masking and restrictions unchanged.
+
+- **Nothing is booked that the client didn't see:** removing a part is always her explicit choice; the confirm
+  step always lists exactly what will be booked.
 
 ## Left to the builder
 Exact markup and wording within the existing design system; how the payload for the single push is shaped; query
