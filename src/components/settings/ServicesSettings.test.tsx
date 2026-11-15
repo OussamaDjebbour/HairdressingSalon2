@@ -6,7 +6,27 @@ import type { Service } from '../../data/types';
 import { pickOption } from '../../test/select';
 
 const rpc = vi.fn();
-vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
+const upload = vi.fn();
+const removeFiles = vi.fn();
+vi.mock('../../lib/supabase', () => ({
+  supabase: {
+    rpc: (...a: unknown[]) => rpc(...a),
+    storage: { from: () => ({ upload: (...a: unknown[]) => upload(...a), remove: (...a: unknown[]) => removeFiles(...a) }) },
+  },
+}));
+
+const preparePhoto = vi.fn();
+vi.mock('../../lib/photo', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/photo')>()),
+  preparePhoto: (...a: unknown[]) => preparePhoto(...a),
+}));
+import { PhotoError } from '../../lib/photo';
+
+let role: 'owner' | 'demo' | null = 'owner';
+vi.mock('../../data/admin', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../data/admin')>()),
+  useMyRole: () => role,
+}));
 
 const svc = (id: string, fr: string, active: boolean, sortOrder: number): Service => ({
   id, category: 'coiffure', name: { fr, ar: `${fr}-ar` }, description: { fr: 'd', ar: 'د' },
@@ -41,6 +61,15 @@ beforeEach(() => {
   rpc.mockImplementation(async (fn: string) => (fn === 'admin_affected_bookings' ? { data: [], error: null } : { data: null, error: null }));
   services = [svc('h1', 'Hidden cut', false, 1), svc('a1', 'Brushing', true, 2), svc('a2', 'Coloration', true, 3)];
   servicesQuery = null;
+  role = 'owner';
+  upload.mockReset();
+  upload.mockResolvedValue({ error: null });
+  removeFiles.mockReset();
+  removeFiles.mockResolvedValue({ error: null });
+  preparePhoto.mockReset();
+  preparePhoto.mockResolvedValue(new Blob(['x'], { type: 'image/jpeg' }));
+  URL.createObjectURL = vi.fn(() => 'blob:preview');
+  URL.revokeObjectURL = vi.fn();
 });
 
 describe('ServicesSettings while the list is not in', () => {
@@ -148,5 +177,118 @@ describe('ServicesSettings', () => {
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_set_service_active', { p_id: 'a1', p_active: false }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_affected_bookings'));
     expect(screen.queryByText(/Ces rendez-vous ne respectent plus/)).not.toBeInTheDocument();
+  });
+});
+
+const photoRpcs = () => rpc.mock.calls.filter((c) => c[0] === 'admin_set_service_photo');
+const fileInput = () => document.querySelector('input[type="file"]') as HTMLInputElement;
+const pick = () => fireEvent.change(fileInput(), { target: { files: [new File(['x'], 'a.jpg', { type: 'image/jpeg' })] } });
+const fillNew = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter' }));
+  fireEvent.change(screen.getByLabelText('Nom (français)'), { target: { value: 'Soin' } });
+  fireEvent.change(screen.getByLabelText('Prix (DA)'), { target: { value: '2000' } });
+};
+
+describe('ServicesSettings photo', () => {
+  it('a new service without a photo shows the icon and saves without photo calls', async () => {
+    rpc.mockImplementation(async (fn: string) => (fn === 'admin_save_service' ? { data: 'new-1', error: null } : { data: [], error: null }));
+    renderIt();
+    fillNew();
+    expect(screen.getByRole('button', { name: 'Ajouter une photo' })).toBeInTheDocument();
+    expect(document.querySelector('.lucide-scissors')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText('Prestation ajoutée')).toBeInTheDocument();
+    expect(upload).not.toHaveBeenCalled();
+    expect(photoRpcs()).toHaveLength(0);
+  });
+
+  it('picking a file previews it, then saving uploads and attaches it', async () => {
+    rpc.mockImplementation(async (fn: string) => (fn === 'admin_save_service' ? { data: 'new-1', error: null } : { data: null, error: null }));
+    renderIt();
+    fillNew();
+    pick();
+    expect(await screen.findByRole('button', { name: 'Changer' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retirer' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText('Prestation ajoutée')).toBeInTheDocument();
+    expect(upload).toHaveBeenCalledTimes(1);
+    const path = upload.mock.calls[0][0] as string;
+    expect(photoRpcs()).toEqual([['admin_set_service_photo', { p_id: 'new-1', p_path: path }]]);
+  });
+
+  it('removing the current photo sends a null path', async () => {
+    services = [{ ...svc('a1', 'Brushing', true, 2), image: 'https://x.test/a.jpg' }];
+    rpc.mockImplementation(async (fn: string) => (fn === 'admin_save_service' ? { data: 'a1', error: null } : { data: null, error: null }));
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    expect(document.querySelector('img[src="https://x.test/a.jpg"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer' }));
+    expect(screen.getByRole('button', { name: 'Ajouter une photo' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(photoRpcs()).toEqual([['admin_set_service_photo', { p_id: 'a1', p_path: null }]]));
+  });
+
+  it('Annuler after picking sends nothing', async () => {
+    renderIt();
+    fillNew();
+    pick();
+    await screen.findByRole('button', { name: 'Changer' });
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+    expect(upload).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalledWith('admin_save_service', expect.anything());
+    expect(photoRpcs()).toHaveLength(0);
+  });
+
+  it('a file that is not a photo shows an alert and keeps the previous photo', async () => {
+    preparePhoto.mockRejectedValue(new PhotoError('photo_not_image'));
+    renderIt();
+    fillNew();
+    pick();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ce fichier n’est pas une photo.');
+    expect(screen.getByRole('button', { name: 'Ajouter une photo' })).toBeInTheDocument();
+  });
+
+  it('disables Enregistrer while the photo is being prepared', async () => {
+    let resolve!: (b: Blob) => void;
+    preparePhoto.mockReturnValue(new Promise<Blob>((r) => { resolve = r; }));
+    renderIt();
+    fillNew();
+    pick();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled());
+    resolve(new Blob(['x']));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled());
+  });
+
+  it('retries an update of the created service after the photo step failed', async () => {
+    let failOnce = true;
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === 'admin_save_service') return { data: 'new-1', error: null };
+      if (fn === 'admin_set_service_photo' && failOnce) { failOnce = false; return { data: null, error: { message: 'invalid_photo' } }; }
+      return { data: null, error: null };
+    });
+    renderIt();
+    fillNew();
+    pick();
+    await screen.findByRole('button', { name: 'Changer' });
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText(/La photo n’a pas pu être enregistrée/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await screen.findByText('Prestation ajoutée');
+    const saves = rpc.mock.calls.filter((c) => c[0] === 'admin_save_service').map((c) => (c[1] as { p_id: string | null }).p_id);
+    expect(saves).toEqual([null, 'new-1']);
+  });
+
+  it('demo: tapping Ajouter une photo explains and opens nothing', async () => {
+    role = 'demo';
+    renderIt();
+    fillNew();
+    const click = vi.spyOn(fileInput(), 'click');
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter une photo' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Les photos ne peuvent pas être changées dans la démo.');
+    expect(click).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.anything()));
+    expect(upload).not.toHaveBeenCalled();
+    expect(photoRpcs()).toHaveLength(0);
   });
 });
