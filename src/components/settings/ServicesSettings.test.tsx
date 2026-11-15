@@ -255,6 +255,7 @@ describe('ServicesSettings photo', () => {
     fillNew();
     pick();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Ajouter une photo' })).toBeDisabled();
     resolve(new Blob(['x']));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled());
   });
@@ -289,6 +290,19 @@ describe('ServicesSettings photo', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.anything()));
     expect(upload).not.toHaveBeenCalled();
+    expect(photoRpcs()).toHaveLength(0);
+  });
+
+  it('demo: Retirer explains, keeps the preview and sends no photo call', async () => {
+    role = 'demo';
+    services = [{ ...svc('a1', 'Brushing', true, 2), image: 'https://x.test/a.jpg' }];
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Les photos ne peuvent pas être changées dans la démo.');
+    expect(document.querySelector('img[src="https://x.test/a.jpg"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.anything()));
     expect(photoRpcs()).toHaveLength(0);
   });
 });

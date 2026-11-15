@@ -21,6 +21,8 @@ export function ServicePhotoField({ id, currentUrl, category, value, onChange, o
   const [error, setError] = useState<string | null>(null);
   const [demoNote, setDemoNote] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const latest = useRef(0);
 
   const blob = value.kind === 'new' ? value.blob : null;
   useEffect(() => {
@@ -38,16 +40,25 @@ export function ServicePhotoField({ id, currentUrl, category, value, onChange, o
     inputRef.current?.click();
   };
 
+  const remove = () => {
+    if (demo) { setDemoNote(true); return; }
+    setError(null);
+    onChange({ kind: 'remove' });
+  };
+
   const onPick = async (file: File | undefined) => {
     if (!file) return;
+    const mine = ++latest.current;
     setError(null);
+    setBusy(true);
     onBusyChange(true);
     try {
-      onChange({ kind: 'new', blob: await preparePhoto(file) });
+      const blob = await preparePhoto(file);
+      if (mine === latest.current) onChange({ kind: 'new', blob });
     } catch (err) {
-      setError(t(`settings.error.${err instanceof PhotoError ? err.code : 'photo_unreadable'}`));
+      if (mine === latest.current) setError(t(`settings.error.${err instanceof PhotoError ? err.code : 'photo_unreadable'}`));
     } finally {
-      onBusyChange(false);
+      if (mine === latest.current) { setBusy(false); onBusyChange(false); }
     }
   };
 
@@ -55,7 +66,7 @@ export function ServicePhotoField({ id, currentUrl, category, value, onChange, o
     <div>
       <span className="label" id={`${id}-label`}>{t('settings.services.photo')}</span>
       <div className="flex items-center gap-3">
-        <div className="w-32 shrink-0">
+        <div className={`w-32 shrink-0 ${busy ? 'opacity-50' : ''}`} aria-busy={busy}>
           {shown ? (
             <SmartImage src={shown} alt="" aspect="aspect-[16/11]" rounded="rounded-xl" />
           ) : (
@@ -67,13 +78,13 @@ export function ServicePhotoField({ id, currentUrl, category, value, onChange, o
         <div className="flex flex-col items-start gap-1">
           {shown ? (
             <>
-              <button type="button" className="btn-secondary btn-sm tap" onClick={open}>{t('settings.services.changePhoto')}</button>
-              <button type="button" className="btn-ghost btn-sm tap" onClick={() => { setError(null); setDemoNote(false); onChange({ kind: 'remove' }); }}>
+              <button type="button" className="btn-secondary btn-sm tap" onClick={open} disabled={busy}>{t('settings.services.changePhoto')}</button>
+              <button type="button" className="btn-ghost btn-sm tap" onClick={remove} disabled={busy}>
                 {t('settings.services.removePhoto')}
               </button>
             </>
           ) : (
-            <button type="button" className="btn-secondary btn-sm tap" onClick={open}>
+            <button type="button" className="btn-secondary btn-sm tap" onClick={open} disabled={busy}>
               <ImagePlus className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" /> {t('settings.services.addPhoto')}
             </button>
           )}
@@ -93,6 +104,7 @@ export function ServicePhotoField({ id, currentUrl, category, value, onChange, o
           void onPick(file).then(() => { input.value = ''; });
         }}
       />
+      {busy && <p role="status" className="mt-2 text-sm text-rose-600">{t('settings.services.photoPreparing')}</p>}
       {demoNote && <p role="status" className="mt-2 text-sm text-rose-600">{t('settings.services.photoDemo')}</p>}
       {error && <p role="alert" className="mt-2 text-sm text-rust-600">{error}</p>}
     </div>
