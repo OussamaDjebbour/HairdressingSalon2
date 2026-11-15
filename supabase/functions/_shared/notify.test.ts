@@ -27,6 +27,29 @@ describe('buildPushMessage', () => {
     expect(ar.body).toContain('مانيكير وطلاء الأظافر · Sara');
   });
 
+  it('names every service of a visit, in order, with the first start time', () => {
+    const visit = { ...booking, client_name: 'Lina', parts: [
+      { service_name: { fr: 'Coupe & Brushing', ar: 'قص وتصفيف الشعر' }, stylist_name: 'Amina', starts_at: '2026-11-07T09:00:00+00:00' },
+      { service_name: { fr: 'Coloration', ar: 'صبغة' }, stylist_name: 'Sara', starts_at: '2026-11-07T10:00:00+00:00' },
+    ] };
+    expect(buildPushMessage('new_booking', visit, 'fr').body).toBe('Lina · Samedi 7 novembre à 10:00\nCoupe & Brushing + Coloration · Amina, Sara');
+    expect(buildPushMessage('new_booking', visit, 'ar').body).toContain('قص وتصفيف الشعر + صبغة');
+    expect(buildPushMessage('new_booking', visit, 'fr').url).toBe('/admin?day=2026-11-07&booking=b1');
+  });
+
+  it('lists a staff member once when she does two parts', () => {
+    const visit = { ...booking, parts: [
+      { service_name: { fr: 'Coupe', ar: 'قص' }, stylist_name: 'Amina', starts_at: '2026-11-07T09:00:00+00:00' },
+      { service_name: { fr: 'Brushing', ar: 'تصفيف' }, stylist_name: 'Amina', starts_at: '2026-11-07T10:00:00+00:00' },
+    ] };
+    expect(buildPushMessage('new_booking', visit, 'fr').body.endsWith('Coupe + Brushing · Amina')).toBe(true);
+  });
+
+  it('a one-part list reads exactly like a single booking', () => {
+    const one = { ...booking, parts: [{ service_name: booking.service_name, stylist_name: booking.stylist_name, starts_at: booking.starts_at }] };
+    expect(buildPushMessage('new_booking', one, 'fr')).toEqual(buildPushMessage('new_booking', booking, 'fr'));
+  });
+
   it('names the salon in the title when the payload carries one', () => {
     expect(buildPushMessage('new_booking', { ...booking, salon_name: 'Rival' }, 'fr').title).toBe('Nouvelle réservation · Rival');
     expect(buildPushMessage('new_booking', booking, 'fr').title).toBe('Nouvelle réservation');
