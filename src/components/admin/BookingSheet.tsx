@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { ArrowLeft, Check } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
-  formatAlgiersTime, toAdminError, useMyRole, useCreateStaffBooking, useUpdateStaffBooking,
+  formatAlgiersTime, toAdminError, useMyRole, useVisitParts, useCreateStaffBooking, useUpdateStaffBooking,
   visitOf, type AdminBooking, type AdminVisit, type StaffBookingInput,
 } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
@@ -101,7 +101,9 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
   const toast = useToast();
 
   const editing = state.mode === 'edit' ? state.booking : null;
-  const visit = editing ? (visitProp ?? visitOf(editing, [editing])) : null;
+  // The whole visit comes from the server (its parts may be in another week); until then, what the caller had.
+  const parts = useVisitParts(editing?.id ?? null).data;
+  const visit = editing ? (parts ? visitOf(editing, parts) : (visitProp ?? visitOf(editing, [editing]))) : null;
   const keptPhone = demo && editing ? editing.clientPhone : null;
   const schema = useMemo(() => bookingSchema(keptPhone), [keptPhone]);
   const {
@@ -242,16 +244,16 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
     >
       {notice ? (
         <MessageReady notice={notice} onSend={close} onLater={close} />
-      ) : editing && view === 'summary' ? (
+      ) : editing && visit && view === 'summary' ? (
         <BookingSummary
           booking={editing}
-          visit={visit!}
-          onConfirm={() => actions.confirm(visit!)}
-          onRefuse={() => actions.refuse(visit!)}
-          onCancel={() => actions.refuse(visit!)}
-          onMessage={() => setNotice({ kind: 'confirmed', booking: { ...visit!.first, serviceName: visit!.serviceName } })}
+          visit={visit}
+          onConfirm={() => actions.confirm(visit)}
+          onRefuse={() => actions.refuse(visit)}
+          onCancel={() => actions.refuse(visit)}
+          onMessage={() => setNotice({ kind: 'confirmed', booking: { ...visit.first, serviceName: visit.serviceName } })}
           onEdit={() => setView('form')}
-          busy={actions.pendingId === visit!.id}
+          busy={actions.pendingId === visit.id}
           error={actions.error}
         />
       ) : (

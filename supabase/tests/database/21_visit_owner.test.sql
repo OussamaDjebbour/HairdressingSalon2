@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(12);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'owner@test.local');
@@ -24,6 +24,10 @@ set local role authenticated;
 
 select is((select count(distinct visit_id)::int from public.admin_list_bookings('2030-01-08', '2030-01-08') where id in ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')),
   1, 'list returns the visit link');
+
+select is(array(select id from public.admin_visit_parts('a1000000-0000-0000-0000-000000000002')),
+  array['a1000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000002'::uuid], 'visit parts: every part of the visit, by start');
+select is((select count(*)::int from public.admin_visit_parts('a2000000-0000-0000-0000-000000000001')), 1, 'visit parts: a lone booking is a visit of one');
 
 select lives_ok($$ select public.admin_set_booking_status('a1000000-0000-0000-0000-000000000002', 'confirmed') $$, 'confirm the second part');
 select is((select string_agg(status, ',') from private.bookings where visit_id = 'f0000000-0000-0000-0000-00000000000f'), 'confirmed,confirmed', 'confirm applies to the whole visit');
@@ -51,6 +55,8 @@ select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select is((select client_phone from public.admin_list_bookings('2030-01-08', '2030-01-08') where id = 'a1000000-0000-0000-0000-000000000001'),
   '05•• •• •• 56', 'demo phone masking survives');
+select is((select client_phone from public.admin_visit_parts('a1000000-0000-0000-0000-000000000001') where id = 'a1000000-0000-0000-0000-000000000002'),
+  '05•• •• •• 56', 'visit parts keep the demo phone masking');
 
 select * from finish();
 rollback;

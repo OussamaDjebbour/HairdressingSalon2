@@ -7,7 +7,7 @@ vi.mock('../lib/supabase', () => ({ supabase: { rpc: vi.fn() } }));
 
 import { supabase } from '../lib/supabase';
 import {
-  algiersToday, formatAlgiersTime, groupVisits, isNotAuthorized, toAdminError, visitOf, useAdminBookings, useCreateStaffBooking,
+  algiersToday, formatAlgiersTime, groupVisits, isNotAuthorized, toAdminError, visitOf, useAdminBookings, useVisitParts, useCreateStaffBooking,
   useSetBookingStatus, useUpdateStaffBooking,
 } from './admin';
 import { toYmd } from './bookings';
@@ -154,6 +154,23 @@ describe('algiersToday', () => {
   });
 });
 
+describe('useVisitParts', () => {
+  it('asks admin_visit_parts for the booking and maps the rows', async () => {
+    rpc.mockResolvedValue({
+      data: [{
+        id: 'b1', starts_at: '2030-01-08T08:00:00+00:00', ends_at: '2030-01-08T09:00:00+00:00', status: 'pending', price: 2500,
+        client_name: 'Y', client_phone: '0555123456', lang: 'fr', service_id: 'c', service_name: { fr: 'C', ar: 'ق' },
+        stylist_id: 'amina', stylist_name: 'Amina', created_at: '2030-01-01T00:00:00+00:00', source: 'online', visit_id: 'v1',
+      }],
+      error: null,
+    });
+    const { result } = renderHook(() => useVisitParts('b1'), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(rpc).toHaveBeenCalledWith('admin_visit_parts', { p_booking_id: 'b1' });
+    expect(result.current.data![0].visitId).toBe('v1');
+  });
+});
+
 describe('visits', () => {
   const coupe = adminBooking({ id: 'p1', visitId: 'v1', startIso: '2030-01-08T09:00:00Z' });
   const color = adminBooking({
@@ -173,6 +190,13 @@ describe('visits', () => {
     expect(v1.serviceName.fr).toBe('Coupe & Brushing + Coloration');
     expect(v1.serviceName.ar).toBe('قص وتصفيف + صبغة');
     expect(v1.first).toBe(coupe);
+  });
+
+  it('groupVisits keeps parts on different days in one visit', () => {
+    const later = adminBooking({ id: 'p9', visitId: 'v1', startIso: '2030-01-15T09:00:00Z' });
+    const v = groupVisits([later, coupe])[0];
+    expect(v.parts.map((p) => p.id)).toEqual(['p1', 'p9']);
+    expect(v.first).toBe(coupe);
   });
 
   it('visitOf finds the other parts in the pool and always keeps the booking', () => {

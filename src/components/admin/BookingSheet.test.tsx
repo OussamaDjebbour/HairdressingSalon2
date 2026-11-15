@@ -35,6 +35,7 @@ const create = vi.fn();
 const update = vi.fn();
 const setStatus = vi.fn();
 let pending = false;
+let visitParts: import('../../data/admin').AdminBooking[] | undefined;
 let role: 'owner' | 'demo' | null = 'owner';
 vi.mock('../../data/admin', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../data/admin')>()),
@@ -42,6 +43,7 @@ vi.mock('../../data/admin', async (importOriginal) => ({
   useUpdateStaffBooking: () => ({ mutate: update, isPending: pending }),
   useSetBookingStatus: () => ({ mutate: setStatus, isPending: pending }),
   useMyRole: () => role,
+  useVisitParts: () => ({ data: visitParts }),
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
@@ -95,6 +97,7 @@ function whatsappText(): string {
 beforeEach(() => {
   vi.clearAllMocks();
   pending = false;
+  visitParts = undefined;
   role = 'owner';
   servicesOverride = undefined;
   stylistsOverride = undefined;
@@ -633,6 +636,28 @@ describe('BookingSheet — visit', () => {
     const text = whatsappText();
     expect(text).toContain('Coupe & Brushing + Coloration');
     expect(text).toContain('à 10:00');
+  });
+
+  it('a failed visit confirm shows why and keeps the sheet', () => {
+    setStatus.mockImplementation((_input, opts) => opts.onError(new Error('slot_taken')));
+    renderSheet({ mode: 'edit', booking: second }, vi.fn(), visit);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByText('Rendez-vous confirmé')).toBeNull();
+    expect(screen.getByRole('list', { name: 'Toute la visite' })).toBeInTheDocument();
+  });
+
+  it('shows a part from outside the loaded pool, from admin_visit_parts', () => {
+    const farAway = adminBooking({
+      id: 'p3', visitId: 'v1', startIso: '2030-01-08T11:00:00Z', price: 1500, serviceId: 'manucure',
+      serviceName: { fr: 'Manucure', ar: 'مانيكير' }, stylistId: 'leila', stylistName: 'Leila',
+    });
+    visitParts = [first, second, farAway];
+    renderSheet({ mode: 'edit', booking: first });
+    const items = within(screen.getByRole('list', { name: 'Toute la visite' })).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[2]).toHaveTextContent('12:00 Manucure · Leila');
+    expect(screen.getByText('10 000 DA')).toBeInTheDocument();
   });
 
   it('a visit of one looks as before', () => {

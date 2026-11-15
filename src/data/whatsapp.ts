@@ -1,5 +1,6 @@
 import type { Lang } from '../context/LanguageContext';
-import { formatAlgiersTime, type AdminBooking } from './admin';
+import type { AdminBooking } from './admin';
+import { formatAlgiersTime } from './algiersTime';
 import { currentSalon } from './salon';
 import { normalizePhone } from './bookings';
 import { formatLongDate, nameInText } from './formatters';

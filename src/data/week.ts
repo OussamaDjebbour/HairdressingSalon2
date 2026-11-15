@@ -1,4 +1,5 @@
-import { formatAlgiersTime, type AdminBooking } from './admin';
+import type { AdminBooking } from './admin';
+import { formatAlgiersTime } from './algiersTime';
 import { toYmd } from './bookings';
 import type { DayHours } from './types';
 
