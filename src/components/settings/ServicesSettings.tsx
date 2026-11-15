@@ -104,8 +104,9 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
     save.mutate({ input: toInput(savedId ?? draft.id, values), photo }, {
       onSuccess: onSaved,
       onError: (err) => {
-        if (err instanceof ServiceSaveError && err.serviceId) {
-          setSavedId(err.serviceId);
+        if (err instanceof ServiceSaveError) {
+          if (err.serviceId) setSavedId(err.serviceId);
+          // The service itself may have been saved even though the photo step failed.
           void queryClient.invalidateQueries({ queryKey: ['services'] });
         }
         const code = toSettingsError(err);
@@ -128,6 +129,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
         onChange={setPhoto}
         onBusyChange={setPreparing}
         demo={demo}
+        disabled={save.isPending}
       />
       <TextField id="svc-name-fr" label={t('settings.services.nameFr')} error={errors.nameFr?.message} {...register('nameFr')} />
       <TextField id="svc-name-ar" label={t('settings.services.nameAr')} optional help={t('form.help.arFallback')} dir="rtl" {...register('nameAr')} />

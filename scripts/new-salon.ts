@@ -33,7 +33,7 @@ const BUCKET = 'salon-photos';
 
 const CONTENT_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
-  '.avif': 'image/avif', '.gif': 'image/gif', '.svg': 'image/svg+xml',
+  '.avif': 'image/avif', '.gif': 'image/gif',
 };
 
 function parseArgs(argv: string[]) {

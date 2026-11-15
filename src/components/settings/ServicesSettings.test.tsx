@@ -42,9 +42,9 @@ import { LanguageProvider } from '../../context/LanguageContext';
 import { FeedbackProvider } from '../admin/feedback';
 import { ServicesSettings } from './ServicesSettings';
 
-function renderIt() {
+function renderIt(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={client}>
       <MemoryRouter>
         <LanguageProvider><FeedbackProvider>
           <ServicesSettings />
@@ -277,6 +277,38 @@ describe('ServicesSettings photo', () => {
     await screen.findByText('Prestation ajoutée');
     const saves = rpc.mock.calls.filter((c) => c[0] === 'admin_save_service').map((c) => (c[1] as { p_id: string | null }).p_id);
     expect(saves).toEqual([null, 'new-1']);
+  });
+
+  it('locks the photo buttons while the save is pending', async () => {
+    services = [{ ...svc('a1', 'Brushing', true, 2), image: 'https://x.test/a.jpg' }];
+    let resolve!: (v: unknown) => void;
+    rpc.mockImplementation((fn: string) => (fn === 'admin_save_service'
+      ? new Promise((r) => { resolve = r; })
+      : Promise.resolve({ data: null, error: null })));
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Changer' })).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Retirer' })).toBeDisabled();
+    resolve({ data: 'a1', error: null });
+  });
+
+  it('invalidates the services list when the photo step fails on an existing service', async () => {
+    services = [svc('a1', 'Brushing', true, 2)];
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === 'admin_save_service') return { data: 'a1', error: null };
+      if (fn === 'admin_set_service_photo') return { data: null, error: { message: 'invalid_photo' } };
+      return { data: null, error: null };
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    renderIt(client);
+    fireEvent.click(screen.getByText('Brushing'));
+    pick();
+    await screen.findByRole('button', { name: 'Changer' });
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await screen.findByText(/La photo n’a pas pu être enregistrée/);
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['services'] });
   });
 
   it('demo: tapping Ajouter une photo explains and opens nothing', async () => {

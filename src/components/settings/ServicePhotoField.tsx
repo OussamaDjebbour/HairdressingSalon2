@@ -13,9 +13,11 @@ interface Props {
   onChange(v: PhotoChange): void;
   onBusyChange(busy: boolean): void;
   demo: boolean;
+  /** True while the form is saving: the photo can't change then. */
+  disabled?: boolean;
 }
 
-export function ServicePhotoField({ id, currentUrl, category, value, onChange, onBusyChange, demo }: Props) {
+export function ServicePhotoField({ id, currentUrl, category, value, onChange, onBusyChange, demo, disabled = false }: Props) {
   const { t } = useLang();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +25,7 @@ export function ServicePhotoField({ id, currentUrl, category, value, onChange, o
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const latest = useRef(0);
+  const locked = busy || disabled;
 
   const blob = value.kind === 'new' ? value.blob : null;
   useEffect(() => {
@@ -78,13 +81,13 @@ export function ServicePhotoField({ id, currentUrl, category, value, onChange, o
         <div className="flex flex-col items-start gap-1">
           {shown ? (
             <>
-              <button type="button" className="btn-secondary btn-sm tap" onClick={open} disabled={busy}>{t('settings.services.changePhoto')}</button>
-              <button type="button" className="btn-ghost btn-sm tap" onClick={remove} disabled={busy}>
+              <button type="button" className="btn-secondary btn-sm tap" onClick={open} disabled={locked}>{t('settings.services.changePhoto')}</button>
+              <button type="button" className="btn-ghost btn-sm tap" onClick={remove} disabled={locked}>
                 {t('settings.services.removePhoto')}
               </button>
             </>
           ) : (
-            <button type="button" className="btn-secondary btn-sm tap" onClick={open} disabled={busy}>
+            <button type="button" className="btn-secondary btn-sm tap" onClick={open} disabled={locked}>
               <ImagePlus className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" /> {t('settings.services.addPhoto')}
             </button>
           )}

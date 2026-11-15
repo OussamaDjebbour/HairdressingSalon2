@@ -232,10 +232,12 @@ export async function saveServiceWithPhoto(input: SaveServiceInput, photo: Photo
 
   let createdId: string | null = null;
   let oldPath: string | null = null;
+  let photoCalled = false;
   try {
     const id = await saveService(input);
     if (input.id === null) createdId = id;
     if (photo.kind !== 'keep') {
+      photoCalled = true;
       oldPath = await rpc<string | null>('admin_set_service_photo', { p_id: id, p_path: uploaded });
     }
     if (oldPath) {
@@ -243,10 +245,13 @@ export async function saveServiceWithPhoto(input: SaveServiceInput, photo: Photo
     }
     return id;
   } catch (err) {
-    if (uploaded) {
+    const code = toSettingsError(err);
+    // If the photo RPC failed with no known server code (e.g. a lost response) it may have committed:
+    // the service could now reference the file, so keep it (an orphan is harmless, a broken card is not).
+    if (uploaded && (!photoCalled || code !== 'unknown')) {
       try { await bucket().remove([uploaded]); } catch { /* best effort */ }
     }
-    throw new ServiceSaveError(toSettingsError(err), createdId);
+    throw new ServiceSaveError(code, createdId);
   }
 }
 
