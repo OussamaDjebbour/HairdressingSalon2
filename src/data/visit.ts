@@ -53,3 +53,8 @@ export function missingAllDay(slots: VisitSlot[], parts: number): number[] {
 export function joinNames(names: string[]): string {
   return names.join(' + ');
 }
+
+/** "HH:MM" at the salon for a booked instant (Algiers is UTC+1 all year, no DST). */
+export function salonHm(d: Date): string {
+  return new Date(d.getTime() + 3_600_000).toISOString().slice(11, 16);
+}

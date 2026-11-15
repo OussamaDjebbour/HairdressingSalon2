@@ -10,15 +10,18 @@ import {
 } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import {
-  useVisitSlots, useCreateVisit, toBookingError, type BookingErrorCode, type CreatedPart, type VisitItem,
+  useVisitSlots, useCreateVisit, toBookingError, failedItem, type BookingErrorCode, type VisitItem,
 } from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
 import { countText, formatPrice, formatDuration, formatLongDate } from '../data/formatters';
-import { MAX_VISIT_SERVICES, joinNames, planVisit, visitOrder, visitTotals } from '../data/visit';
+import {
+  MAX_VISIT_SERVICES, joinNames, missingAllDay, planVisit, salonHm, slotState, visitOrder, visitTotals,
+} from '../data/visit';
 import { VisitStylists } from './booking/VisitStylists';
 import { VisitParts, type VisitPart } from './booking/VisitParts';
+import { DayMissing, TimeMissing } from './booking/MissingParts';
 import { TimeSlotChip } from './TimeSlotChip';
 import { dayHours } from '../data/hours';
 import { useClosedDates, useSalonHours, useSalonInfo } from '../data/salonSettings';
@@ -72,12 +75,16 @@ export function Booking() {
     mode: 'onTouched',
     defaultValues: { clientName: '', clientPhone: '' },
   });
-  const [submitted, setSubmitted] = useState(false);
   const createVisitMutation = useCreateVisit();
-  // The parts as booked (with the staff the salon assigned for "no preference").
-  const [assigned, setAssigned] = useState<CreatedPart[] | null>(null);
+  // The visit as booked (names, the staff the salon assigned, the booked times), frozen at confirm time.
+  const [booked, setBooked] = useState<{ parts: VisitPart[]; total: number; date: Date | null } | null>(null);
   const [submitError, setSubmitError] = useState<Exclude<BookingErrorCode, 'slot_taken'> | null>(null);
   const [slotNotice, setSlotNotice] = useState<'booking.slotTaken' | 'booking.slotPassed' | null>(null);
+  // A tapped time where some parts can't be placed, and a part that was just taken at confirm (index into visit).
+  const [partial, setPartial] = useState<{ time: string; missing: number[] } | null>(null);
+  const [race, setRace] = useState<number | null>(null);
+  // A ticked service the salon no longer offers was removed.
+  const [dropped, setDropped] = useState(false);
 
   const upcomingDays = useMemo(() => {
     const days: Date[] = [];
@@ -103,25 +110,43 @@ export function Booking() {
   const totals = visitTotals(visit);
   const single = visit.length === 1 ? visit[0] : null;
   const selectedStylist = single ? stylistFor[single.id] ?? null : null;
-  const atMax = visit.length >= MAX_VISIT_SERVICES;
+  const atMax = selectedIds.length >= MAX_VISIT_SERVICES;
 
   const slotsQuery = useVisitSlots(selectedDate, items);
-  const slots = slotsQuery.data ?? [];
+  const slotData = slotsQuery.data;
+  const slots = slotData ?? [];
+  // The chosen time is bookable for the current parts (by fetched data, not while the slots load).
+  const timeOk = !!slotData?.some((s) => s.slot === selectedTime && s.available);
+
+  /** No time chosen, and no "not available at this time" notice (its indexes would be stale). */
+  const clearTime = () => {
+    setSelectedTime(null);
+    setPartial(null);
+  };
+
+  const dropIds = (ids: string[]) => {
+    setSelectedIds((cur) => cur.filter((id) => !ids.includes(id)));
+    setStylistFor((m) => Object.fromEntries(Object.entries(m).filter(([id]) => !ids.includes(id))));
+  };
 
   const toggleService = (service: Service) => {
-    if (selectedIds.includes(service.id)) {
-      setSelectedIds((ids) => ids.filter((id) => id !== service.id));
-      setStylistFor(({ [service.id]: _dropped, ...rest }) => rest);
-    } else {
-      if (atMax) return;
-      setSelectedIds((ids) => [...ids, service.id]);
-    }
-    setSelectedTime(null);
+    if (selectedIds.includes(service.id)) dropIds([service.id]);
+    else if (atMax) return;
+    else setSelectedIds((ids) => [...ids, service.id]);
+    clearTime();
+    setDropped(false);
   };
 
   const chooseStylist = (serviceId: string, stylistId: string | null) => {
     setStylistFor((m) => ({ ...m, [serviceId]: stylistId }));
-    setSelectedTime(null);
+    clearTime();
+  };
+
+  /** The client's choice to leave out these parts (indexes into visit). Keeps the chosen time. */
+  const removeParts = (indexes: number[]) => {
+    dropIds(indexes.flatMap((i) => (visit[i] ? [visit[i].id] : [])));
+    setPartial(null);
+    setRace(null);
   };
 
   const stylistLabel = (id: string | null | undefined, none: string) =>
@@ -137,7 +162,7 @@ export function Booking() {
   const canProceed = () => {
     if (step === 0) return visit.length > 0;
     if (step === 1) return true;
-    if (step === 2) return selectedDate !== null && selectedTime !== null;
+    if (step === 2) return selectedDate !== null && selectedTime !== null && timeOk;
     // Step 3: the button stays enabled; pressing it validates and shows every error.
     return step === 3;
   };
@@ -145,20 +170,20 @@ export function Booking() {
   const handleNext = () => { if (step < 3) setStep((s) => (s + 1) as Step); };
   const handleBack = () => { if (step > 0) setStep((s) => (s - 1) as Step); };
 
-  /** Who does a part: the assigned staff once booked, else the client's choice. */
-  const partStylistId = (serviceId: string) =>
-    assigned?.find((p) => p.serviceId === serviceId)?.stylistId ?? stylistFor[serviceId] ?? null;
-  const stylistName = single ? stylistLabel(partStylistId(single.id), t('booking.noPreference')) : '';
   const plannedParts: VisitPart[] = selectedTime
     ? planVisit(visit, selectedTime).map(({ service, time }) => ({
         time,
         service,
-        stylistName: stylistLabel(partStylistId(service.id), t('booking.visit.anyStylist')),
+        stylistName: stylistLabel(stylistFor[service.id], t(single ? 'booking.noPreference' : 'booking.visit.anyStylist')),
       }))
     : [];
 
   const handleConfirm = ({ clientName, clientPhone }: ClientDetails) => {
-    if (items.length === 0 || items.length > MAX_VISIT_SERVICES || !selectedDate || !selectedTime) return;
+    setRace(null);
+    if (items.length === 0 || items.length > MAX_VISIT_SERVICES || !selectedDate || !selectedTime) {
+      setSubmitError('unknown');
+      return;
+    }
     setSubmitError(null);
     createVisitMutation.mutate(
       {
@@ -171,11 +196,23 @@ export function Booking() {
       },
       {
         onSuccess: (created) => {
-          setAssigned(created);
-          setSubmitted(true);
+          setBooked({
+            date: selectedDate,
+            total: totals.price,
+            parts: visit.flatMap((service) => {
+              const part = created.find((p) => p.serviceId === service.id);
+              return part ? [{ service, time: salonHm(part.startsAt), stylistName: stylistLabel(part.stylistId, '') }] : [];
+            }),
+          });
         },
         onError: (err) => {
           const code = toBookingError(err);
+          // One part of several was just taken: say which, and let the client choose (book the others or another time).
+          const failed = code === 'slot_taken' && items.length > 1 ? failedItem(err) : null;
+          if (failed !== null && failed < items.length) {
+            setRace(failed);
+            return;
+          }
           // The chosen time is no longer bookable (taken, or it passed while
           // the customer was on this step): send them back to pick another.
           if (code === 'slot_taken' || code === 'outside_hours') {
@@ -213,13 +250,14 @@ export function Booking() {
     setSelectedIds([]);
     setStylistFor({});
     setSelectedDate(null);
-    setSelectedTime(null);
+    clearTime();
     if (!keepClient) reset();
-    setAssigned(null);
     setSubmitError(null);
     setSlotNotice(null);
+    setRace(null);
+    setDropped(false);
     createVisitMutation.reset();
-    setSubmitted(false);
+    setBooked(null);
   };
 
   const resetBooking = () => restart();
@@ -235,6 +273,58 @@ export function Booking() {
       headingRef.current?.focus({ preventScroll: true });
     }
   }, [step]);
+  /** Go to a step and put focus on its heading (now, if already there: setStep wouldn't re-render). */
+  const goTo = (s: Step) => {
+    if (stepRef.current === s) headingRef.current?.focus({ preventScroll: true });
+    else focusHeading.current = true;
+    setStep(s);
+  };
+
+  /** "Réserver les autres prestations": leave out these parts, keep the time (re-checked below), back to the times. */
+  const bookOthers = (time: string, indexes: number[]) => {
+    removeParts(indexes);
+    setSelectedTime(time);
+    setSlotNotice(null);
+    goTo(2);
+  };
+  const otherTime = () => {
+    clearTime();
+    setRace(null);
+    goTo(2);
+  };
+
+  // The chosen time must still be bookable for the current parts: checked against fetched data only.
+  useEffect(() => {
+    if (step === 2 && selectedTime && slotData && !timeOk) {
+      setSelectedTime(null);
+      setSlotNotice('booking.slotPassed');
+    }
+  }, [step, selectedTime, slotData, timeOk]);
+
+  // A ticked service the salon stopped offering (services refetched): drop it, clear the time and say so.
+  const offered = servicesQuery.data;
+  useEffect(() => {
+    if (!offered || booked) return;
+    const gone = selectedIds.filter((id) => !offered.some((s) => s.id === id));
+    if (gone.length === 0) return;
+    dropIds(gone);
+    clearTime();
+    setRace(null);
+    setDropped(true);
+    if (gone.length === selectedIds.length) setStep(0);
+    else if (step === 3) setStep(2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the offer or the selection changes
+  }, [offered, selectedIds]);
+
+  // On a phone the plan (or the "not available at" notice) sits below the times: bring it into view, focus stays.
+  const revealRef = useRef<HTMLElement | null>(null);
+  const reveal = useRef(false);
+  useEffect(() => {
+    if (!reveal.current) return;
+    reveal.current = false;
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    revealRef.current?.scrollIntoView?.({ block: 'nearest', behavior: still ? 'auto' : 'smooth' });
+  }, [selectedTime, partial]);
 
   // A service tile on the page chose a service: restart with it picked (keeping what the client typed)
   // and go to the stylist step. Applied once per request; waits for the services to load, and is
@@ -255,10 +345,7 @@ export function Booking() {
     restart(true);
     setSelectedIds([service.id]);
     clearErrors();
-    // Already on that step: setStep won't re-render, so focus now instead of leaving the flag set.
-    if (stepRef.current === 1) headingRef.current?.focus({ preventScroll: true });
-    else focusHeading.current = true;
-    setStep(1);
+    goTo(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is recreated each render; applied once per seq
   }, [request, services, sending]);
 
@@ -271,25 +358,60 @@ export function Booking() {
         {' · '}
         <span className="whitespace-nowrap">{formatDuration(totals.duration, lang)}</span>
       </p>
-      <button type="button" onClick={() => { focusHeading.current = true; setStep(0); }} className="tap flex-shrink-0 px-3 font-medium text-rose-800 underline underline-offset-2 hover:text-rose-900">
+      <button type="button" onClick={() => goTo(0)} className="tap flex-shrink-0 px-3 font-medium text-rose-800 underline underline-offset-2 hover:text-rose-900">
         {t('booking.recap.change')}
       </button>
     </div>
   );
 
-  // Several parts: the date, then each part (time · service · staff) and the total.
-  const visitSummary = (
-    <>
-      <div className="flex justify-between items-center gap-4 mb-4">
-        <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
-        <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
-      </div>
-      <p className="text-sm text-rose-600 mb-2">{t('booking.summary.services')}</p>
-      <VisitParts parts={plannedParts} total={totals.price} />
-    </>
+  const row = (key: string, value: string) => (
+    <div key={key} className="flex justify-between items-center gap-4">
+      <span className="text-sm text-rose-600">{t(key)}</span>
+      <span className="text-sm font-medium text-rose-800">{value}</span>
+    </div>
   );
 
-  if (submitted) {
+  /** The confirm step's and the success screen's summary: one service as rows, several as a list of parts. */
+  const summary = (parts: VisitPart[], total: number, date: Date | null, duration?: number) => {
+    const dateText = date ? formatLongDate(date, lang) : '—';
+    if (parts.length !== 1) {
+      return (
+        <div className="space-y-4">
+          {row('booking.summary.date', dateText)}
+          <div>
+            <p className="text-sm text-rose-600 mb-2">{t('booking.summary.services')}</p>
+            <VisitParts parts={parts} total={total} />
+          </div>
+        </div>
+      );
+    }
+    const [part] = parts;
+    return (
+      <div className="space-y-3">
+        {row('booking.summary.service', part.service.name[lang])}
+        {row('booking.summary.stylist', part.stylistName)}
+        {row('booking.summary.date', dateText)}
+        {row('booking.summary.time', part.time)}
+        {duration !== undefined && row('booking.summary.duration', formatDuration(duration, lang))}
+        <div className="border-t border-cream-200 pt-3 flex justify-between items-center gap-4">
+          <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
+          <span className="text-lg font-display font-semibold text-rose-800">{formatPrice(total, lang)}</span>
+        </div>
+      </div>
+    );
+  };
+
+  const notice = (text: string) => (
+    <p role="alert" className="flex items-center gap-2 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+      <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
+      {text}
+    </p>
+  );
+
+  const partNames = (indexes: number[]) => indexes.flatMap((i) => (visit[i] ? [visit[i].name[lang]] : []));
+  const dayMissing = missingAllDay(slots, items.length).filter((i) => visit[i]);
+
+  if (booked) {
     return (
       <section id="booking" className="relative py-20 lg:py-28 bg-cream-100/50">
         <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -300,34 +422,9 @@ export function Booking() {
           <h2 className="font-display text-3xl font-semibold text-rose-800 mb-3">{t('booking.successTitle')}</h2>
           <p className="text-rose-600 text-lg mb-6">{t('booking.successText')}</p>
 
-          {single ? (
-            <div className="rounded-2xl bg-white border border-cream-200 p-5 space-y-3 text-start mb-6">
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-sm text-rose-600">{t('booking.summary.service')}</span>
-                <span className="text-sm font-medium text-rose-800">{single.name[lang]}</span>
-              </div>
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-sm text-rose-600">{t('booking.summary.stylist')}</span>
-                <span className="text-sm font-medium text-rose-800">{stylistName}</span>
-              </div>
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
-                <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
-              </div>
-              <div className="flex justify-between items-center gap-4">
-                <span className="text-sm text-rose-600">{t('booking.summary.time')}</span>
-                <span className="text-sm font-medium text-rose-800">{selectedTime ?? '—'}</span>
-              </div>
-              <div className="border-t border-cream-200 pt-3 flex justify-between items-center gap-4">
-                <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
-                <span className="text-lg font-display font-semibold text-rose-800">{formatPrice(single.price, lang)}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-white border border-cream-200 p-5 text-start mb-6">
-              {visitSummary}
-            </div>
-          )}
+          <div className="rounded-2xl bg-white border border-cream-200 p-5 text-start mb-6">
+            {summary(booked.parts, booked.total, booked.date)}
+          </div>
 
           {waNumber && (
             <a
@@ -395,6 +492,7 @@ export function Booking() {
           </div>
         ) : (
         <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-6 sm:p-8 lg:p-10 min-h-[400px] flex flex-col">
+          {dropped && notice(t('booking.visit.dropped'))}
           {/* Step 0 — Service */}
           {step === 0 && (
             <div className="animate-fadeIn">
@@ -537,7 +635,7 @@ export function Booking() {
                     return (
                       <button
                         key={i}
-                        onClick={() => { setSelectedDate(day); setSelectedTime(null); }}
+                        onClick={() => { setSelectedDate(day); clearTime(); }}
                         className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-2xl border transition-all duration-200 ease-silk ${
                           isSelected
                             ? 'border-rose-800 bg-rose-800 text-cream-50 shadow-soft'
@@ -558,12 +656,15 @@ export function Booking() {
               {selectedDate && (
                 <div>
                   <h3 className="font-display text-xl font-semibold text-rose-800 mb-4">{t('booking.selectTime')}</h3>
-                  {slotNotice && (
-                    <p role="alert" className="flex items-center gap-2 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
-                      {t(slotNotice)}
-                    </p>
-                  )}
+                  {slotNotice && notice(t(slotNotice))}
+                  <DayMissing
+                    parts={dayMissing.map((i) => {
+                      const id = stylistFor[visit[i].id];
+                      return { service: visit[i], stylistName: id ? stylistLabel(id, '') : null };
+                    })}
+                    onRemove={(k) => { removeParts([dayMissing[k]]); goTo(2); }}
+                    onChangeStylist={() => goTo(1)}
+                  />
                   {slotsQuery.isLoading ? (
                     <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2.5">
                       {Array.from({ length: 12 }, (_, i) => (
@@ -572,29 +673,57 @@ export function Booking() {
                     </div>
                   ) : slotsQuery.isError ? (
                     <DataError onRetry={() => slotsQuery.refetch()} />
-                  ) : slots.some((s) => s.available) ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2.5">
-                      {/* A time where some parts can't be placed is simply unavailable for now. */}
-                      {slots.map(({ slot, available }) => (
-                        <TimeSlotChip
-                          key={slot}
-                          state={selectedTime === slot ? 'selected' : available ? 'available' : 'disabled'}
-                          disabled={!available}
-                          onClick={() => {
-                            if (!available) return;
-                            setSelectedTime(slot);
-                            setSlotNotice(null);
-                          }}
-                        >
-                          {slot}
-                        </TimeSlotChip>
-                      ))}
+                  ) : slots.some((s) => slotState(s, items.length) !== 'full') ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2.5 items-start">
+                      {slots.map((s) => {
+                        // A time where only some parts can be placed: bookable without them, on the client's say-so.
+                        const state = slotState(s, items.length);
+                        return (
+                          <TimeSlotChip
+                            key={s.slot}
+                            state={selectedTime === s.slot ? 'selected' : state === 'full' ? 'disabled' : state}
+                            disabled={state === 'full'}
+                            onClick={() => {
+                              reveal.current = true;
+                              setSlotNotice(null);
+                              if (state === 'partial') {
+                                setSelectedTime(null);
+                                setPartial({ time: s.slot, missing: s.missing });
+                              } else {
+                                setSelectedTime(s.slot);
+                                setPartial(null);
+                              }
+                            }}
+                          >
+                            {s.slot}
+                            {state === 'partial' && (
+                              <>
+                                {' '}
+                                <span className="text-xs font-normal">
+                                  {t('booking.visit.without').replace('{services}', joinNames(partNames(s.missing)))}
+                                </span>
+                              </>
+                            )}
+                          </TimeSlotChip>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-rose-600 text-sm py-8 text-center">{t('booking.noSlots')}</p>
                   )}
+                  {partial && (
+                    <div ref={(el) => { revealRef.current = el; }} className="mt-4">
+                      <TimeMissing
+                        kind="unavailable"
+                        names={partNames(partial.missing)}
+                        time={partial.time}
+                        onBookOthers={() => bookOthers(partial.time, partial.missing)}
+                        onOtherTime={otherTime}
+                      />
+                    </div>
+                  )}
                   {visit.length > 1 && selectedTime && (
-                    <section aria-labelledby="booking-plan" className="mt-6 rounded-2xl bg-cream-50 border border-cream-200 p-4">
+                    <section ref={(el) => { revealRef.current = el; }} aria-labelledby="booking-plan" className="mt-6 rounded-2xl bg-cream-50 border border-cream-200 p-4">
                       <h4 id="booking-plan" className="text-sm font-semibold text-rose-700 mb-3">{t('booking.visit.plan')}</h4>
                       <VisitParts parts={plannedParts} />
                     </section>
@@ -609,36 +738,9 @@ export function Booking() {
             <div className="animate-fadeIn space-y-6">
               <h3 className="font-display text-xl font-semibold text-rose-800 mb-2">{t('booking.summary')}</h3>
 
-              {single ? (
-                <div className="rounded-2xl bg-cream-50 border border-cream-200 p-5 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-rose-600">{t('booking.summary.service')}</span>
-                    <span className="text-sm font-medium text-rose-800">{single.name[lang]}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-rose-600">{t('booking.summary.stylist')}</span>
-                    <span className="text-sm font-medium text-rose-800">{stylistName}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-rose-600">{t('booking.summary.date')}</span>
-                    <span className="text-sm font-medium text-rose-800">{selectedDate ? formatLongDate(selectedDate, lang) : '—'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-rose-600">{t('booking.summary.time')}</span>
-                    <span className="text-sm font-medium text-rose-800">{selectedTime ?? '—'}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-rose-600">{t('booking.summary.duration')}</span>
-                    <span className="text-sm font-medium text-rose-800">{formatDuration(single.duration, lang)}</span>
-                  </div>
-                  <div className="border-t border-cream-200 pt-3 flex justify-between items-center">
-                    <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
-                    <span className="text-lg font-display font-semibold text-rose-800">{formatPrice(single.price, lang)}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-2xl bg-cream-50 border border-cream-200 p-5">{visitSummary}</div>
-              )}
+              <div className="rounded-2xl bg-cream-50 border border-cream-200 p-5">
+                {summary(plannedParts, totals.price, selectedDate, totals.duration)}
+              </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <TextField
@@ -664,6 +766,16 @@ export function Booking() {
               </div>
 
               {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
+
+              {race !== null && visit[race] && selectedTime && (
+                <TimeMissing
+                  kind="taken"
+                  names={partNames([race])}
+                  time={selectedTime}
+                  onBookOthers={() => bookOthers(selectedTime, [race])}
+                  onOtherTime={otherTime}
+                />
+              )}
 
               {submitError && (
                 <div role="alert" className="rounded-2xl border border-rust-200 bg-rust-50 p-4 text-sm text-rust-700">
@@ -696,7 +808,7 @@ export function Booking() {
             }
           >
             {step === 0 && (
-              <div aria-live="polite" className="text-center text-sm mb-3 empty:hidden">
+              <div aria-live="polite" className="text-center text-sm mb-3 empty:mb-0">
                 {visit.length > 0 && (
                   <p className="font-medium text-rose-800">
                     {[countText(t, lang, 'booking.visit.count', visit.length), formatPrice(totals.price, lang), formatDuration(totals.duration, lang)].join(' · ')}

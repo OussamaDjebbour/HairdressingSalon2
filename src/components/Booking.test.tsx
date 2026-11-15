@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, cleanup, waitFor, act } from '@testing-library/react';
 
 const service = {
@@ -41,11 +41,16 @@ vi.mock('../data/salonSettings', () => ({
 
 const mutate = vi.fn();
 let pending = false;
+/** The slots per number of parts (default: 10:00 free); every call's items are recorded. */
+const DEFAULT_SLOTS: VisitSlot[] = [{ slot: '10:00', available: true, missing: [] }];
+let visitSlots: Record<number, VisitSlot[]> = {};
+let slotCalls: VisitItem[][] = [];
 vi.mock('../data/bookings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/bookings')>()),
-  useVisitSlots: () => ({
-    data: [{ slot: '10:00', available: true, missing: [] }], isLoading: false, isError: false, refetch: vi.fn(),
-  }),
+  useVisitSlots: (_date: Date | null, items: VisitItem[]) => {
+    slotCalls.push(items);
+    return { data: visitSlots[items.length] ?? DEFAULT_SLOTS, isLoading: false, isError: false, refetch: vi.fn() };
+  },
   useCreateVisit: () => ({ mutate, reset: vi.fn(), isPending: pending }),
 }));
 
@@ -53,6 +58,7 @@ import { eleganceHours } from './admin/fixtures';
 import { toYmd } from '../data/bookings';
 import { isoWeekday } from '../data/hours';
 import type { ClosedDates, SalonHours } from '../data/types';
+import type { VisitItem, VisitSlot } from '../data/bookings';
 import { LanguageProvider, useLang, translations } from '../context/LanguageContext';
 import { Booking } from './Booking';
 import { BookingIntentProvider, useBookingIntent } from '../context/BookingIntentContext';
@@ -88,8 +94,8 @@ function Chooser({ id }: { id: string }) {
 
 const SUCCESS_PARTS = [{ bookingId: 'b1', serviceId: 'coupe-femme', stylistId: 'amina', startsAt: new Date() }];
 
-function failWith(message: string) {
-  mutate.mockImplementation((_input, opts: { onError: (e: unknown) => void }) => opts.onError({ message }));
+function failWith(message: string, details?: string) {
+  mutate.mockImplementation((_input, opts: { onError: (e: unknown) => void }) => opts.onError({ message, details }));
 }
 
 beforeEach(() => {
@@ -99,6 +105,8 @@ beforeEach(() => {
   hoursState = {};
   serviceList = [service];
   pending = false;
+  visitSlots = {};
+  slotCalls = [];
 });
 
 /** The next date (within the 14-day strip, after today) on the given ISO weekday. */
@@ -156,7 +164,7 @@ describe('Booking date strip follows the salon settings', () => {
 
 describe('Booking confirm errors', () => {
   it('slot_taken returns to the time step with a notice', async () => {
-    failWith('slot_taken');
+    failWith('slot_taken', 'item:0');
     goToConfirmStep();
     fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('vient d’être pris');
@@ -474,12 +482,14 @@ function serviceButton(name: string): HTMLElement {
   return screen.getByText(name).closest('button') as HTMLElement;
 }
 
+const wizard = () => (
+  <LanguageProvider>
+    <ToArabic />
+    <Booking />
+  </LanguageProvider>
+);
 function renderWizard() {
-  return render(
-    <LanguageProvider>
-      <Booking />
-    </LanguageProvider>
-  );
+  return render(wizard());
 }
 
 const next = () => fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
@@ -487,6 +497,19 @@ const pickFirstDay = () => fireEvent.click(document.body.querySelector('.overflo
 /** The row of the staff step for a service (its heading's group). */
 const staffRow = (name: string) => within(screen.getByRole('group', { name }));
 const textOf = (el: Element) => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+/** Algiers is UTC+1 all year: 09:00Z is 10:00 at the salon. */
+const BOOKED_TWO = [
+  { bookingId: 'b1', serviceId: 'coupe-femme', stylistId: 'amina', startsAt: new Date('2026-11-18T09:00:00Z') },
+  { bookingId: 'b2', serviceId: 'manucure', stylistId: 'sara', startsAt: new Date('2026-11-18T10:00:00Z') },
+];
+const isSelectedChip = (el: Element) => el.classList.contains('chip-selected');
+const selectedChips = () => screen.queryAllByRole('button').filter(isSelectedChip);
+const recapText = () => textOf(screen.getByRole('button', { name: 'Changer' }).parentElement!.querySelector('p')!);
+const fillAndConfirm = () => {
+  fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
+  fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+  fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+};
 
 describe('Booking several services', () => {
   beforeEach(() => {
@@ -602,10 +625,7 @@ describe('Booking several services', () => {
 
   it('the confirm step and success screen list each part and the total', async () => {
     mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) =>
-      opts.onSuccess([
-        { bookingId: 'b1', serviceId: 'coupe-femme', stylistId: 'amina', startsAt: new Date() },
-        { bookingId: 'b2', serviceId: 'manucure', stylistId: 'sara', startsAt: new Date() },
-      ])
+      opts.onSuccess(BOOKED_TWO)
     );
     toTime();
     next();
@@ -621,5 +641,250 @@ describe('Booking several services', () => {
       '11:00 Manucure & Vernis · Sara',
     ]);
     expect(textOf(screen.getByText('Total').parentElement!)).toBe('Total 4 500 DA');
+  });
+
+  it('the success screen keeps the parts as booked when the services change afterwards', async () => {
+    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(BOOKED_TWO));
+    const { rerender } = render(wizard());
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    next();
+    pickFirstDay();
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    next();
+    fillAndConfirm();
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    serviceList = [{ ...service, name: { fr: 'Coupe renommée', ar: 'x' }, price: 9999 }];
+    rerender(wizard());
+    expect(screen.getAllByRole('listitem').map(textOf)).toEqual([
+      '10:00 Coupe & Brushing · Amina',
+      '11:00 Manucure & Vernis · Sara',
+    ]);
+    expect(textOf(screen.getByText('Total').parentElement!)).toBe('Total 4 500 DA');
+  });
+
+  it('the success screen shows the times the salon booked', async () => {
+    mutate.mockImplementation((_i, opts: { onSuccess: (r: unknown) => void }) =>
+      opts.onSuccess([{ ...BOOKED_TWO[0], startsAt: new Date('2026-11-18T09:30:00Z') }, BOOKED_TWO[1]])
+    );
+    toTime();
+    next();
+    fillAndConfirm();
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    expect(screen.getAllByRole('listitem').map(textOf)[0]).toBe('10:30 Coupe & Brushing · Amina');
+  });
+
+  it('changing a staff choice clears the chosen time', () => {
+    toTime();
+    fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
+    fireEvent.click(staffRow('Coupe & Brushing').getByRole('button', { name: 'Sans préférence' }));
+    next();
+    expect(selectedChips()).toHaveLength(0);
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+  });
+
+  it('changing the services clears the chosen time', () => {
+    toTime();
+    fireEvent.click(screen.getByRole('button', { name: 'Changer' }));
+    fireEvent.click(serviceButton('Coloration & Balayage'));
+    next();
+    next();
+    expect(selectedChips()).toHaveLength(0);
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+  });
+
+  it('unticking a service drops its staff choice', () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    fireEvent.click(staffRow('Coupe & Brushing').getByRole('button', { name: 'Amina' }));
+    fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    expect(staffRow('Coupe & Brushing').getByRole('button', { name: 'Sans préférence' })).toHaveAttribute('aria-pressed', 'true');
+    expect(staffRow('Coupe & Brushing').getByRole('button', { name: 'Amina' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('keeps the live summary region rendered (empty, not hidden) before any choice', () => {
+    const { container } = renderWizard();
+    const live = container.querySelector('[aria-live="polite"]');
+    expect(live).not.toBeNull();
+    expect(live).toBeEmptyDOMElement();
+    expect(live!.className).not.toMatch(/(^|\s)(hidden|empty:hidden)(\s|$)/);
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    expect(live).toHaveTextContent('1 prestation');
+  });
+
+  it('a selected service that is no longer offered is dropped with a note and the time cleared', () => {
+    const { rerender } = render(wizard());
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    next();
+    pickFirstDay();
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    serviceList = [service, coloration];
+    rerender(wizard());
+    expect(screen.getByText('Une prestation n’est plus proposée et a été retirée.')).toBeInTheDocument();
+    expect(recapText()).toMatch(/^Coupe & Brushing · /);
+    expect(selectedChips()).toHaveLength(0);
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+  });
+
+  describe('bringing the plan into view after a time is picked', () => {
+    let calls: [Element, ScrollIntoViewOptions | undefined][];
+    const original = Element.prototype.scrollIntoView;
+    const originalMatch = window.matchMedia;
+    beforeEach(() => {
+      calls = [];
+      Element.prototype.scrollIntoView = function (this: Element, o?: boolean | ScrollIntoViewOptions) {
+        calls.push([this, o as ScrollIntoViewOptions]);
+      };
+    });
+    afterEach(() => {
+      Element.prototype.scrollIntoView = original;
+      window.matchMedia = originalMatch;
+    });
+
+    it('scrolls the plan into view smoothly without moving the focus', () => {
+      toTime();
+      const plan = screen.getByRole('region', { name: 'Déroulé' });
+      expect(calls).toEqual([[plan, { block: 'nearest', behavior: 'smooth' }]]);
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it('jumps without animation when the client prefers reduced motion', () => {
+      window.matchMedia = ((q: string) => ({ matches: q.includes('reduce') })) as unknown as typeof window.matchMedia;
+      toTime();
+      expect(calls[0][1]).toEqual({ block: 'nearest', behavior: 'auto' });
+    });
+  });
+});
+
+const slot = (time: string, available: boolean, missing: number[]): VisitSlot => ({ slot: time, available, missing });
+
+describe('Booking unavailable parts', () => {
+  beforeEach(() => {
+    serviceList = threeServices;
+  });
+
+  /** Coupe (Amina unless told otherwise) + Manucure, on the time step of the first day. */
+  const toTimes = (amina = true) => {
+    renderWizard();
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    fireEvent.click(serviceButton('Coupe & Brushing'));
+    next();
+    if (amina) fireEvent.click(staffRow('Coupe & Brushing').getByRole('button', { name: 'Amina' }));
+    next();
+    pickFirstDay();
+  };
+  const partialChip = () => screen.getByRole('button', { name: /10:00.*sans Manucure & Vernis/ });
+
+  it('a part missing all day gets a message with Retirer and Changer de coiffeuse', () => {
+    visitSlots[2] = [slot('09:00', false, [0, 1]), slot('10:00', false, [1]), slot('11:00', false, [1])];
+    toTimes();
+    const item = screen.getByText('Manucure & Vernis n’est pas disponible ce jour-là').closest('li')!;
+    expect(within(item).getByRole('button', { name: 'Retirer cette prestation' })).toBeInTheDocument();
+    expect(within(item).queryByRole('button', { name: 'Changer de coiffeuse' })).toBeNull();
+    cleanup();
+
+    visitSlots[2] = [slot('09:00', false, [0]), slot('10:00', false, [0, 1])];
+    toTimes();
+    const withAmina = screen.getByText('Coupe & Brushing n’est pas disponible avec Amina ce jour-là').closest('li')!;
+    fireEvent.click(within(withAmina).getByRole('button', { name: 'Changer de coiffeuse' }));
+    expect(document.activeElement).toBe(screen.getByText('Choisissez votre coiffeuse'));
+  });
+
+  it('Retirer removes the part and re-fetches for the rest', () => {
+    visitSlots[2] = [slot('09:00', false, [0, 1]), slot('10:00', false, [1])];
+    toTimes();
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer cette prestation' }));
+    expect(recapText()).toMatch(/^Coupe & Brushing · /);
+    expect(slotCalls.at(-1)).toEqual([{ serviceId: 'coupe-femme', stylistId: 'amina' }]);
+  });
+
+  it('a time with some parts missing is a third state, not full', () => {
+    visitSlots[2] = [slot('10:00', false, [1]), slot('11:00', false, [0, 1])];
+    toTimes();
+    expect(partialChip()).toHaveClass('chip-partial');
+    expect(partialChip()).toBeEnabled();
+    const full = screen.getByRole('button', { name: '11:00' });
+    expect(full).toHaveClass('chip-disabled');
+    expect(full).toBeDisabled();
+  });
+
+  it('tapping it explains and offers both choices', () => {
+    visitSlots[2] = [slot('10:00', false, [1]), slot('11:00', false, [0, 1])];
+    toTimes();
+    fireEvent.click(partialChip());
+    const notice = screen.getByRole('alert');
+    expect(notice).toHaveTextContent('Manucure & Vernis n’est pas disponible à 10:00');
+    expect(within(notice).getByRole('button', { name: 'Réserver les autres prestations' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+    fireEvent.click(within(notice).getByRole('button', { name: 'Choisir une autre heure' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(selectedChips()).toHaveLength(0);
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+  });
+
+  it('Réserver les autres prestations keeps the time when it is still free', () => {
+    visitSlots[2] = [slot('10:00', false, [1])];
+    visitSlots[1] = [slot('10:00', true, [])];
+    toTimes();
+    fireEvent.click(partialChip());
+    fireEvent.click(screen.getByRole('button', { name: 'Réserver les autres prestations' }));
+    expect(recapText()).toMatch(/^Coupe & Brushing · /);
+    expect(screen.getByRole('button', { name: '10:00' })).toHaveClass('chip-selected');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
+  });
+
+  it('bookOthers clears a time that is not available after re-placement', () => {
+    visitSlots[2] = [slot('10:00', false, [1])];
+    visitSlots[1] = [slot('10:00', false, [0])];
+    toTimes();
+    fireEvent.click(partialChip());
+    fireEvent.click(screen.getByRole('button', { name: 'Réserver les autres prestations' }));
+    expect(selectedChips()).toHaveLength(0);
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+  });
+
+  const raceToConfirm = async () => {
+    failWith('slot_taken', 'item:1');
+    toTimes();
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    next();
+    fillAndConfirm();
+    return screen.findByRole('alert');
+  };
+
+  it('a confirm race names the part and offers the same choice', async () => {
+    const alert = await raceToConfirm();
+    expect(alert).toHaveTextContent('Manucure & Vernis vient d’être réservée à cette heure');
+    fireEvent.click(within(alert).getByRole('button', { name: 'Réserver les autres prestations' }));
+    expect(screen.getByText('Choisissez une date')).toBeInTheDocument();
+    expect(slotCalls.at(-1)).toHaveLength(1);
+    expect(recapText()).toMatch(/^Coupe & Brushing · /);
+    expect(screen.getByRole('button', { name: '10:00' })).toHaveClass('chip-selected');
+    cleanup();
+
+    const again = await raceToConfirm();
+    fireEvent.click(within(again).getByRole('button', { name: 'Choisir une autre heure' }));
+    expect(screen.getByText('Choisissez une date')).toBeInTheDocument();
+    expect(slotCalls.at(-1)).toHaveLength(2);
+    expect(selectedChips()).toHaveLength(0);
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+  });
+
+  it('in Arabic the notices are Arabic and use logical alignment', () => {
+    visitSlots[2] = [slot('09:00', false, [0, 1]), slot('10:00', false, [1])];
+    toTimes();
+    fireEvent.click(screen.getByText('to-ar'));
+    expect(screen.getByRole('button', { name: /10:00.*بدون/ })).toHaveClass('chip-partial');
+    const day = screen.getByText(/غير متاحة في هذا اليوم/);
+    expect(day.closest('ul')).toHaveClass('text-start');
   });
 });
