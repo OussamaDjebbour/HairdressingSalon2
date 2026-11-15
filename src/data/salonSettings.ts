@@ -5,6 +5,7 @@ import { algiersToday } from './admin';
 import { toYmd } from './bookings';
 import { minutesToTime } from './week';
 import { currentSalonId } from './salon';
+import { PHOTO_BUCKET } from './photoUrl';
 import type {
   AffectedBooking,
   AffectedReason,
@@ -199,6 +200,56 @@ const saveService = (i: SaveServiceInput) =>
     p_sort_order: i.sortOrder,
   });
 
+export type PhotoChange = { kind: 'keep' } | { kind: 'remove' } | { kind: 'new'; blob: Blob };
+
+export class ServiceSaveError extends Error {
+  code: SettingsErrorCode;
+  /** Id of a service created during this failed attempt, otherwise null. */
+  serviceId: string | null;
+  constructor(code: SettingsErrorCode, serviceId: string | null) {
+    super(code);
+    this.name = 'ServiceSaveError';
+    this.code = code;
+    this.serviceId = serviceId;
+  }
+}
+
+export async function saveServiceWithPhoto(input: SaveServiceInput, photo: PhotoChange): Promise<string> {
+  const bucket = () => supabase.storage.from(PHOTO_BUCKET);
+  let uploaded: string | null = null;
+  if (photo.kind === 'new') {
+    const path = `${currentSalonId()}/uploads/${crypto.randomUUID()}.jpg`;
+    let failed = false;
+    try {
+      const { error } = await bucket().upload(path, photo.blob, { contentType: 'image/jpeg', upsert: false });
+      failed = !!error;
+    } catch {
+      failed = true;
+    }
+    if (failed) throw new ServiceSaveError('upload_failed', null);
+    uploaded = path;
+  }
+
+  let createdId: string | null = null;
+  let oldPath: string | null = null;
+  try {
+    const id = await saveService(input);
+    if (input.id === null) createdId = id;
+    if (photo.kind !== 'keep') {
+      oldPath = await rpc<string | null>('admin_set_service_photo', { p_id: id, p_path: uploaded });
+    }
+    if (oldPath) {
+      try { await bucket().remove([oldPath]); } catch { /* best effort */ }
+    }
+    return id;
+  } catch (err) {
+    if (uploaded) {
+      try { await bucket().remove([uploaded]); } catch { /* best effort */ }
+    }
+    throw new ServiceSaveError(toSettingsError(err), createdId);
+  }
+}
+
 const setServiceActive = (i: { id: string; active: boolean }) =>
   rpc('admin_set_service_active', { p_id: i.id, p_active: i.active });
 
@@ -257,6 +308,11 @@ function useSettingsWrite<TInput, TResult>(
 }
 
 export const useSaveService = () => useSettingsWrite(saveService, CATALOG_KEYS);
+export const useSaveServiceWithPhoto = () =>
+  useSettingsWrite(
+    ({ input, photo }: { input: SaveServiceInput; photo: PhotoChange }) => saveServiceWithPhoto(input, photo),
+    CATALOG_KEYS
+  );
 export const useSetServiceActive = () => useSettingsWrite(setServiceActive, CATALOG_KEYS);
 export const useSaveStylist = () => useSettingsWrite(saveStylist, CATALOG_KEYS);
 export const useSetStylistActive = () => useSettingsWrite(setStylistActive, CATALOG_KEYS);
@@ -281,14 +337,19 @@ export type SettingsErrorCode =
   | 'invalid_url'
   | 'invalid_weekday'
   | 'invalid_phone'
+  | 'invalid_photo'
+  | 'demo_disabled'
+  | 'upload_failed'
   | 'unknown';
 
 const SETTINGS_ERROR_CODES: readonly SettingsErrorCode[] = [
   'not_authorized', 'not_found', 'unknown_service', 'invalid_name', 'invalid_price', 'invalid_duration',
   'invalid_hours', 'invalid_dates', 'invalid_url', 'invalid_weekday', 'invalid_phone',
+  'invalid_photo', 'demo_disabled', 'upload_failed',
 ];
 
 export function toSettingsError(err: unknown): SettingsErrorCode {
+  if (err instanceof ServiceSaveError) return err.code;
   const message = typeof err === 'object' && err !== null ? (err as { message?: unknown }).message : undefined;
   return SETTINGS_ERROR_CODES.find((code) => code === message) ?? 'unknown';
 }
