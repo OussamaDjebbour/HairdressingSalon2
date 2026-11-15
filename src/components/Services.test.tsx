@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 
 const service = {
   id: 'new-soin', category: 'beaute', icon: 'sparkles', image: '', price: 3000, duration: 45,
@@ -12,6 +12,7 @@ vi.mock('../data/queries', () => ({
 
 import { LanguageProvider } from '../context/LanguageContext';
 import { Services } from './Services';
+import { BookingIntentProvider, useBookingIntent } from '../context/BookingIntentContext';
 
 beforeEach(() => {
   list = [service];
@@ -26,8 +27,42 @@ describe('Services', () => {
         <Services />
       </LanguageProvider>
     );
-    expect(screen.getByRole('img', { name: 'Soin éclat' })).toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('.img-placeholder')).toBeNull();
+    expect(within(screen.getByRole('link')).getByText('Soin éclat')).toBeInTheDocument();
+    expect(container.querySelector('a svg[aria-hidden]')).not.toBeNull();
+  });
+
+  it('shows a photo tile as one link to #booking with name, line, price, duration and Réserver', () => {
+    list = [{ ...service, image: 'https://x.test/a.jpg', description: { fr: 'Une courte ligne', ar: 'd' } }];
+    const { container } = render(<LanguageProvider><Services /></LanguageProvider>);
+    const link = screen.getByRole('link', { name: /Soin éclat/ });
+    expect(link).toHaveAttribute('href', '#booking');
+    for (const text of ['Soin éclat', 'Une courte ligne', 'Réserver']) expect(within(link).getByText(text)).toBeInTheDocument();
+    expect(link.textContent).toMatch(/3\s?000/);
+    expect(link.textContent).toMatch(/45/);
+    expect(container.querySelector('img')).toHaveAttribute('src', 'https://x.test/a.jpg');
+  });
+
+  it('tells the booking which service was chosen when a tile is clicked', () => {
+    const seen: unknown[] = [];
+    function Probe() {
+      const { request } = useBookingIntent();
+      seen.push(request);
+      return null;
+    }
+    render(<LanguageProvider><BookingIntentProvider><Probe /><Services /></BookingIntentProvider></LanguageProvider>);
+    fireEvent.click(screen.getByRole('link', { name: /Soin éclat/ }));
+    expect(seen.at(-1)).toEqual({ serviceId: 'new-soin', seq: 1 });
+    fireEvent.click(screen.getByRole('link', { name: /Soin éclat/ }));
+    expect(seen.at(-1)).toEqual({ serviceId: 'new-soin', seq: 2 });
+  });
+
+  it('still renders without a provider', () => {
+    render(<LanguageProvider><Services /></LanguageProvider>);
+    const link = screen.getByRole('link', { name: /Soin éclat/ });
+    expect(link).toHaveAttribute('href', '#booking');
+    fireEvent.click(link);
   });
 
   it('groups under headings Coiffure, Beauté, Spa when several categories are present', () => {

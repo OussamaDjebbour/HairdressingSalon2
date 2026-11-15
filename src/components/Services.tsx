@@ -8,69 +8,51 @@ import { ServiceCardSkeleton } from './ServiceCardSkeleton';
 import { DataError } from './DataError';
 import { groupByCategory } from '../data/categories';
 import { serviceIcon } from './serviceIcons';
+import { useBookingIntent } from '../context/BookingIntentContext';
 
-function ServiceCard({ service }: { service: Service }) {
+function ServiceTile({ service }: { service: Service }) {
   const { lang, t } = useLang();
+  const { chooseService } = useBookingIntent();
   const Icon = serviceIcon(service.icon);
 
   return (
-    <article className="group flex flex-col bg-white rounded-2xl border border-cream-200 overflow-hidden transition-all duration-300 ease-silk hover:shadow-lift hover:-translate-y-0.5 hover:border-gold-200">
-      <div className="relative overflow-hidden">
-        {service.image ? (
-          <SmartImage
-            src={service.image}
-            alt={service.name[lang]}
-            aspect="aspect-[16/11]"
-            rounded="rounded-none"
-            className="group-hover:scale-[1.04] transition-transform duration-700 ease-silk"
-          />
-        ) : (
-          // A service added in the settings has no photo yet: show its category icon instead of a shimmer.
-          <div
-            role="img"
-            aria-label={service.name[lang]}
-            className="aspect-[16/11] flex items-center justify-center bg-cream-100"
-          >
-            <Icon className="w-12 h-12 text-gold-500" strokeWidth={1.4} aria-hidden="true" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-rose-900/15 to-transparent" />
-      </div>
-
-      <div className="p-6 flex flex-col flex-1">
-        <div className="flex items-center gap-2.5 mb-2">
-          <Icon className="w-4 h-4 text-gold-600 flex-shrink-0" strokeWidth={1.8} />
-          <h3 className="font-display text-xl font-semibold text-rose-900">{service.name[lang]}</h3>
+    <a
+      href="#booking"
+      onClick={() => chooseService(service.id)}
+      className="group relative block overflow-hidden rounded-2xl aspect-[16/10] sm:aspect-[4/3] bg-rose-100 transition-shadow duration-300 ease-silk hover:shadow-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50"
+    >
+      {service.image ? (
+        <div className="absolute inset-0 transition-transform duration-700 ease-silk group-hover:scale-[1.04]">
+          <SmartImage src={service.image} alt="" aspect="h-full w-full" rounded="" />
         </div>
-        <p className="text-sm text-rose-600 leading-relaxed mb-6 flex-1 text-pretty">
-          {service.description[lang]}
-        </p>
+      ) : (
+        // A service added in the settings has no photo yet: show its category icon instead of a shimmer.
+        <Icon
+          className="absolute top-4 end-4 w-16 h-16 text-rose-300/70"
+          strokeWidth={1.2}
+          aria-hidden="true"
+        />
+      )}
+      <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-rose-900/90 from-30% via-rose-900/80 via-60% to-transparent" />
 
-        <div className="flex items-end justify-between pt-4 border-t border-cream-200">
-          <div>
-            <span className="block text-[0.65rem] uppercase tracking-[0.18em] text-rose-600 mb-1.5">
-              {t('services.from')}
-            </span>
-            <span className="font-display text-lg font-semibold text-rose-900 inline-block border-b-2 border-gold-300 pb-0.5">
-              {formatPrice(service.price, lang)}
-            </span>
-          </div>
-          <div className="flex flex-col items-end gap-2.5">
-            <span className="flex items-center gap-1.5 text-xs text-rose-600">
-              <Clock className="w-3.5 h-3.5" strokeWidth={1.8} />
-              {formatDuration(service.duration, lang)}
-            </span>
-            <a
-              href="#booking"
-              className="link-gilt inline-flex items-center gap-1.5 text-sm font-medium text-rose-700 hover:text-rose-900 transition-colors"
-            >
-              {t('services.book')}
-              <ArrowRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
-            </a>
-          </div>
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 sm:p-5 text-cream-50">
+        <div className="min-w-0">
+          <h3 className="font-display text-xl font-semibold leading-snug">{service.name[lang]}</h3>
+          <p className="line-clamp-1 text-sm text-cream-50/90">{service.description[lang]}</p>
+          <span className="mt-1 flex items-center gap-1.5 text-xs text-cream-50/90">
+            <Clock className="w-3.5 h-3.5" strokeWidth={1.8} aria-hidden="true" />
+            {formatDuration(service.duration, lang)}
+          </span>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <span className="font-display text-lg font-semibold">{formatPrice(service.price, lang)}</span>
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gold-300">
+            {t('services.book')}
+            <ArrowRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
+          </span>
         </div>
       </div>
-    </article>
+    </a>
   );
 }
 
@@ -90,7 +72,7 @@ export function Services() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
               <ServiceCardSkeleton key={i} />
             ))}
@@ -106,9 +88,9 @@ export function Services() {
                   {groups.length > 1 && (
                     <h3 className="font-display text-xl font-semibold text-rose-800">{t(`category.${group.category}`)}</h3>
                   )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
                     {group.items.map((service: Service) => (
-                      <ServiceCard key={service.id} service={service} />
+                      <ServiceTile key={service.id} service={service} />
                     ))}
                   </div>
                 </div>
