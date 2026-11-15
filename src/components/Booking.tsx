@@ -175,6 +175,7 @@ export function Booking() {
     rate_limited: t('booking.error.rateLimited'),
     outside_hours: t('booking.error.generic'),
     unknown_service: t('booking.error.generic'),
+    too_many_services: t('booking.error.generic'),
     unknown: t('booking.error.generic'),
   };
 

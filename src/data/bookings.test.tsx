@@ -11,8 +11,11 @@ import {
   normalizePhone,
   toBookingError,
   toYmd,
+  failedItem,
   useCreateBooking,
+  useCreateVisit,
   useSlots,
+  useVisitSlots,
 } from './bookings';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
@@ -124,5 +127,89 @@ describe('useCreateBooking', () => {
         })
       ).rejects.toMatchObject({ message: 'slot_taken' });
     });
+  });
+});
+
+describe('useVisitSlots', () => {
+  it('calls get_visit_slots with the items', async () => {
+    rpc.mockResolvedValue({ data: [{ slot: '09:00', available: false, missing: [1] }], error: null });
+    const items = [
+      { serviceId: 'coupe-femme', stylistId: 'amina' },
+      { serviceId: 'coloration', stylistId: null },
+    ];
+    const { result } = renderHook(() => useVisitSlots(new Date(2030, 0, 8), items), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(rpc).toHaveBeenCalledWith('get_visit_slots', {
+      p_salon_id: 'elegance',
+      p_date: '2030-01-08',
+      p_items: [
+        { service_id: 'coupe-femme', stylist_id: 'amina' },
+        { service_id: 'coloration', stylist_id: null },
+      ],
+    });
+    expect(result.current.data).toEqual([{ slot: '09:00', available: false, missing: [1] }]);
+  });
+
+  it('does not fetch without items', () => {
+    renderHook(() => useVisitSlots(new Date(2030, 0, 8), []), { wrapper });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('useCreateVisit', () => {
+  it('returns each part', async () => {
+    rpc.mockResolvedValue({
+      data: [
+        { booking_id: 'b1', service_id: 'coupe-femme', stylist_id: 'amina', starts_at: '2030-01-08T09:00:00+00:00' },
+        { booking_id: 'b2', service_id: 'coloration', stylist_id: 'sara', starts_at: '2030-01-08T10:00:00+00:00' },
+      ],
+      error: null,
+    });
+    const { result } = renderHook(() => useCreateVisit(), { wrapper });
+    let created: unknown;
+    await act(async () => {
+      created = await result.current.mutateAsync({
+        items: [
+          { serviceId: 'coupe-femme', stylistId: 'amina' },
+          { serviceId: 'coloration', stylistId: null },
+        ],
+        date: new Date(2030, 0, 8),
+        time: '09:00',
+        clientName: 'Yasmine',
+        clientPhone: '0555 12 34 56',
+        lang: 'fr',
+      });
+    });
+    expect(rpc).toHaveBeenCalledWith('create_visit', {
+      p_salon_id: 'elegance',
+      p_items: [
+        { service_id: 'coupe-femme', stylist_id: 'amina' },
+        { service_id: 'coloration', stylist_id: null },
+      ],
+      p_date: '2030-01-08',
+      p_time: '09:00',
+      p_client_name: 'Yasmine',
+      p_client_phone: '0555 12 34 56',
+      p_lang: 'fr',
+    });
+    expect(created).toEqual([
+      { bookingId: 'b1', serviceId: 'coupe-femme', stylistId: 'amina', startsAt: new Date('2030-01-08T09:00:00Z') },
+      { bookingId: 'b2', serviceId: 'coloration', stylistId: 'sara', startsAt: new Date('2030-01-08T10:00:00Z') },
+    ]);
+  });
+});
+
+describe('failedItem', () => {
+  it('reads the part from the error detail', () => {
+    expect(failedItem({ message: 'slot_taken', details: 'item:1' })).toBe(1);
+    expect(failedItem({ message: 'slot_taken' })).toBeNull();
+    expect(failedItem({ details: 'nope' })).toBeNull();
+    expect(failedItem(null)).toBeNull();
+  });
+});
+
+describe('toBookingError (visits)', () => {
+  it('knows too_many_services', () => {
+    expect(toBookingError({ message: 'too_many_services' })).toBe('too_many_services');
   });
 });
