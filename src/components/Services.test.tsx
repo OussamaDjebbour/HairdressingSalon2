@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 
 const service = {
   id: 'new-soin', category: 'beaute', icon: 'sparkles', image: '', price: 3000, duration: 45,
@@ -13,7 +13,6 @@ vi.mock('../data/queries', () => ({
 import { LanguageProvider } from '../context/LanguageContext';
 import { Services } from './Services';
 import { BookingIntentProvider, useBookingIntent } from '../context/BookingIntentContext';
-import { fireEvent } from '@testing-library/react';
 
 beforeEach(() => {
   list = [service];
@@ -30,7 +29,8 @@ describe('Services', () => {
     );
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('.img-placeholder')).toBeNull();
-    expect(container.querySelector('svg[data-tile-icon]')).not.toBeNull();
+    expect(within(screen.getByRole('link')).getByText('Soin éclat')).toBeInTheDocument();
+    expect(container.querySelector('a svg[aria-hidden]')).not.toBeNull();
   });
 
   it('shows a photo tile as one link to #booking with name, line, price, duration and Réserver', () => {
@@ -60,7 +60,9 @@ describe('Services', () => {
 
   it('still renders without a provider', () => {
     render(<LanguageProvider><Services /></LanguageProvider>);
-    fireEvent.click(screen.getByRole('link', { name: /Soin éclat/ }));
+    const link = screen.getByRole('link', { name: /Soin éclat/ });
+    expect(link).toHaveAttribute('href', '#booking');
+    fireEvent.click(link);
   });
 
   it('groups under headings Coiffure, Beauté, Spa when several categories are present', () => {

@@ -1,13 +1,9 @@
 export function ServiceCardSkeleton() {
   return (
-    <div className="flex flex-col bg-white rounded-2xl border border-cream-200 overflow-hidden">
-      <div className="aspect-[16/11] img-placeholder" />
-      <div className="p-6 space-y-3">
-        <div className="h-5 w-2/3 rounded img-placeholder" />
-        <div className="h-3 w-full rounded img-placeholder" />
-        <div className="h-3 w-4/5 rounded img-placeholder" />
-        <div className="h-px bg-cream-200 my-2" />
-        <div className="h-6 w-1/3 rounded img-placeholder" />
+    <div className="relative overflow-hidden rounded-2xl aspect-[16/10] sm:aspect-[4/3] img-placeholder">
+      <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 space-y-2">
+        <div className="h-5 w-2/3 rounded bg-cream-50/50" />
+        <div className="h-3 w-1/2 rounded bg-cream-50/40" />
       </div>
     </div>
   );

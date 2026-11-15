@@ -19,7 +19,7 @@ function ServiceTile({ service }: { service: Service }) {
     <a
       href="#booking"
       onClick={() => chooseService(service.id)}
-      className="group relative block overflow-hidden rounded-2xl aspect-[16/10] sm:aspect-[4/3] bg-rose-100 transition-shadow duration-300 ease-silk hover:shadow-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2"
+      className="group relative block overflow-hidden rounded-2xl aspect-[16/10] sm:aspect-[4/3] bg-rose-100 transition-shadow duration-300 ease-silk hover:shadow-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50"
     >
       {service.image ? (
         <div className="absolute inset-0 transition-transform duration-700 ease-silk group-hover:scale-[1.04]">
@@ -28,13 +28,12 @@ function ServiceTile({ service }: { service: Service }) {
       ) : (
         // A service added in the settings has no photo yet: show its category icon instead of a shimmer.
         <Icon
-          data-tile-icon
           className="absolute top-4 end-4 w-16 h-16 text-rose-300/70"
           strokeWidth={1.2}
           aria-hidden="true"
         />
       )}
-      <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-rose-900/90 via-rose-900/70 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-rose-900/90 from-30% via-rose-900/80 via-60% to-transparent" />
 
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 sm:p-5 text-cream-50">
         <div className="min-w-0">
@@ -73,7 +72,7 @@ export function Services() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
               <ServiceCardSkeleton key={i} />
             ))}

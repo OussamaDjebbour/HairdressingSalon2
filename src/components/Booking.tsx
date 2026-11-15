@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { TextField } from './form/TextField';
@@ -177,13 +177,13 @@ export function Booking() {
     unknown: t('booking.error.generic'),
   };
 
-  const resetBooking = () => {
+  const restart = (keepClient = false) => {
     setStep(0);
     setSelectedService(null);
     setSelectedStylist(null);
     setSelectedDate(null);
     setSelectedTime(null);
-    reset();
+    if (!keepClient) reset();
     setAssignedStylistId(null);
     setSubmitError(null);
     setSlotNotice(null);
@@ -191,20 +191,35 @@ export function Booking() {
     setSubmitted(false);
   };
 
-  // A service tile on the page chose a service: start over with it picked and go to the stylist step.
-  // Applied once per request; if the services haven't loaded yet it waits for them.
+  const resetBooking = () => restart();
+
+  // Moving the wizard programmatically (tile request, "Changer") puts focus on the new step's heading.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusHeading = useRef(false);
+  useLayoutEffect(() => {
+    if (focusHeading.current) {
+      focusHeading.current = false;
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [step]);
+
+  // A service tile on the page chose a service: restart with it picked (keeping what the client typed)
+  // and go to the stylist step. Applied once per request; waits for the services to load and for a
+  // booking being sent to settle, so the success screen is never lost.
   const { request } = useBookingIntent();
   const appliedSeq = useRef(0);
+  const sending = createBookingMutation.isPending;
   useEffect(() => {
-    if (!request || request.seq === appliedSeq.current) return;
+    if (!request || request.seq === appliedSeq.current || sending) return;
     const service = services.find((s) => s.id === request.serviceId);
     if (!service) return;
     appliedSeq.current = request.seq;
-    resetBooking();
+    restart(true);
     setSelectedService(service);
+    focusHeading.current = true;
     setStep(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resetBooking is recreated each render; applied once per seq
-  }, [request, services]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is recreated each render; applied once per seq
+  }, [request, services, sending]);
 
   const recap = selectedService && (
     <div className="flex items-center justify-between gap-2 rounded-xl bg-cream-100 ps-3 pe-1 text-sm text-rose-700 mb-5">
@@ -215,7 +230,7 @@ export function Booking() {
         {' · '}
         {formatDuration(selectedService.duration, lang)}
       </p>
-      <button type="button" onClick={() => setStep(0)} className="tap flex-shrink-0 px-3 font-medium text-rose-800 underline underline-offset-2 hover:text-rose-900">
+      <button type="button" onClick={() => { focusHeading.current = true; setStep(0); }} className="tap flex-shrink-0 px-3 font-medium text-rose-800 underline underline-offset-2 hover:text-rose-900">
         {t('booking.recap.change')}
       </button>
     </div>
@@ -326,7 +341,7 @@ export function Booking() {
           {/* Step 0 — Service */}
           {step === 0 && (
             <div className="animate-fadeIn">
-              <h3 className="font-display text-xl font-semibold text-rose-800 mb-5">{t('booking.selectService')}</h3>
+              <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-5 focus:outline-none">{t('booking.selectService')}</h3>
               <div className="space-y-6">
                 {serviceGroups.map((group) => (
                   <div key={group.category}>
@@ -377,7 +392,7 @@ export function Booking() {
           {/* Step 1 — Stylist */}
           {step === 1 && (
             <div className="animate-fadeIn">
-              <h3 className="font-display text-xl font-semibold text-rose-800 mb-3">{t('booking.selectStylist')}</h3>
+              <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-3 focus:outline-none">{t('booking.selectStylist')}</h3>
               {recap}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <button
@@ -445,7 +460,7 @@ export function Booking() {
           {step === 2 && (
             <div className="animate-fadeIn space-y-6">
               <div>
-                <h3 className="font-display text-xl font-semibold text-rose-800 mb-3">{t('booking.selectDate')}</h3>
+                <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-3 focus:outline-none">{t('booking.selectDate')}</h3>
                 {recap}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1">
                   {upcomingDays.map((day, i) => {

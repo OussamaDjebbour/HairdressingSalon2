@@ -24,10 +24,11 @@ vi.mock('../data/salonSettings', () => ({
 }));
 
 const mutate = vi.fn();
+let pending = false;
 vi.mock('../data/bookings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/bookings')>()),
   useSlots: () => ({ data: [{ slot: '10:00', available: true }], isLoading: false, isError: false, refetch: vi.fn() }),
-  useCreateBooking: () => ({ mutate, reset: vi.fn(), isPending: false }),
+  useCreateBooking: () => ({ mutate, reset: vi.fn(), isPending: pending }),
 }));
 
 import { eleganceHours } from './admin/fixtures';
@@ -77,6 +78,7 @@ beforeEach(() => {
   closed = [];
   hoursState = {};
   serviceList = [service];
+  pending = false;
 });
 
 /** The next date (within the 14-day strip, after today) on the given ISO weekday. */
@@ -287,7 +289,7 @@ describe('Booking intent from a service tile', () => {
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
-    expect(screen.getByText('Soin visage').closest('button')?.className).toMatch(/selected|ring|border-rose/);
+    expect(screen.getByText('Soin visage').closest('button')?.className).toContain('ring-gold-300');
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
     fireEvent.click(screen.getByText('choose-soin'));
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
@@ -299,8 +301,7 @@ describe('Booking intent from a service tile', () => {
     fireEvent.click(screen.getByText('Coupe & Brushing'));
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
-    const { container } = { container: document.body };
-    fireEvent.click(container.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+        fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
     fireEvent.click(screen.getByRole('button', { name: '10:00' }));
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
     fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
@@ -323,5 +324,45 @@ describe('Booking intent from a service tile', () => {
     expect(screen.getByText('Choisissez votre prestation')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Changer' })).toBeNull();
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
+  });
+
+  it('waits for a booking being sent to settle, then applies the request', () => {
+    pending = true;
+    const { rerender } = render(ui());
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
+    pending = false;
+    rerender(ui());
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+  });
+
+  it('keeps the typed name and phone, clears stylist/date/time, when a tile restarts the wizard', () => {
+    render(ui());
+    fireEvent.click(screen.getByText('Coupe & Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
+    fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByText('Choisissez votre coiffeuse'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(screen.queryByRole('button', { name: '10:00' })).toBeNull();
+    expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
+    fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(screen.getByLabelText('Votre nom')).toHaveValue('Yasmine');
+    expect(screen.getByLabelText('Votre téléphone')).toHaveValue('0555 12 34 56');
+  });
+
+  it('puts focus on the service heading after Changer', () => {
+    render(ui());
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    fireEvent.click(screen.getByRole('button', { name: 'Changer' }));
+    expect(document.activeElement).toBe(screen.getByText('Choisissez votre prestation'));
   });
 });
