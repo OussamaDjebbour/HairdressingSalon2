@@ -221,7 +221,13 @@ describe('Booking step 0 grouping', () => {
     render(<LanguageProvider><Booking /></LanguageProvider>);
     const headings = screen.getAllByRole('heading', { level: 4 }).filter((h) => ['Coiffure', 'Beauté', 'Spa'].includes(h.textContent ?? ''));
     expect(headings.map((h) => h.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa']);
-    expect(within(headings[2].parentElement!).getByText('Hammam')).toBeInTheDocument();
+    const group = (i: number) => within(headings[i].parentElement!);
+    expect(group(0).getByText('Coupe')).toBeInTheDocument();
+    expect(group(0).queryByText('Hammam')).toBeNull();
+    expect(group(1).getByText('Ongles')).toBeInTheDocument();
+    expect(group(2).getByText('Hammam')).toBeInTheDocument();
+    // Service names sit one level under their group heading.
+    expect(group(2).getByRole('heading', { level: 5, name: 'Hammam' })).toBeInTheDocument();
   });
 
   it('shows no heading with a single category', () => {

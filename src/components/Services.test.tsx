@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 
 const service = {
@@ -12,6 +12,10 @@ vi.mock('../data/queries', () => ({
 
 import { LanguageProvider } from '../context/LanguageContext';
 import { Services } from './Services';
+
+beforeEach(() => {
+  list = [service];
+});
 
 const mk = (id: string, category: string, fr: string) => ({ ...service, id, category, name: { fr, ar: fr } });
 
@@ -36,13 +40,11 @@ describe('Services', () => {
     expect(group(headings[0]).queryByText('Hammam')).toBeNull();
     expect(group(headings[1]).getByText('Ongles')).toBeInTheDocument();
     expect(group(headings[2]).getByText('Hammam')).toBeInTheDocument();
-    list = [service];
   });
 
   it('shows no heading when only one category is present', () => {
     list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'coiffure', 'Brushing')];
     render(<LanguageProvider><Services /></LanguageProvider>);
     for (const name of ['Coiffure', 'Beauté', 'Spa']) expect(screen.queryByRole('heading', { name })).toBeNull();
-    list = [service];
   });
 });

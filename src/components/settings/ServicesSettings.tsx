@@ -147,9 +147,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
             onValueChange={field.onChange}
             onBlur={field.onBlur}
             ref={field.ref}
-            options={[
-              ...CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) })),
-            ]}
+            options={CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) }))}
           />
         )}
       />
