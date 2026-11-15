@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(77);
+select plan(78);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -259,6 +259,16 @@ select lives_ok($$ select private.demo_reset('elegance') $$, 'demo_reset: elegan
 select lives_ok($$ select private.demo_reset_all() $$, 'demo_reset_all runs');
 select is(pg_temp.rival_state(), (select v from rival_before), 'rival''s services, stylists, bookings, hours, closed dates, days off, push and staff unchanged after elegance resets');
 select ok((select count(*) from private.bookings where salon_id = 'elegance') > 0, 'the fake bookings went to elegance');
+
+-- a visit id shared with another salon's row never reaches it
+insert into private.bookings (id, visit_id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang)
+values ('c1000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-00000000000c', 'rival', 'rival-cut', 'nadia', '2031-03-04 10:00+01', '2031-03-04 11:00+01', 1000, 'Rv', '0555000011', 'fr'),
+       ('c1000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-00000000000c', 'elegance', 'coupe-femme', 'amina', '2031-03-04 10:00+01', '2031-03-04 11:00+01', 2500, 'El', '0555000012', 'fr');
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select public.admin_set_booking_status('c1000000-0000-0000-0000-000000000002', 'confirmed');
+reset role;
+select is((select status from private.bookings where id = 'c1000000-0000-0000-0000-000000000001'), 'pending', 'a shared visit id never reaches another salon');
 
 select * from finish();
 rollback;
