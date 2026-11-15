@@ -3,22 +3,29 @@
 -- in `<salon>/` and stay service-role only), then points a service at the file through
 -- admin_set_service_photo. Reads stay public through public URLs.
 
+-- The bucket takes only these images, 20 MB max (room for the script's unshrunk photos).
+update storage.buckets
+set allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'], file_size_limit = 20971520
+where id = 'salon-photos';
+
 -- Storage: the owner (never the shared demo account) may add, list and delete files only in her
--- own salon's uploads folder. No update policy: files are never overwritten or renamed.
+-- own salon's uploads folder; an added file must be named like admin_set_service_photo expects.
+-- No update policy: files are never overwritten or renamed. Salon ids match
+-- ^[a-z0-9][a-z0-9-]{1,39}$, so they need no escaping in a LIKE or regex pattern.
 create policy "owner uploads salon photos" on storage.objects
   for insert to authenticated
-  with check (bucket_id = 'salon-photos' and private.my_role() = 'owner'
-              and name like private.my_salon() || '/uploads/%');
+  with check (bucket_id = 'salon-photos' and (select private.my_role()) = 'owner'
+              and name ~ ('^' || (select private.my_salon()) || '/uploads/[0-9a-f-]{36}\.(jpg|webp)$'));
 
 create policy "owner reads own salon uploads" on storage.objects
   for select to authenticated
-  using (bucket_id = 'salon-photos' and private.my_role() = 'owner'
-         and name like private.my_salon() || '/uploads/%');
+  using (bucket_id = 'salon-photos' and (select private.my_role()) = 'owner'
+         and name like (select private.my_salon()) || '/uploads/%');
 
 create policy "owner deletes own salon uploads" on storage.objects
   for delete to authenticated
-  using (bucket_id = 'salon-photos' and private.my_role() = 'owner'
-         and name like private.my_salon() || '/uploads/%');
+  using (bucket_id = 'salon-photos' and (select private.my_role()) = 'owner'
+         and name like (select private.my_salon()) || '/uploads/%');
 
 create function public.admin_set_service_photo(p_id text, p_path text)
 returns text
@@ -28,9 +35,9 @@ as $$
 -- Input: p_id = the service id; p_path = null or '' to remove the photo, otherwise the storage
 -- path of an upload in the caller's own folder ('<salon>/uploads/<uuid>.jpg|webp') that exists
 -- in the salon-photos bucket. The path is stored as is in services.image.
--- Returns the previous image when it is one of the salon's uploads that is no longer used (the
--- caller deletes that file); null otherwise, and always null on a demo salon (its reset snapshot
--- may point at old uploads).
+-- Returns the previous image when it is one of the salon's uploads that no service of the salon
+-- uses any more (the caller deletes that file); null otherwise, and always null on a demo salon
+-- (its reset snapshot may point at old uploads).
 -- Raises (P0001): not_authorized (not staff), demo_disabled (demo account), not_found (no such
 -- service in the caller's salon), invalid_photo.
 declare
@@ -51,7 +58,7 @@ begin
     raise exception 'not_found' using errcode = 'P0001';
   end if;
 
-  -- Salon ids match ^[a-z0-9][a-z0-9-]{1,39}$, so they need no escaping in the pattern.
+  -- Same rule as the upload policy (salon ids need no escaping).
   if v_new <> '' and (
        v_new !~ ('^' || v_salon || '/uploads/[0-9a-f-]{36}\.(jpg|webp)$')
        or not exists (select 1 from storage.objects o where o.bucket_id = 'salon-photos' and o.name = v_new)) then
@@ -61,7 +68,8 @@ begin
   update public.services s set image = v_new where s.id = p_id and s.salon_id = v_salon;
 
   select sa.demo into v_demo from public.salons sa where sa.id = v_salon;
-  if v_old like v_salon || '/uploads/%' and v_old <> v_new and not v_demo then
+  if v_old like v_salon || '/uploads/%' and not v_demo
+     and not exists (select 1 from public.services s where s.salon_id = v_salon and s.image = v_old) then
     return v_old;
   end if;
   return null;

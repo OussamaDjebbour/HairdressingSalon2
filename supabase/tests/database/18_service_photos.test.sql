@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(47);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values
@@ -29,6 +29,10 @@ create function pg_temp.act_as(p_uid text) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true) $$;
 create function pg_temp.image(p_id text) returns text language sql as $$
   select image from public.services where id = p_id $$;
+
+-- the bucket takes only images, 20 MB max
+select is((select allowed_mime_types::text || ' ' || file_size_limit from storage.buckets where id = 'salon-photos'),
+  '{image/jpeg,image/png,image/webp} 20971520', 'salon-photos accepts jpeg/png/webp up to 20 MB');
 
 -- grants
 select ok(has_function_privilege('authenticated', 'public.admin_set_service_photo(text, text)', 'execute'), 'authenticated can call admin_set_service_photo');
@@ -62,6 +66,11 @@ select is(public.admin_set_service_photo('coloration', 'elegance/uploads/aaaaaaa
 select is(public.admin_set_service_photo('manucure', 'elegance/uploads/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jpg'), null,
   'replacing a script file returns nothing');
 select is(pg_temp.image('manucure'), 'elegance/uploads/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jpg', 'the script file is replaced');
+
+-- an upload still used by another service of the salon is not handed back
+select is(public.admin_set_service_photo('coloration', 'elegance/uploads/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.webp'), null,
+  'replacing an upload another service still uses returns nothing');
+select is(pg_temp.image('manucure'), 'elegance/uploads/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jpg', 'the other service still points at it');
 
 -- only an existing file of the caller's own uploads folder is accepted
 select throws_ok($$ select public.admin_set_service_photo('maquillage', 'rival/uploads/cccccccc-cccc-cccc-cccc-cccccccccccc.jpg') $$,
@@ -110,6 +119,12 @@ select throws_ok($$ insert into storage.objects (bucket_id, name) values ('salon
   '42501', null, 'owner cannot upload outside uploads/ (the script''s files)');
 select throws_ok($$ insert into storage.objects (bucket_id, name) values ('other', 'elegance/uploads/12345678-1234-1234-1234-123456789012.jpg') $$,
   '42501', null, 'owner cannot upload into another bucket');
+select throws_ok($$ insert into storage.objects (bucket_id, name) values ('salon-photos', 'elegance/uploads/../x.jpg') $$,
+  '42501', null, 'owner cannot upload a name with ..');
+select throws_ok($$ insert into storage.objects (bucket_id, name) values ('salon-photos', 'elegance/uploads/12345678-1234-1234-1234-123456789012.html') $$,
+  '42501', null, 'owner cannot upload a non-image name (.html)');
+select throws_ok($$ insert into storage.objects (bucket_id, name) values ('salon-photos', 'elegance/uploads/photo.jpg') $$,
+  '42501', null, 'owner cannot upload a name that is not a uuid');
 select is((select count(*)::int from storage.objects where bucket_id = 'salon-photos'), 4, 'owner sees only her own uploads (3 seeded + 1 new)');
 with u as (update storage.objects set name = 'elegance/uploads/eeeeeeee-eeee-eeee-eeee-000000000000.jpg' where name = 'elegance/uploads/eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee.jpg' returning 1)
   select is(count(*)::int, 0, 'owner cannot update (overwrite or rename) a file') from u;
