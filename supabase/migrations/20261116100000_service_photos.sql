@@ -3,9 +3,11 @@
 -- in `<salon>/` and stay service-role only), then points a service at the file through
 -- admin_set_service_photo. Reads stay public through public URLs.
 
--- The bucket takes only these images, 20 MB max (room for the script's unshrunk photos).
+-- The bucket takes only these images (what the script uploads; never SVG, which can carry script
+-- code and this bucket is public), 20 MB max (room for the script's unshrunk photos).
 update storage.buckets
-set allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'], file_size_limit = 20971520
+set allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'],
+    file_size_limit = 20971520
 where id = 'salon-photos';
 
 -- Storage: the owner (never the shared demo account) may add, list and delete files only in her

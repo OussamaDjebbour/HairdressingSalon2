@@ -30,9 +30,9 @@ create function pg_temp.act_as(p_uid text) returns void language sql as $$
 create function pg_temp.image(p_id text) returns text language sql as $$
   select image from public.services where id = p_id $$;
 
--- the bucket takes only images, 20 MB max
+-- the bucket takes only these images (no SVG), 20 MB max
 select is((select allowed_mime_types::text || ' ' || file_size_limit from storage.buckets where id = 'salon-photos'),
-  '{image/jpeg,image/png,image/webp} 20971520', 'salon-photos accepts jpeg/png/webp up to 20 MB');
+  '{image/jpeg,image/png,image/webp,image/avif,image/gif} 20971520', 'salon-photos accepts jpeg/png/webp/avif/gif (no svg) up to 20 MB');
 
 -- grants
 select ok(has_function_privilege('authenticated', 'public.admin_set_service_photo(text, text)', 'execute'), 'authenticated can call admin_set_service_photo');
