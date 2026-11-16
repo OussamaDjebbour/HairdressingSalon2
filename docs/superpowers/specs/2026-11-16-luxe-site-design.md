@@ -153,3 +153,17 @@ list). **The user chose A.**
 - Everything else in the section is unchanged (title, subtitle, category headings, loading and error states).
 - Later, not now: tabs (B) automatically for salons with many services; signature cards (C) once salons have
   strong photos.
+
+## Amendment (2026-11-16): booking polish — user asked for items 1–6 and no sticky bar
+
+1. The service step's rows look like La carte: photo thumbnail when the service has one (no icon tile), name and
+   price in the display serif, description and duration in the text font, a check and brand border when selected.
+2. Navigation on phones: the primary action (Continuer / Confirmer la réservation) is full width; Retour is a small
+   text link under it. Side by side from `sm` up.
+3. Stylist choices (multi-service staff step) are near-square like the time chips, not round pills.
+4. Jost 600 is loaded, so semi-bold text is real, not synthesized.
+5. Retour is not shown on the first step.
+6. The step indicator becomes a quiet line: four thin segments (brand colour up to the current step) and the text
+   "Étape n sur 4 — <step name>", instead of circles with icons.
+7. **User:** the navigation bar is never sticky ("I don't like that, remove it"); the running total stays in the bar
+   at the end of the service step. The fade and its spacer go with it.
