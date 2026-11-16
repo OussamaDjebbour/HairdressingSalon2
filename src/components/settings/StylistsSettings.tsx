@@ -122,7 +122,7 @@ function StylistFormCard({ draft, services, error, onFail, onStart, onSaved, onC
         name="serviceIds"
         render={({ field }) => {
           const linked = new Set(field.value);
-          const offered = services.filter((s) => s.active || linked.has(s.id));
+          const offered = services.filter((s) => s.category !== 'pack' && (s.active || linked.has(s.id)));
           return (
             <fieldset>
               <legend className="label">{t('settings.stylists.services')}</legend>

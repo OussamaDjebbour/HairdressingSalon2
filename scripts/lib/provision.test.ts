@@ -176,6 +176,13 @@ describe('provisionErrorMessage', () => {
     expect(msg).toMatch(/\(owner_conflict\)$/);
   });
 
+  it('explains invalid_promo: a new price at or under the owner\'s promotion', () => {
+    const msg = provisionErrorMessage('invalid_promo', 'sara');
+    expect(msg).toMatch(/promotion/);
+    expect(msg).toMatch(/Réglages/);
+    expect(msg).toMatch(/\(invalid_promo\)$/);
+  });
+
   it('keeps an unknown error as it is', () => {
     expect(provisionErrorMessage('boom: something', 'sara')).toBe('boom: something');
     expect(provisionErrorMessage('domain_taken', 'sara')).toBe('a domain already belongs to another salon (domain_taken)');

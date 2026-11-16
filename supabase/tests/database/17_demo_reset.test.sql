@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(56);
+select plan(77);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password)
 values
@@ -188,6 +188,97 @@ select is((select whatsapp from public.salons where id = 'elegance'), '056123456
 -- nightly at ~03:00 Algiers
 select is((select schedule || ' ' || command from cron.job where jobname = 'demo-nightly-reset'), '0 2 * * * select private.demo_reset_all()',
           'the nightly reset is scheduled at 02:00 UTC');
+
+-- ---------------------------------------------------------------- packs and promotions
+-- the demo gets a pack (Leila, soin visage + maquillage) with a promotion and a promotion on manucure;
+-- the snapshot is re-captured
+insert into public.services (id, salon_id, category, name, description, price, duration, image, icon, sort_order,
+                             includes, pack_stylist_id, promo_price, promo_from, promo_to)
+  values ('demo-pack', 'elegance', 'pack', '{"fr":"Pack Éclat","ar":"باقة"}', '{"fr":"","ar":""}', 8000, 165, '', 'gift', 10,
+          '{soin-visage,maquillage}', 'leila', 7000, pg_temp.today(), pg_temp.today() + 10);
+insert into public.stylist_services (salon_id, stylist_id, service_id) values ('elegance', 'leila', 'demo-pack');
+update public.services set promo_price = 1500, promo_from = pg_temp.today(), promo_to = pg_temp.today() + 5 where id = 'manucure';
+select public.setup_demo('elegance', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'demo@test.local', 'demo-pw');
+create function pg_temp.snap_service(p_id text) returns jsonb language sql as $$
+  select x from private.demo_settings d, jsonb_array_elements(d.snapshot -> 'services') x
+  where d.salon_id = 'elegance' and x ->> 'id' = p_id $$;
+-- a service as 'category includes person price promo from..to', and who is linked to it
+create function pg_temp.svc(p_id text) returns text language sql as $$
+  select concat_ws(' ', s.category, array_to_string(s.includes, ','), s.pack_stylist_id, s.price, s.promo_price,
+                   s.promo_from, s.promo_to) from public.services s where s.id = p_id $$;
+create function pg_temp.links(p_id text) returns text language sql as $$
+  select string_agg(ss.stylist_id, ',' order by ss.stylist_id) from public.stylist_services ss where ss.service_id = p_id $$;
+create temp table pack_before as select pg_temp.svc('demo-pack') as pack, pg_temp.svc('manucure') as manucure;
+
+select is(pg_temp.snap_service('demo-pack') - 'name' - 'description' - 'image' - 'icon' - 'sort_order' - 'active' - 'duration' - 'id',
+  jsonb_build_object('category', 'pack', 'includes', jsonb_build_array('soin-visage', 'maquillage'), 'pack_stylist_id', 'leila',
+                     'price', 8000, 'promo_price', 7000, 'promo_from', pg_temp.today(), 'promo_to', pg_temp.today() + 10),
+  'the snapshot carries packs and promotions');
+select is(pg_temp.snap_service('manucure') -> 'promo_price', '1500'::jsonb, 'the snapshot carries a service''s promotion');
+select is((select x -> 'services' from private.demo_settings d, jsonb_array_elements(d.snapshot -> 'stylists') x
+           where d.salon_id = 'elegance' and x ->> 'id' = 'leila'), '["maquillage", "soin-visage"]'::jsonb,
+  'a pack''s person comes from the pack, not from her service list');
+
+-- failure mode: a prospect's pack whose person is a prospect's stylist made the stylist delete fail
+insert into public.stylists (id, salon_id, name, role, image) values ('x-st', 'elegance', 'Xenia', '{"fr":"","ar":""}', '');
+insert into public.services (id, salon_id, category, name, description, price, duration, image, icon, includes, pack_stylist_id)
+  values ('x-pack', 'elegance', 'pack', '{"fr":"Pack X","ar":"Pack X"}', '{"fr":"","ar":""}', 3000, 60, '', 'gift', '{coupe-femme}', 'x-st');
+insert into public.stylist_services (salon_id, stylist_id, service_id) values ('elegance', 'x-st', 'x-pack');
+select lives_ok($$ select private.demo_reset('elegance') $$, 'demo reset survives a prospect''s pack whose person is a prospect''s stylist');
+select is((select count(*)::int from public.services where id = 'x-pack') + (select count(*)::int from public.stylists where id = 'x-st'), 0,
+  '... both are gone');
+
+-- failure mode: a raised price with a promotion above the snapshot price made restoring the price fail
+update public.services set price = 9000, promo_price = 5000, promo_from = pg_temp.today(), promo_to = pg_temp.today() + 3 where id = 'coupe-femme';
+select lives_ok($$ select private.demo_reset('elegance') $$, 'demo reset survives a promotion above the snapshot price');
+select is(pg_temp.svc('coupe-femme'), 'coiffure  2500', '... price back, promotion gone (the snapshot has none)');
+
+-- the prospect edits the pack (other services, another person, no promotion), drops manucure's promotion
+-- and adds one on soin-visage
+insert into public.stylists (id, salon_id, name, role, image) values ('x-st', 'elegance', 'Xenia', '{"fr":"","ar":""}', '');
+update public.services set includes = '{coupe-femme}', pack_stylist_id = 'x-st', price = 9500, promo_price = null, promo_from = null, promo_to = null
+  where id = 'demo-pack';
+delete from public.stylist_services where service_id = 'demo-pack';
+insert into public.stylist_services (salon_id, stylist_id, service_id) values ('elegance', 'x-st', 'demo-pack');
+update public.services set promo_price = null, promo_from = null, promo_to = null where id = 'manucure';
+update public.services set promo_price = 100, promo_from = pg_temp.today(), promo_to = pg_temp.today() where id = 'soin-visage';
+select lives_ok($$ select private.demo_reset('elegance') $$, 'demo reset runs after the prospect''s pack edits');
+select is(pg_temp.svc('demo-pack'), (select pack from pack_before), 'demo reset restores a pack, its person and a promo');
+select is(pg_temp.links('demo-pack'), 'leila', '... and the pack''s person is its only link');
+select is(pg_temp.svc('manucure'), (select manucure from pack_before), '... and a service''s promotion');
+select is(pg_temp.svc('soin-visage'), 'beaute  3500', '... and a promotion the snapshot doesn''t have is gone');
+select is((select count(*)::int from public.stylists where id = 'x-st'), 0, '... and the prospect''s stylist is gone');
+
+-- a pack deleted outright comes back too (owners only hide services; its fake bookings go first)
+delete from private.bookings where service_id = 'demo-pack';
+delete from public.services where id = 'demo-pack';
+select lives_ok($$ select private.demo_reset('elegance') $$, 'demo reset runs after the pack was deleted');
+select is(pg_temp.svc('demo-pack') || ' ' || pg_temp.links('demo-pack'), (select pack from pack_before) || ' leila', '... the pack is back with its person');
+
+-- the demo's promotion never expires: a snapshot promotion whose days are past runs again from the
+-- reset day, for as many days
+update private.demo_settings d set snapshot = jsonb_set(d.snapshot, '{services}',
+  (select jsonb_agg(case when x ->> 'id' = 'manucure'
+                         then x || jsonb_build_object('promo_from', pg_temp.today() - 30, 'promo_to', pg_temp.today() - 25)
+                         else x end order by n)
+   from jsonb_array_elements(d.snapshot -> 'services') with ordinality t(x, n)))
+where d.salon_id = 'elegance';
+update public.services set promo_price = 100, promo_from = pg_temp.today(), promo_to = pg_temp.today() where id = 'soin-visage';
+select lives_ok($$ select private.demo_reset('elegance') $$, 'demo reset runs with a snapshot promotion in the past');
+select is((select promo_price || ' ' || promo_from || '..' || promo_to from public.services where id = 'manucure'),
+  '1500 ' || pg_temp.today() || '..' || (pg_temp.today() + 5), '... it runs from the reset day, with the same length');
+select is(private.service_price('elegance', 'manucure'), 1500, '... so the demo shows its promo price');
+select is(pg_temp.svc('soin-visage'), 'beaute  3500', '... and a prospect''s promotion the snapshot doesn''t have is still gone');
+
+-- a snapshot taken before promotions existed (no promo keys) still clears promotions
+update private.demo_settings d set snapshot = jsonb_set(d.snapshot, '{services}',
+  (select jsonb_agg(x - 'promo_price' - 'promo_from' - 'promo_to' - 'includes' - 'pack_stylist_id')
+   from jsonb_array_elements(d.snapshot -> 'services') x where x ->> 'category' <> 'pack'))
+where d.salon_id = 'elegance';
+update public.services set promo_price = 100, promo_from = pg_temp.today(), promo_to = pg_temp.today() where id = 'soin-visage';
+select lives_ok($$ select private.demo_reset('elegance') $$, 'demo reset runs with a snapshot from before packs and promotions');
+select is(pg_temp.svc('soin-visage') || ' / ' || pg_temp.svc('manucure'), 'beaute  3500 / beaute  2000',
+  '... promotions are cleared (that snapshot had none)');
 
 select * from finish();
 rollback;

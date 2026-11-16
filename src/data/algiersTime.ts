@@ -21,3 +21,13 @@ export function algiersToday(): Date {
   const [y, m, d] = parts.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
+
+/** Today's date in salon time (Africa/Algiers) as YYYY-MM-DD. */
+export function algiersTodayYmd(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Algiers',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}

@@ -9,7 +9,7 @@ vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => rpc
 
 const svc = (id: string, fr: string, active: boolean): Service => ({
   id, category: 'coiffure', name: { fr, ar: `${fr}-ar` }, description: { fr: 'd', ar: 'د' },
-  price: 3000, duration: 45, image: '', icon: '', active, sortOrder: 1,
+  price: 3000, duration: 45, image: '', icon: '', active, sortOrder: 1, includes: [], packStylistId: null, promo: null,
 });
 let services: Service[] = [];
 let stylists: Stylist[] = [];
@@ -69,6 +69,13 @@ describe('StylistsSettings', () => {
     renderIt();
     expect(screen.getAllByTestId('stylist-name').map((n) => n.textContent)).toEqual(['Amina', 'Hidden one']);
     expect(screen.getAllByText('Masquée')).toHaveLength(1);
+  });
+
+  it('the stylist form doesn\'t offer packs', () => {
+    services = [...services, { ...svc('pk', 'Pack mariée', true), category: 'pack' }];
+    renderIt();
+    fireEvent.click(screen.getByText('Amina'));
+    expect(screen.queryByLabelText(/Pack mariée/)).not.toBeInTheDocument();
   });
 
   it('saves the full arrays, hidden linked services included', async () => {

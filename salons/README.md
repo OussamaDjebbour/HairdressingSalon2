@@ -39,6 +39,12 @@ after that they belong to the owner (Réglages). To overwrite them with the file
 `domains` list is never sent, so it can't take a salon's site offline; keys left out of the file
 keep their current value.
 
+**Packs and promotions** are not part of the file: the owner makes them in Réglages. The script never
+deletes or changes them, even with `--reapply-settings`: a service the file lists keeps the owner's
+promotion and a stylist's `services` keep the packs she is responsible for. One exception stops the run
+instead of dropping her promotion: a file price at or under that promotion is refused (`invalid_promo`);
+keep the price, or have the promotion lowered or removed in Réglages first.
+
 **Moving a domain** from one salon to another: the edge keeps each address's salon for up to
 5 minutes, so for that long the page head (tab title, colours) can still show the old salon; the
 page itself follows the database at once.
@@ -85,7 +91,9 @@ Owners can also set service photos themselves in Réglages (stored under `<salon
 Turns a salon (e.g. `elegance`) into the showroom. It creates a dedicated demo login
 (`demo+<salon-id>@demo.invalid`, or another domain with `--domain=`; never an owner's account),
 flags the salon as the demo and records its **current** state as the snapshot the nightly reset
-(03:00 Algiers) and the owner's "Réinitialiser la démo" button return to. The "Essayer la démo"
+(03:00 Algiers) and the owner's "Réinitialiser la démo" button return to — packs (included services,
+person responsible) and promotions included, so make the pitch's packs and promotions in Réglages before
+running it. The "Essayer la démo"
 button then appears on that salon's `/admin`. Uses `.env.admin`; `--dry-run` writes nothing.
 
 Before writing it shows the salon (name, future bookings and how many are online, owner accounts,

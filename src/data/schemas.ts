@@ -44,3 +44,23 @@ export const periodSchema = z.custom<Period | null>().superRefine((v, ctx) => {
 
 export const clientDetailsSchema = z.object({ clientName: clientNameSchema, clientPhone: mobilePhoneSchema });
 export type ClientDetails = z.infer<typeof clientDetailsSchema>;
+
+/** The Promotion part of a service or pack form (mirrors the server's invalid_promo: all or none,
+ *  0 <= promo < price, first day <= last day). Issues carry an i18n key. */
+export const PROMO_MSG = 'settings.error.invalid_promo';
+export function checkPromo(
+  v: { price: string; promoPrice: string; promoPeriod: Period | null },
+  ctx: z.RefinementCtx
+): void {
+  const priceText = v.promoPrice.trim();
+  if (priceText === '' && !v.promoPeriod) return;
+  if (!/^\d+$/.test(priceText)) {
+    ctx.addIssue({ code: 'custom', path: ['promoPrice'], message: PROMO_MSG });
+  } else {
+    const price = /^\d+$/.test(v.price.trim()) ? parseInt(v.price.trim(), 10) : null;
+    if (price !== null && parseInt(priceText, 10) >= price) ctx.addIssue({ code: 'custom', path: ['promoPrice'], message: PROMO_MSG });
+  }
+  if (!v.promoPeriod || v.promoPeriod.from.getTime() > v.promoPeriod.to.getTime()) {
+    ctx.addIssue({ code: 'custom', path: ['promoPeriod'], message: PROMO_MSG });
+  }
+}

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ChevronRight, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { formatDuration, formatPrice } from '../../data/formatters';
 import { useAllServices } from '../../data/queries';
@@ -16,7 +16,7 @@ import {
   type SaveServiceInput,
 } from '../../data/salonSettings';
 import type { Service } from '../../data/types';
-import { clientNameSchema } from '../../data/schemas';
+import { checkPromo, clientNameSchema } from '../../data/schemas';
 import { AffectedBookings } from './AffectedBookings';
 import { TextField } from '../form/TextField';
 import { SelectField } from '../form/SelectField';
@@ -25,20 +25,21 @@ import { applyServerError } from '../form/serverErrors';
 import { QueryFallback, queriesReady } from './QueryFallback';
 import { useToast } from '../admin/feedback';
 import { useMyRole } from '../../data/admin';
+import { CatalogRow, PromoFields, emptyPromo, promoToInput, promoToValues, type PromoValues } from './catalogShared';
 import { ServicePhotoField } from './ServicePhotoField';
-import { CATEGORIES, isCategory } from '../../data/categories';
+import { SERVICE_FORM_CATEGORIES, isServiceFormCategory } from '../../data/categories';
 
 const DURATIONS = Array.from({ length: 40 }, (_, i) => (i + 1) * 15); // 15 … 600
-const ERROR_KEYS = ['invalid_name', 'invalid_price', 'invalid_duration', 'not_found', 'not_authorized', 'demo_disabled', 'invalid_photo', 'upload_failed'];
+const ERROR_KEYS = ['invalid_name', 'invalid_price', 'invalid_duration', 'not_found', 'not_authorized', 'demo_disabled', 'invalid_photo', 'invalid_promo', 'upload_failed'];
 
-const SERVER_ERROR_FIELDS = { invalid_name: 'nameFr', invalid_price: 'price', invalid_duration: 'duration' };
+const SERVER_ERROR_FIELDS = { invalid_name: 'nameFr', invalid_price: 'price', invalid_duration: 'duration', invalid_promo: 'promoPrice' };
 
 const serviceSchema = z.object({
   nameFr: clientNameSchema,
   nameAr: z.string(),
   descFr: z.string(),
   descAr: z.string(),
-  category: z.enum(CATEGORIES),
+  category: z.enum(SERVICE_FORM_CATEGORIES),
   price: z.string().superRefine((v, ctx) => {
     const n = v.trim();
     if (!/^\d+$/.test(n) || parseInt(n, 10) > 1_000_000) ctx.addIssue({ code: 'custom', message: 'form.error.price' });
@@ -47,11 +48,13 @@ const serviceSchema = z.object({
   sortOrder: z.string().superRefine((v, ctx) => {
     if (v.trim() !== '' && !/^\d+$/.test(v.trim())) ctx.addIssue({ code: 'custom', message: 'form.error.sortOrder' });
   }),
-});
+  promoPrice: z.string(),
+  promoPeriod: z.custom<PromoValues['promoPeriod']>(),
+}).superRefine(checkPromo);
 type ServiceForm = z.infer<typeof serviceSchema>;
 
 const emptyValues: ServiceForm = {
-  nameFr: '', nameAr: '', descFr: '', descAr: '', category: 'coiffure', price: '', duration: '30', sortOrder: '',
+  nameFr: '', nameAr: '', descFr: '', descAr: '', category: 'coiffure', price: '', duration: '30', sortOrder: '', ...emptyPromo,
 };
 
 function toValues(s: Service): ServiceForm {
@@ -60,10 +63,11 @@ function toValues(s: Service): ServiceForm {
     nameAr: s.name.ar,
     descFr: s.description.fr,
     descAr: s.description.ar,
-    category: isCategory(s.category) ? s.category : 'coiffure',
+    category: isServiceFormCategory(s.category) ? s.category : 'coiffure',
     price: String(s.price),
     duration: String(s.duration),
     sortOrder: String(s.sortOrder),
+    ...promoToValues(s),
   };
 }
 
@@ -77,6 +81,9 @@ function toInput(id: string | null, d: ServiceForm): SaveServiceInput {
     price: parseInt(d.price.trim(), 10),
     duration: parseInt(d.duration, 10),
     sortOrder: d.sortOrder.trim() === '' ? null : parseInt(d.sortOrder.trim(), 10),
+    includes: [],
+    packStylistId: null,
+    promo: promoToInput(d),
   };
 }
 
@@ -96,7 +103,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
   const [preparing, setPreparing] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const {
-    register, control, handleSubmit, setError, watch,
+    register, control, handleSubmit, setError, setValue, watch,
     formState: { errors, submitCount },
   } = useForm<ServiceForm>({ mode: 'onTouched', resolver: zodResolver(serviceSchema), defaultValues: draft.values });
 
@@ -147,7 +154,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
             onValueChange={field.onChange}
             onBlur={field.onBlur}
             ref={field.ref}
-            options={CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) }))}
+            options={SERVICE_FORM_CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) }))}
           />
         )}
       />
@@ -179,6 +186,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
         error={errors.sortOrder?.message}
         {...register('sortOrder')}
       />
+      <PromoFields idPrefix="svc" register={register} control={control} errors={errors} setValue={setValue} />
       {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
       {formError && <p role="alert" className="text-sm text-rust-600">{formError}</p>}
       <div className="flex gap-3">
@@ -192,7 +200,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
 export function ServicesSettings() {
   const { t, lang } = useLang();
   const servicesQuery = useAllServices();
-  const services = servicesQuery.data ?? [];
+  const services = (servicesQuery.data ?? []).filter((s) => s.category !== 'pack');
   const setActive = useSetServiceActive();
   const toast = useToast();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -245,25 +253,13 @@ export function ServicesSettings() {
       </button>
       <ul className="space-y-2">
         {ordered.map((s) => (
-          <li key={s.id} className={`card relative flex items-center gap-2 ps-4 pe-3 py-2 ${s.active ? '' : 'opacity-70'}`}>
-            <button
-              type="button"
-              className="flex-1 min-w-0 text-start py-1 after:absolute after:inset-0 after:rounded-[inherit] after:content-['']"
-              onClick={() => { setError(null); setDraft({ id: s.id, values: toValues(s), image: s.image }); }}
-            >
-              <span className="flex-1 min-w-0">
-                <span data-testid="service-name" className="block font-medium text-rose-800 break-words">{s.name[lang]}</span>
-                <span className="block text-sm text-rose-600">
-                  {formatPrice(s.price, lang)} · {formatDuration(s.duration, lang)}
-                  {!s.active && <span className="ms-2 text-xs font-semibold text-amber-800">{t('settings.services.hidden')}</span>}
-                </span>
-              </span>
-            </button>
-            <button type="button" className="btn-ghost btn-sm tap relative z-10 shrink-0" disabled={setActive.isPending} onClick={() => toggle(s)}>
-              {t(s.active ? 'settings.services.hide' : 'settings.services.show')}
-            </button>
-            <ChevronRight className="w-4 h-4 shrink-0 text-gold-600 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
-          </li>
+          <CatalogRow
+            key={s.id}
+            s={s}
+            toggling={setActive.isPending}
+            onToggle={() => toggle(s)}
+            onOpen={() => { setError(null); setDraft({ id: s.id, values: toValues(s), image: s.image }); }}
+          />
         ))}
       </ul>
     </div>

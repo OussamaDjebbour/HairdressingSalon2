@@ -15,6 +15,11 @@ interface ServiceRow {
   icon: string;
   sort_order: number;
   active: boolean;
+  includes: string[] | null;
+  pack_stylist_id: string | null;
+  promo_price: number | null;
+  promo_from: string | null;
+  promo_to: string | null;
 }
 
 interface StylistRow {
@@ -34,7 +39,7 @@ const STALE_MS = 30_000; // settings changes reach the public site within about 
 export async function fetchServices(includeInactive = false): Promise<Service[]> {
   let query = supabase
     .from('services')
-    .select('id, category, name, description, price, duration, image, icon, sort_order, active')
+    .select('id, category, name, description, price, duration, image, icon, sort_order, active, includes, pack_stylist_id, promo_price, promo_from, promo_to')
     .eq('salon_id', currentSalonId());
   if (!includeInactive) query = query.eq('active', true);
   const { data, error } = await query.order('sort_order');
@@ -50,6 +55,12 @@ export async function fetchServices(includeInactive = false): Promise<Service[]>
     icon: r.icon,
     active: r.active,
     sortOrder: r.sort_order,
+    includes: r.includes ?? [],
+    packStylistId: r.pack_stylist_id,
+    promo:
+      r.promo_price !== null && r.promo_from && r.promo_to
+        ? { price: r.promo_price, from: r.promo_from, to: r.promo_to }
+        : null,
   }));
 }
 
@@ -76,6 +87,11 @@ export async function fetchStylists(includeInactive = false): Promise<Stylist[]>
 /** Public: active services only. */
 export function useServices() {
   return useQuery({ queryKey: ['services'], queryFn: () => fetchServices(), staleTime: STALE_MS });
+}
+
+/** Public: every service of the salon, hidden ones too (to name what a pack includes). */
+export function useCatalogue() {
+  return useQuery({ queryKey: ['services', 'all'], queryFn: () => fetchServices(true), staleTime: STALE_MS });
 }
 
 /** Public: active stylists only. */

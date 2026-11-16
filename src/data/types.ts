@@ -11,6 +11,12 @@ export interface Service {
   icon: string;
   active: boolean;
   sortOrder: number;
+  /** Pack only: the services it includes (names, shown as a list). */
+  includes: string[];
+  /** Pack only: the person who performs it. */
+  packStylistId: string | null;
+  /** Promotion (days inclusive, YYYY-MM-DD), or null. */
+  promo: { price: number; from: string; to: string } | null;
 }
 
 export interface Stylist {

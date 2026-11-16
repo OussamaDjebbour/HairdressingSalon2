@@ -7,7 +7,7 @@ import { clientDetailsSchema, type ClientDetails } from '../data/schemas';
 import { Check, ChevronLeft, ChevronRight, User, MessageCircle, AlertCircle, CalendarPlus, MapPin } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import {
-  useVisitSlots, useCreateVisit, toBookingError, failedItem, normalizePhone, type BookingErrorCode, type VisitItem,
+  useVisitSlots, useCreateVisit, toBookingError, failedItem, serverTotal, normalizePhone, type BookingErrorCode, type VisitItem,
 } from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
@@ -29,6 +29,9 @@ import { forgetClient, loadClient, saveClient } from '../data/rememberedClient';
 import { currentSalon } from '../data/salon';
 import { salonInstant } from '../data/week';
 import { SmartImage } from './SmartImage';
+import { PriceTag } from './PriceTag';
+import { PackIncludes } from './PackIncludes';
+import { effectivePrice } from '../data/pricing';
 import { groupByCategory } from '../data/categories';
 import { useBookingIntent } from '../context/BookingIntentContext';
 
@@ -152,8 +155,19 @@ export function Booking() {
     [visit, stylistFor]
   );
   const totals = visitTotals(visit);
+  // The server's total from price_changed (its day decides a promotion, e.g. when this device's date is off),
+  // for that exact visit only: any change of services, staff, date or time drops it.
+  const visitKey = JSON.stringify([items, selectedDate?.toDateString() ?? null, selectedTime]);
+  const [priceFix, setPriceFix] = useState<{ key: string; total: number } | null>(null);
+  const total = priceFix?.key === visitKey ? priceFix.total : totals.price;
   const single = visit.length === 1 ? visit[0] : null;
-  const selectedStylist = single ? stylistFor[single.id] ?? null : null;
+  // Packs come with their own stylist: the stylist step only deals with the other parts.
+  const stylistParts = useMemo(() => visit.filter((s) => s.category !== 'pack'), [visit]);
+  const onlyPacks = visit.length > 0 && stylistParts.length === 0;
+  const onlyPacksRef = useRef(onlyPacks);
+  onlyPacksRef.current = onlyPacks;
+  const stylistSingle = stylistParts.length === 1 ? stylistParts[0] : null;
+  const selectedStylist = stylistSingle ? stylistFor[stylistSingle.id] ?? null : null;
   const atMax = selectedIds.length >= MAX_VISIT_SERVICES;
 
   const slotsQuery = useVisitSlots(selectedDate, items);
@@ -213,14 +227,20 @@ export function Booking() {
     return step === 3;
   };
 
-  const handleNext = () => { if (step < 3) setStep((s) => (s + 1) as Step); };
-  const handleBack = () => { if (step > 0) setStep((s) => (s - 1) as Step); };
+  const handleNext = () => {
+    if (step === 0 && onlyPacks) setStep(2);
+    else if (step < 3) setStep((s) => (s + 1) as Step);
+  };
+  const handleBack = () => {
+    if (step === 2 && onlyPacks) setStep(0);
+    else if (step > 0) setStep((s) => (s - 1) as Step);
+  };
 
   const plannedParts: VisitPart[] = selectedTime
     ? planVisit(visit, selectedTime).map(({ service, time }) => ({
         time,
         service,
-        stylistName: stylistLabel(stylistFor[service.id], t(single ? 'booking.noPreference' : 'booking.visit.anyStylist')),
+        stylistName: stylistLabel(stylistFor[service.id] ?? service.packStylistId, t(single ? 'booking.noPreference' : 'booking.visit.anyStylist')),
       }))
     : [];
 
@@ -239,6 +259,7 @@ export function Booking() {
         clientName,
         clientPhone,
         lang,
+        expectedTotal: total,
       },
       {
         onSuccess: (created) => {
@@ -246,7 +267,7 @@ export function Booking() {
           setRemembered(true);
           setBooked({
             date: selectedDate,
-            total: totals.price,
+            total,
             parts: visit.flatMap((service) => {
               const part = created.find((p) => p.serviceId === service.id);
               return part ? [{ service, time: formatAlgiersTime(part.startsAt), stylistName: stylistLabel(part.stylistId, '') }] : [];
@@ -276,6 +297,13 @@ export function Booking() {
             setError(name, { type: 'server', message }, { shouldFocus: true });
             return;
           }
+          // A promotion started or ended: fetch the prices again and show the server's total, which the
+          // next tap sends (so a device whose date is off still books, at the price it now shows).
+          if (code === 'price_changed') {
+            servicesQuery.refetch();
+            const fixed = serverTotal(err);
+            setPriceFix(fixed === null ? null : { key: visitKey, total: fixed });
+          }
           setSubmitError(code);
         },
       }
@@ -290,6 +318,7 @@ export function Booking() {
     outside_hours: t('booking.error.generic'),
     unknown_service: t('booking.error.generic'),
     too_many_services: t('booking.error.generic'),
+    price_changed: t('booking.error.priceChanged'),
     unknown: t('booking.error.generic'),
   };
 
@@ -304,6 +333,7 @@ export function Booking() {
     setSlotNotice(null);
     setRace(null);
     setDropped(false);
+    setPriceFix(null);
     createVisitMutation.reset();
     setBooked(null);
   };
@@ -378,7 +408,7 @@ export function Booking() {
         releasing.current = false;
         return;
       }
-      setStep((s) => (s > 0 ? ((s - 1) as Step) : s));
+      setStep((s) => (s === 2 && onlyPacksRef.current ? 0 : s > 0 ? ((s - 1) as Step) : s));
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -476,7 +506,7 @@ export function Booking() {
     restart(true);
     setSelectedIds([service.id]);
     clearErrors();
-    goTo(1);
+    goTo(service.category === 'pack' ? 2 : 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is recreated each render; applied once per seq
   }, [request, services, sending]);
 
@@ -526,7 +556,7 @@ export function Booking() {
         {duration !== undefined && row('booking.summary.duration', formatDuration(duration, lang))}
         <div className="border-t border-rose-900/10 pt-3 flex justify-between items-center gap-4">
           <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
-          <span className="text-lg font-display font-semibold text-rose-800">{formatPrice(total, lang)}</span>
+          <span className="text-lg font-display font-semibold text-rose-800"><PriceTag price={total} regular={part.service.price > total ? part.service.price : null} /></span>
         </div>
       </div>
     );
@@ -679,8 +709,9 @@ export function Booking() {
                           {isSelected && <Check className="w-4 h-4 text-rose-900 flex-shrink-0 self-center" strokeWidth={2} aria-hidden="true" />}
                         </span>
                         <span className="mt-1 text-sm leading-relaxed text-rose-900/75 line-clamp-2">{service.description[lang]}</span>
+                        {service.category === 'pack' && <PackIncludes service={service} className="mt-1 text-sm leading-relaxed text-rose-900/75" />}
                         <span className="mt-2 flex items-baseline justify-between gap-3">
-                          <span className="font-display text-lg text-rose-900 tabular-nums whitespace-nowrap">{formatPrice(service.price, lang)}</span>
+                          <span className="font-display text-lg text-rose-900 tabular-nums whitespace-nowrap"><PriceTag {...effectivePrice(service)} /></span>
                           <span className="text-sm text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
                         </span>
                       </span>
@@ -699,12 +730,12 @@ export function Booking() {
             <div className="animate-fadeIn">
               <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-3 focus:outline-none">{t('booking.selectStylist')}</h3>
               {recap}
-              {single ? (
+              {stylistSingle ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <button
                     type="button"
                     aria-pressed={selectedStylist === null}
-                    onClick={() => chooseStylist(single.id, null)}
+                    onClick={() => chooseStylist(stylistSingle.id, null)}
                     className={`flex flex-col items-center gap-3 p-4 rounded-[2px] border transition-all duration-200 ease-silk ${
                       selectedStylist === null
                         ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
@@ -717,14 +748,14 @@ export function Booking() {
                     <span className="text-xs font-medium text-rose-600 text-center">{t('booking.noPreference')}</span>
                   </button>
 
-                  {stylists.filter((s) => s.serviceIds.includes(single.id)).map((stylist) => {
+                  {stylists.filter((s) => s.serviceIds.includes(stylistSingle.id)).map((stylist) => {
                     const isSelected = selectedStylist === stylist.id;
                     return (
                       <button
                         key={stylist.id}
                         type="button"
                         aria-pressed={isSelected}
-                        onClick={() => chooseStylist(single.id, stylist.id)}
+                        onClick={() => chooseStylist(stylistSingle.id, stylist.id)}
                         className={`flex flex-col items-center gap-3 p-4 rounded-[2px] border transition-all duration-200 ease-silk ${
                           isSelected
                             ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
@@ -764,7 +795,7 @@ export function Booking() {
                   })}
                 </div>
               ) : (
-                <VisitStylists visit={visit} stylists={stylists} value={stylistFor} onChange={chooseStylist} />
+                <VisitStylists visit={stylistParts} stylists={stylists} value={stylistFor} onChange={chooseStylist} />
               )}
             </div>
           )}
@@ -891,7 +922,7 @@ export function Booking() {
               <h3 className="font-display text-xl font-semibold text-rose-800 mb-2">{t('booking.summary')}</h3>
 
               <div className="rounded-[2px] bg-transparent border border-rose-900/10 p-5">
-                {summary(plannedParts, totals.price, selectedDate, totals.duration)}
+                {summary(plannedParts, total, selectedDate, totals.duration)}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">

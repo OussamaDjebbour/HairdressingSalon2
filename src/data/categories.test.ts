@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { CATEGORIES, groupByCategory, isCategory } from './categories';
+import { CATEGORIES, SERVICE_FORM_CATEGORIES, groupByCategory, isCategory } from './categories';
 
 describe('categories', () => {
-  it('lists the three categories in display order', () => {
-    expect([...CATEGORIES]).toEqual(['coiffure', 'beaute', 'spa']);
+  it('lists the categories in display order, packs first; the service form never offers pack', () => {
+    expect([...CATEGORIES]).toEqual(['pack', 'coiffure', 'beaute', 'spa']);
+    expect([...SERVICE_FORM_CATEGORIES]).toEqual(['coiffure', 'beaute', 'spa']);
   });
 
   it('isCategory accepts only known categories', () => {
@@ -22,6 +23,11 @@ describe('categories', () => {
     ]);
     expect(groupByCategory(items.filter((i) => i.category === 'spa')).map((g) => g.category)).toEqual(['spa']);
     expect(groupByCategory([])).toEqual([]);
+  });
+
+  it('groupByCategory puts packs first', () => {
+    const items = [{ id: 'a', category: 'coiffure' }, { id: 'p', category: 'pack' }];
+    expect(groupByCategory(items).map((g) => g.category)).toEqual(['pack', 'coiffure']);
   });
 
   it('puts an unknown category under coiffure', () => {
