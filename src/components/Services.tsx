@@ -24,7 +24,7 @@ function Row({ service }: { service: Service }) {
             src={service.image}
             alt=""
             loading="lazy"
-            className="w-14 sm:w-16 aspect-[3/4] object-cover shrink-0 self-start"
+            className="w-28 sm:w-36 aspect-[3/4] object-cover shrink-0 self-start"
           />
         )}
         <span className="flex flex-1 flex-col min-w-0">
