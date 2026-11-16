@@ -12,6 +12,7 @@ import {
   toBookingError,
   toYmd,
   failedItem,
+  serverTotal,
   useCreateVisit,
   useVisitSlots,
 } from './bookings';
@@ -138,6 +139,15 @@ describe('failedItem', () => {
     expect(failedItem({ message: 'slot_taken' })).toBeNull();
     expect(failedItem({ details: 'nope' })).toBeNull();
     expect(failedItem(null)).toBeNull();
+  });
+});
+
+describe('serverTotal', () => {
+  it('reads the server total from a price_changed detail', () => {
+    expect(serverTotal({ message: 'price_changed', details: 'total:2000' })).toBe(2000);
+    expect(serverTotal({ message: 'price_changed' })).toBeNull();
+    expect(serverTotal({ message: 'slot_taken', details: 'item:1' })).toBeNull();
+    expect(serverTotal(null)).toBeNull();
   });
 });
 

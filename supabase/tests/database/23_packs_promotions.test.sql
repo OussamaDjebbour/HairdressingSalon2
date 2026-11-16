@@ -102,7 +102,7 @@ select is(pg_temp.rows_of('Promo Later'), 'leila 10:00-11:15 3500', 'create_visi
 select is(pg_temp.error_of($$ select * from public.create_visit('elegance',
   '[{"service_id":"manucure","stylist_id":null},{"service_id":"coupe-femme","stylist_id":null}]',
   pg_temp.open_day(2), '10:00', 'Stale', '0555100003', 'fr', 4500) $$),
-  'price_changed', 'create_visit refuses a stale total with price_changed');
+  'price_changed total:4000', 'create_visit refuses a stale total with price_changed, carrying the server total');
 select is((select count(*)::int from private.bookings where client_name = 'Stale'), 0,
   'create_visit refuses a stale total with price_changed (no row)');
 

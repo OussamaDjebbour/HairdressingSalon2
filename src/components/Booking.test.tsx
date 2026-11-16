@@ -1307,4 +1307,38 @@ describe('Booking packs and promotions', () => {
     expect(screen.getByRole('button', { name: /Confirmer la réservation/ })).toBeInTheDocument();
     expect(document.body.textContent).toMatch(/1\s?500/);
   });
+
+  it('price_changed with the server total: shows it and books at it on the next tap (a wrong device clock)', async () => {
+    serviceList = [withDefaults(service)];
+    refetchServices.mockReset(); // the device's prices stay as they are
+    failWith('price_changed', 'total:2000');
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Le prix vient de changer');
+    // the summary's price is the server's (below the price: shown as a promotion)
+    expect(document.body.textContent).toMatch(/Prix2\s?000\sDA au lieu de 2\s?500\sDA/);
+    mutate.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(mutate.mock.calls[0][0].expectedTotal).toBe(2000);
+  });
+
+  it('the server total is forgotten when the visit changes', async () => {
+    serviceList = [withDefaults(service)];
+    refetchServices.mockReset(); // the device's prices stay as they are
+    failWith('price_changed', 'total:2000');
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByRole('alert');
+    // another time: the server's total was for the other visit
+    visitSlots = { 1: [...DEFAULT_SLOTS, { slot: '11:00', available: true, missing: [] }] };
+    fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
+    fireEvent.click(screen.getByRole('button', { name: '11:00' }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(document.body.textContent).toMatch(/Prix2\s?500\sDA(?! au lieu)/);
+    mutate.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(mutate.mock.calls[0][0].expectedTotal).toBe(2500);
+  });
 });

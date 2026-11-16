@@ -141,9 +141,15 @@ export function useCreateVisit() {
   });
 }
 
-/** Which part of the visit failed (`slot_taken` carries `details = 'item:<index>'`). */
-export function failedItem(err: unknown): number | null {
+/** The number in an RPC error's `details = '<key>:<n>'`, or null. */
+function detailNumber(err: unknown, key: string): number | null {
   if (typeof err !== 'object' || err === null || !('details' in err)) return null;
-  const m = /^item:(\d+)$/.exec(String((err as { details: unknown }).details));
-  return m ? Number(m[1]) : null;
+  const m = /^(\w+):(\d+)$/.exec(String((err as { details: unknown }).details));
+  return m && m[1] === key ? Number(m[2]) : null;
 }
+
+/** Which part of the visit failed (`slot_taken` carries `details = 'item:<index>'`). */
+export const failedItem = (err: unknown) => detailNumber(err, 'item');
+
+/** The visit's total by the server's day (`price_changed` carries `details = 'total:<n>'`). */
+export const serverTotal = (err: unknown) => detailNumber(err, 'total');

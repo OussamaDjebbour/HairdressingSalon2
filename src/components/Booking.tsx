@@ -7,7 +7,7 @@ import { clientDetailsSchema, type ClientDetails } from '../data/schemas';
 import { Check, ChevronLeft, ChevronRight, User, MessageCircle, AlertCircle, CalendarPlus, MapPin } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import {
-  useVisitSlots, useCreateVisit, toBookingError, failedItem, normalizePhone, type BookingErrorCode, type VisitItem,
+  useVisitSlots, useCreateVisit, toBookingError, failedItem, serverTotal, normalizePhone, type BookingErrorCode, type VisitItem,
 } from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
@@ -155,6 +155,11 @@ export function Booking() {
     [visit, stylistFor]
   );
   const totals = visitTotals(visit);
+  // The server's total from price_changed (its day decides a promotion, e.g. when this device's date is off),
+  // for that exact visit only: any change of services, staff, date or time drops it.
+  const visitKey = JSON.stringify([items, selectedDate?.toDateString() ?? null, selectedTime]);
+  const [priceFix, setPriceFix] = useState<{ key: string; total: number } | null>(null);
+  const total = priceFix?.key === visitKey ? priceFix.total : totals.price;
   const single = visit.length === 1 ? visit[0] : null;
   // Packs come with their own stylist: the stylist step only deals with the other parts.
   const stylistParts = useMemo(() => visit.filter((s) => s.category !== 'pack'), [visit]);
@@ -254,7 +259,7 @@ export function Booking() {
         clientName,
         clientPhone,
         lang,
-        expectedTotal: totals.price,
+        expectedTotal: total,
       },
       {
         onSuccess: (created) => {
@@ -262,7 +267,7 @@ export function Booking() {
           setRemembered(true);
           setBooked({
             date: selectedDate,
-            total: totals.price,
+            total,
             parts: visit.flatMap((service) => {
               const part = created.find((p) => p.serviceId === service.id);
               return part ? [{ service, time: formatAlgiersTime(part.startsAt), stylistName: stylistLabel(part.stylistId, '') }] : [];
@@ -292,8 +297,13 @@ export function Booking() {
             setError(name, { type: 'server', message }, { shouldFocus: true });
             return;
           }
-          // A promotion started or ended: fetch the prices again; the confirm step then shows the new total.
-          if (code === 'price_changed') servicesQuery.refetch();
+          // A promotion started or ended: fetch the prices again and show the server's total, which the
+          // next tap sends (so a device whose date is off still books, at the price it now shows).
+          if (code === 'price_changed') {
+            servicesQuery.refetch();
+            const fixed = serverTotal(err);
+            setPriceFix(fixed === null ? null : { key: visitKey, total: fixed });
+          }
           setSubmitError(code);
         },
       }
@@ -323,6 +333,7 @@ export function Booking() {
     setSlotNotice(null);
     setRace(null);
     setDropped(false);
+    setPriceFix(null);
     createVisitMutation.reset();
     setBooked(null);
   };
@@ -545,7 +556,7 @@ export function Booking() {
         {duration !== undefined && row('booking.summary.duration', formatDuration(duration, lang))}
         <div className="border-t border-rose-900/10 pt-3 flex justify-between items-center gap-4">
           <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
-          <span className="text-lg font-display font-semibold text-rose-800"><PriceTag price={total} regular={effectivePrice(part.service).regular} /></span>
+          <span className="text-lg font-display font-semibold text-rose-800"><PriceTag price={total} regular={part.service.price > total ? part.service.price : null} /></span>
         </div>
       </div>
     );
@@ -911,7 +922,7 @@ export function Booking() {
               <h3 className="font-display text-xl font-semibold text-rose-800 mb-2">{t('booking.summary')}</h3>
 
               <div className="rounded-[2px] bg-transparent border border-rose-900/10 p-5">
-                {summary(plannedParts, totals.price, selectedDate, totals.duration)}
+                {summary(plannedParts, total, selectedDate, totals.duration)}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">

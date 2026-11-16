@@ -215,8 +215,8 @@ $$;
 
 -- 6. create_visit: latest body (20261118100000_visits.sql), recording each part's effective price (via
 -- visit_items). New last parameter p_expected_total: the total the page showed; when given and not the sum
--- of the parts' effective prices, price_changed and nothing is inserted. Optional, so older pages keep
--- working. A signature change, so drop and recreate (same grants).
+-- of the parts' effective prices, price_changed (detail 'total:<server total>') and nothing is inserted.
+-- Optional, so older pages keep working. A signature change, so drop and recreate (same grants).
 drop function public.create_visit(text, jsonb, date, text, text, text, text);
 create function public.create_visit(
   p_salon_id text, p_items jsonb, p_date date, p_time text,
@@ -257,9 +257,11 @@ begin
          array_agg(i.price order by i.idx), array_agg(i.duration order by i.idx), sum(i.duration)
     into v_services, v_stylists, v_prices, v_durations, v_total
   from private.visit_items(p_salon_id, p_items) i;
+  -- the detail carries the server total ('total:<n>'), so the page can show it and send it back
   if p_expected_total is not null
      and p_expected_total is distinct from (select sum(p)::integer from unnest(v_prices) p) then
-    raise exception 'price_changed' using errcode = 'P0001';
+    raise exception 'price_changed' using errcode = 'P0001',
+      detail = 'total:' || (select sum(p)::integer from unnest(v_prices) p);
   end if;
 
   if coalesce(p_time, '') !~ '^([01][0-9]|2[0-3]):(00|15|30|45)$' then
