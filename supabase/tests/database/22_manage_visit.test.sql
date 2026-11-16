@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(42);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'owner@test.local');
@@ -71,7 +71,10 @@ values
   -- Q: Sara 13:00-13:45 + 13:45-14:30, and a cancelled Sara part 15:00-15:45, on the 10th
   ('ed000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-00000000000d', 'elegance', 'manucure', 'sara', '2030-01-10 13:00+01', '2030-01-10 13:45+01', 2000, 'Qamar', '0555000113', 'fr', 'pending', 'online'),
   ('ed000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-00000000000d', 'elegance', 'manucure', 'sara', '2030-01-10 13:45+01', '2030-01-10 14:30+01', 2000, 'Qamar', '0555000113', 'fr', 'pending', 'online'),
-  ('ed000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-00000000000d', 'elegance', 'manucure', 'sara', '2030-01-10 15:00+01', '2030-01-10 15:45+01', 2000, 'Qamar', '0555000113', 'fr', 'cancelled', 'online');
+  ('ed000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-00000000000d', 'elegance', 'manucure', 'sara', '2030-01-10 15:00+01', '2030-01-10 15:45+01', 2000, 'Qamar', '0555000113', 'fr', 'cancelled', 'online'),
+  -- R: Sara coupe 09:00-10:00 + Sara manucure 10:00-10:45 on the 8th (the coupe is re-timed later)
+  ('ee000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-00000000000e', 'elegance', 'coupe-femme', 'sara', '2030-01-08 09:00+01', '2030-01-08 10:00+01', 2500, 'Rym', '0555000114', 'fr', 'pending', 'online'),
+  ('ee000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-00000000000e', 'elegance', 'manucure', 'sara', '2030-01-08 10:00+01', '2030-01-08 10:45+01', 2000, 'Rym', '0555000114', 'fr', 'pending', 'online');
 
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
@@ -166,6 +169,20 @@ select lives_ok($$ select public.admin_move_visit('ed000000-0000-0000-0000-00000
 select is(pg_temp.parts('e0000000-0000-0000-0000-00000000000d'),
   '2030-01-10 15:00-15:45 sara pending 2000, 2030-01-10 15:00-15:45 sara cancelled 2000, 2030-01-10 15:45-16:30 sara pending 2000',
   'move: cancelled parts of the visit stay put (rows)');
+
+-- a part re-timed after another (as a per-part edit would): the now-earliest part is the anchor
+reset role;
+update private.bookings set starts_at = '2030-01-08 15:00+01', ends_at = '2030-01-08 16:00+01'
+where id = 'ee000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select pg_temp.capture('reorder', $$ select public.admin_move_visit('ee000000-0000-0000-0000-000000000001', '2030-01-10', '10:00', '{}') $$);
+select is((select msg || ' ' || coalesce(detail, '-') from pg_temp.err where k = 'reorder'), 'slot_taken item:1',
+  'move: after a re-time, item:<n> follows the new start order (the coupe is now item 1)');
+select lives_ok($$ select public.admin_move_visit('ee000000-0000-0000-0000-000000000001', '2030-01-08', '11:00', '{}') $$,
+  'move: after a re-time, the now-earliest part is the anchor');
+select is(pg_temp.parts('e0000000-0000-0000-0000-00000000000e'),
+  '2030-01-08 11:00-11:45 sara pending 2000, 2030-01-08 16:00-17:00 sara pending 2500',
+  'move: after a re-time, the now-earliest part is the anchor (offsets follow the new order)');
 
 reset role;
 select throws_ok($$ insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, source)

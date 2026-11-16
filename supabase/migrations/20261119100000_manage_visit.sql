@@ -79,11 +79,17 @@ begin
     raise exception 'not_found' using errcode = 'P0001';
   end if;
 
+  -- lock the visit's rows in id order (as admin_remove_visit_part does, so the two can't deadlock),
+  -- then read them in start order: sorting before locking could return a row re-timed meanwhile in
+  -- its old position, so the first part (the anchor) and item:<n> would be wrong
+  perform 1 from private.bookings b
+  where b.salon_id = v_salon and b.visit_id = v_visit and b.status <> 'cancelled'
+  order by b.id
+  for update;
   for v_row in
     select b.* from private.bookings b
     where b.salon_id = v_salon and b.visit_id = v_visit and b.status <> 'cancelled'
     order by b.starts_at, b.id
-    for update
   loop
     v_parts := v_parts || v_row;
   end loop;
