@@ -6,8 +6,10 @@ import { TrustBadges } from '../components/TrustBadges';
 import { Philosophy } from '../components/Philosophy';
 import { Booking } from '../components/Booking';
 import { BookingIntentProvider } from '../context/BookingIntentContext';
+import { useSiteScope } from '../lib/useSiteScope';
 
 export function HomePage() {
+  useSiteScope();
   return (
     <BookingIntentProvider>
       <div className="min-h-screen flex flex-col">

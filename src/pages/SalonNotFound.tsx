@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Globe, SearchX, WifiOff } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
+import { useSiteScope } from '../lib/useSiteScope';
 
 /**
  * Startup screens shown instead of the app when no salon could be resolved from the web
@@ -13,6 +14,7 @@ function StartupScreen({ icon, title, body, children }: {
   children?: ReactNode;
 }) {
   const { lang, toggleLang } = useLang();
+  useSiteScope();
   return (
     <main className="min-h-screen bg-cream-50 flex items-center justify-center px-4 py-12">
       <div className="card w-full max-w-sm p-8 text-center">
