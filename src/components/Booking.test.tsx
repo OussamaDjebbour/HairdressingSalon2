@@ -29,6 +29,7 @@ vi.mock('../data/queries', () => ({
 }));
 
 let hours: SalonHours;
+let salonInfo: { whatsapp: string | null; address?: { fr: string; ar: string }; city?: { fr: string; ar: string } } = { whatsapp: '0561234567' };
 let closed: ClosedDates[] = [];
 let hoursState: { isLoading?: boolean; isError?: boolean } = {};
 const refetchHours = vi.fn();
@@ -36,7 +37,7 @@ const refetchHours = vi.fn();
 vi.mock('../data/salonSettings', () => ({
   useSalonHours: () => ({ data: hoursState.isError || hoursState.isLoading ? undefined : hours, refetch: refetchHours, ...hoursState }),
   useClosedDates: () => ({ data: closed }),
-  useSalonInfo: () => ({ data: { whatsapp: '0561234567' } }),
+  useSalonInfo: () => ({ data: salonInfo }),
 }));
 
 const mutate = vi.fn();
@@ -47,12 +48,15 @@ let visitSlots: Record<number, VisitSlot[]> = {};
 let slotCalls: VisitItem[][] = [];
 /** The slots query is re-fetching (its data is then the cached, possibly stale, answer). */
 let slotsFetching = false;
+/** Per-day answers (key: Date.toDateString()), for the first-open-day tests. */
+let slotsByDay: Record<string, VisitSlot[]> = {};
 vi.mock('../data/bookings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/bookings')>()),
-  useVisitSlots: (_date: Date | null, items: VisitItem[]) => {
+  useVisitSlots: (date: Date | null, items: VisitItem[]) => {
     slotCalls.push(items);
     return {
-      data: visitSlots[items.length] ?? DEFAULT_SLOTS, isLoading: false, isError: false, isFetching: slotsFetching, refetch: vi.fn(),
+      data: (date && slotsByDay[date.toDateString()]) ?? visitSlots[items.length] ?? DEFAULT_SLOTS,
+      isLoading: false, isError: false, isFetching: slotsFetching, refetch: vi.fn(),
     };
   },
   useCreateVisit: () => ({ mutate, reset: vi.fn(), isPending: pending }),
@@ -65,6 +69,7 @@ import type { ClosedDates, SalonHours } from '../data/types';
 import type { VisitItem, VisitSlot } from '../data/bookings';
 import { LanguageProvider, useLang, translations } from '../context/LanguageContext';
 import { Booking } from './Booking';
+import { useInPageLinks } from '../lib/useInPageLinks';
 import { BookingIntentProvider, useBookingIntent } from '../context/BookingIntentContext';
 
 function ToArabic() {
@@ -112,6 +117,9 @@ beforeEach(() => {
   visitSlots = {};
   slotCalls = [];
   slotsFetching = false;
+  slotsByDay = {};
+  salonInfo = { whatsapp: '0561234567' };
+  localStorage.clear();
 });
 
 /** The next date (within the 14-day strip, after today) on the given ISO weekday. */
@@ -486,7 +494,8 @@ describe('Booking intent from a service tile', () => {
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
     expect(document.activeElement).toBe(screen.getByText('Choisissez votre coiffeuse'));
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
-    expect(screen.queryByRole('button', { name: '10:00' })).toBeNull();
+    // The date step reopens on the first open day, but the time chosen before is gone.
+    expect(selectedChips()).toHaveLength(0);
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeDisabled();
     fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
     fireEvent.click(screen.getByRole('button', { name: '10:00' }));
@@ -767,7 +776,9 @@ describe('Booking several services', () => {
     beforeEach(() => {
       calls = [];
       Element.prototype.scrollIntoView = function (this: Element, o?: boolean | ScrollIntoViewOptions) {
-        calls.push([this, o as ScrollIntoViewOptions]);
+        // Only the plan's own scroll: each step change also brings the booking card's top into view.
+        // (the booking card's top on step changes, and the chosen day in the date strip, are other scrolls)
+        if (!(this as Element).hasAttribute('data-booking-top') && !(this as Element).hasAttribute('aria-pressed')) calls.push([this, o as ScrollIntoViewOptions]);
       };
     });
     afterEach(() => {
@@ -1010,3 +1021,218 @@ describe('Booking on the client page (look and navigation)', () => {
     expect(withPhoto.querySelector('img')).toHaveAttribute('src', 'https://x.test/soin.jpg');
   });
 });
+
+describe('Booking comfort', () => {
+  const dayButtons = () => [...document.body.querySelectorAll('.overflow-x-auto button')] as HTMLButtonElement[];
+  const pressedDay = () => dayButtons().findIndex((b) => b.getAttribute('aria-pressed') === 'true');
+  const toDateStep = () => {
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    next();
+  };
+
+  it('scrolls the booking card into view on each step change, not on first render', () => {
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderWizard();
+    expect(spy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    expect(spy).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
+    expect((spy.mock.contexts.at(-1) as HTMLElement).hasAttribute('data-booking-top')).toBe(true);
+    spy.mockRestore();
+  });
+
+  it('scrolls instantly under reduced motion', () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderWizard();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    expect(spy).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' });
+    spy.mockRestore();
+    window.matchMedia = original;
+  });
+
+  it('the back button goes to the previous step', async () => {
+    renderWizard();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+    act(() => history.back());
+    expect(await screen.findByText('Choisissez votre prestation')).toBeInTheDocument();
+  });
+
+  it('on the first step the back button is not intercepted', () => {
+    const push = vi.spyOn(history, 'pushState');
+    renderWizard();
+    expect(push).not.toHaveBeenCalled();
+    push.mockRestore();
+  });
+
+  it('after booking the back button is not intercepted', async () => {
+    mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
+    goToConfirmStep();
+    const back = vi.spyOn(history, 'back');
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    // The success screen releases the wizard's history guard, so the next back press leaves the page.
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+    back.mockRestore();
+  });
+
+  it('opens the date step on the first open day', () => {
+    renderWizard();
+    toDateStep();
+    expect(pressedDay()).toBe(0);
+    expect(screen.getByRole('button', { name: '10:00' })).toBeInTheDocument();
+  });
+
+  it('moves to the next open day when the first has no free time', async () => {
+    renderWizard();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    const first = upcomingOpenDays()[0];
+    slotsByDay = { [first.toDateString()]: [{ slot: '09:00', available: false, missing: [] }] };
+    next();
+    await waitFor(() => expect(pressedDay()).toBe(1));
+  });
+
+  it('stops auto-advancing at the last open day', async () => {
+    const days = upcomingOpenDays();
+    slotsByDay = Object.fromEntries(days.map((d) => [d.toDateString(), []]));
+    renderWizard();
+    toDateStep();
+    await waitFor(() => expect(pressedDay()).toBe(days.length - 1));
+    expect(screen.getByText('Aucun créneau disponible pour cette date')).toBeInTheDocument();
+  });
+
+  it('a tapped day is never changed automatically', async () => {
+    renderWizard();
+    toDateStep();
+    const second = upcomingOpenDays()[1];
+    slotsByDay = { [second.toDateString()]: [] };
+    fireEvent.click(dayButtons()[1]);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(pressedDay()).toBe(1);
+  });
+
+  it('prefills the confirm step for a remembered client and Effacer clears it', () => {
+    localStorage.setItem('salon:elegance:client', JSON.stringify({ name: 'Nadia', phone: '0555123456' }));
+    goToConfirmStep(false);
+    expect(screen.getByLabelText('Votre nom')).toHaveValue('Nadia');
+    expect(screen.getByLabelText('Votre téléphone')).toHaveValue('0555123456');
+    fireEvent.click(screen.getByRole('button', { name: 'Ce n’est pas vous ? Effacer' }));
+    expect(screen.getByLabelText('Votre nom')).toHaveValue('');
+    expect(localStorage.getItem('salon:elegance:client')).toBeNull();
+  });
+
+  it('saves the client after a successful booking', async () => {
+    mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    expect(JSON.parse(localStorage.getItem('salon:elegance:client')!)).toEqual({ name: 'Yasmine', phone: '0555123456' });
+  });
+
+  it('shows the WhatsApp question line only when the salon has WhatsApp', () => {
+    const { unmount } = renderWizard();
+    expect(screen.getByRole('link', { name: 'Une question ? Écrivez-nous sur WhatsApp' })).toHaveAttribute('href', 'https://wa.me/213561234567');
+    unmount();
+    salonInfo = { whatsapp: null };
+    renderWizard();
+    expect(screen.queryByRole('link', { name: /WhatsApp/ })).toBeNull();
+  });
+
+  it('the success screen offers Ajouter à mon agenda and Itinéraire', async () => {
+    salonInfo = { whatsapp: '0561234567', address: { fr: '12 Rue Didouche Mourad', ar: 'x' }, city: { fr: 'Alger', ar: 'x' } };
+    mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    const cal = await screen.findByRole('link', { name: 'Ajouter à mon agenda' });
+    expect(cal).toHaveAttribute('download', 'rendez-vous.ics');
+    expect(decodeURIComponent(cal.getAttribute('href')!)).toMatch(/^data:text\/calendar;charset=utf-8,BEGIN:VCALENDAR/);
+    expect(screen.getByRole('link', { name: 'Itinéraire' })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('12 Rue Didouche Mourad, Alger')
+    );
+  });
+});
+
+describe('Booking comfort after review', () => {
+  it('scrolls an automatically chosen day into view in the date strip', async () => {
+    const days = upcomingOpenDays();
+    slotsByDay = Object.fromEntries(days.slice(0, 6).map((d) => [d.toDateString(), []]));
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderWizard();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    next();
+    await waitFor(() => expect(document.querySelector('.overflow-x-auto button[aria-pressed="true"]')).toBe(
+      document.querySelectorAll('.overflow-x-auto button')[6]
+    ));
+    const calls = spy.mock.calls.filter((_, k) => (spy.mock.contexts[k] as Element).getAttribute('aria-pressed') === 'true');
+    expect(calls.at(-1)?.[0]).toEqual({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    spy.mockRestore();
+  });
+
+  it('a tap on an in-page link mid-booking does not break the back-button guard', async () => {
+    mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
+    render(<LanguageProvider><InPageLinks /><a href="#home">to-home</a><Booking /></LanguageProvider>);
+    fireEvent.click(screen.getByText('Coupe & Brushing'));
+    next();
+    fireEvent.click(screen.getByText('to-home'));
+    expect(history.state?.bookingGuard).toBe(true);
+    next();
+    fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    next();
+    fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
+    fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+    const back = vi.spyOn(history, 'back');
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+    back.mockRestore();
+  });
+});
+
+function InPageLinks() {
+  useInPageLinks();
+  return null;
+}
+
+describe('Booking success screen comes into view', () => {
+  it('the browser does not restore old scroll positions while the booking is on the page', () => {
+    history.scrollRestoration = 'auto';
+    const { unmount } = renderWizard();
+    expect(history.scrollRestoration).toBe('manual');
+    unmount();
+    expect(history.scrollRestoration).toBe('auto');
+  });
+
+  it('scrolls the success screen into view after confirming', async () => {
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
+    goToConfirmStep();
+    spy.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    expect(spy).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
+    expect((spy.mock.contexts.at(-1) as HTMLElement).id).toBe('booking');
+    spy.mockRestore();
+  });
+});
+
+/** The open days the strip lists (Élégance: Tuesday–Saturday), in order. */
+function upcomingOpenDays(): Date[] {
+  const out: Date[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    if (eleganceHours[isoWeekday(d)]) out.push(d);
+  }
+  return out;
+}

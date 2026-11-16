@@ -6,9 +6,11 @@ import { Philosophy } from '../components/Philosophy';
 import { Booking } from '../components/Booking';
 import { BookingIntentProvider } from '../context/BookingIntentContext';
 import { useSiteScope } from '../lib/useSiteScope';
+import { useInPageLinks } from '../lib/useInPageLinks';
 
 export function HomePage() {
   useSiteScope();
+  useInPageLinks();
   return (
     <BookingIntentProvider>
       <div className="min-h-screen flex flex-col">

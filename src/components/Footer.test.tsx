@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { eleganceHours } from './admin/fixtures';
 import type { SalonHours, SalonInfo } from '../data/types';
@@ -12,7 +12,12 @@ vi.mock('../data/salonSettings', () => ({
   useSalonInfo: () => ({ data: info }),
 }));
 
-import { LanguageProvider } from '../context/LanguageContext';
+import { LanguageProvider, useLang } from '../context/LanguageContext';
+
+function ToArabic() {
+  const { toggleLang } = useLang();
+  return <button onClick={toggleLang}>to-ar</button>;
+}
 import { Footer } from './Footer';
 
 const renderFooter = () =>
@@ -65,5 +70,42 @@ describe('Footer', () => {
   it('has no all-caps labels', () => {
     const { container } = renderFooter();
     expect(container.querySelector('footer .uppercase')).toBeNull();
+  });
+
+  it('links Itinéraire to Google Maps under the address', () => {
+    renderFooter();
+    expect(screen.getByRole('link', { name: 'Itinéraire' })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('12 Rue Didouche Mourad, Alger Centre 16000, Alger')
+    );
+  });
+
+  it('offers WhatsApp beside the phone', () => {
+    renderFooter();
+    expect(screen.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', 'https://wa.me/213561234567');
+  });
+
+  it('no Itinéraire or WhatsApp when the salon has neither address nor WhatsApp', () => {
+    info = { ...info, address: { fr: '', ar: '' }, city: { fr: '', ar: '' }, whatsapp: null };
+    renderFooter();
+    expect(screen.queryByRole('link', { name: 'Itinéraire' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'WhatsApp' })).toBeNull();
+  });
+
+  it('Itinéraire searches the Latin address even in Arabic', () => {
+    info = { ...info, address: { fr: '12 Rue Didouche Mourad', ar: '١٢ شارع ديدوش مراد' }, city: { fr: 'Alger', ar: 'الجزائر' } };
+    render(
+      <MemoryRouter>
+        <LanguageProvider>
+          <ToArabic />
+          <Footer />
+        </LanguageProvider>
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByText('to-ar'));
+    expect(screen.getByRole('link', { name: 'الاتجاهات' })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('12 Rue Didouche Mourad, Alger')
+    );
   });
 });
