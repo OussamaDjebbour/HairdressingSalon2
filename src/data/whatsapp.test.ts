@@ -54,4 +54,13 @@ describe('clientMessage', () => {
     expect(clientMessage('cancelled', { ...booking, lang: 'fr' })).toContain('est annulé');
     expect(clientMessage('moved', { ...booking, lang: 'fr' })).toContain('a été déplacé au Mardi 8 janvier à 10:00');
   });
+
+  it('writes the visit-changed message', () => {
+    expect(clientMessage('changed', { ...booking, clientName: 'Nadia', lang: 'fr' })).toBe(
+      'Bonjour Nadia, votre rendez-vous chez Élégance est maintenant : Coupe & Brushing, le Mardi 8 janvier à 10:00. À bientôt !'
+    );
+    const ar = clientMessage('changed', { ...booking, lang: 'ar' });
+    expect(ar).toContain('قص');
+    expect(ar).toContain('10:00');
+  });
 });

@@ -15,7 +15,7 @@ export function waLink(number: string, text?: string): string {
   return text === undefined ? `https://wa.me/${number}` : `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }
 
-export type ClientMessageKind = 'confirmed' | 'cancelled' | 'moved';
+export type ClientMessageKind = 'confirmed' | 'cancelled' | 'moved' | 'changed';
 
 type Vars = { salon: string; name: string; date: string; time: string; service: string };
 
@@ -27,6 +27,8 @@ const templates: Record<Lang, Record<ClientMessageKind, (v: Vars) => string>> = 
       `Bonjour ${v.name}, nous sommes désolés : votre rendez-vous du ${v.date} à ${v.time} (${v.service}) chez ${v.salon} est annulé. Répondez à ce message pour choisir un autre créneau.`,
     moved: (v) =>
       `Bonjour ${v.name}, votre rendez-vous chez ${v.salon} a été déplacé au ${v.date} à ${v.time} (${v.service}). À bientôt !`,
+    changed: (v) =>
+      `Bonjour ${v.name}, votre rendez-vous chez ${v.salon} est maintenant : ${v.service}, le ${v.date} à ${v.time}. À bientôt !`,
   },
   ar: {
     confirmed: (v) =>
@@ -35,6 +37,8 @@ const templates: Record<Lang, Record<ClientMessageKind, (v: Vars) => string>> = 
       `مرحباً ${v.name}، نعتذر منكِ: تم إلغاء موعدكِ يوم ${v.date} على الساعة ${v.time} (${v.service}) في صالون ${v.salon}. ردّي على هذه الرسالة لاختيار موعد آخر.`,
     moved: (v) =>
       `مرحباً ${v.name}، تم تغيير موعدكِ في صالون ${v.salon} إلى يوم ${v.date} على الساعة ${v.time} (${v.service}). نراكِ قريباً!`,
+    changed: (v) =>
+      `مرحباً ${v.name}، أصبح موعدكِ في صالون ${v.salon}: ${v.service}، يوم ${v.date} على الساعة ${v.time}. نراكِ قريباً!`,
   },
 };
 

@@ -7,7 +7,7 @@ vi.mock('../lib/supabase', () => ({ supabase: { rpc: vi.fn() } }));
 
 import { supabase } from '../lib/supabase';
 import {
-  algiersToday, formatAlgiersTime, groupVisits, isNotAuthorized, toAdminError, visitOf, useAdminBookings, useVisitParts, useCreateStaffBooking,
+  algiersToday, canManageVisit, formatAlgiersTime, groupVisits, liveParts, moveVisit, isNotAuthorized, toAdminError, visitOf, useAdminBookings, useVisitParts, useCreateStaffBooking,
   useSetBookingStatus, useUpdateStaffBooking,
 } from './admin';
 import { toYmd } from './bookings';
@@ -203,5 +203,55 @@ describe('visits', () => {
     const v = visitOf(color, [coupe, color, other, coupe]);
     expect(v.parts.map((p) => p.id)).toEqual(['p1', 'p2']);
     expect(visitOf(color, [other]).parts.map((p) => p.id)).toEqual(['p2']);
+  });
+});
+
+describe('managing a visit', () => {
+  const part = (id: string, startIso: string, status: 'pending' | 'confirmed' | 'cancelled' = 'pending') =>
+    adminBooking({ id, visitId: 'v1', startIso, status });
+  const visit = (...parts: ReturnType<typeof part>[]) => groupVisits(parts)[0];
+
+  it('liveParts drops cancelled parts', () => {
+    const v = visit(part('a', '2030-01-08T09:00:00Z'), part('b', '2030-01-08T10:00:00Z', 'cancelled'));
+    expect(liveParts(v).map((p) => p.id)).toEqual(['a']);
+  });
+
+  it('liveParts orders same-start parts by id', () => {
+    const v = visit(part('b', '2030-01-08T09:00:00Z'), part('a', '2030-01-08T09:00:00Z'), part('c', '2030-01-08T08:00:00Z'));
+    expect(liveParts(v).map((p) => p.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('canManageVisit: two live parts → remove and move', () => {
+    const v = visit(part('a', '2030-01-08T09:00:00Z'), part('b', '2030-01-08T10:00:00Z', 'confirmed'));
+    expect(canManageVisit(v)).toEqual({ remove: true, move: true });
+  });
+
+  it('canManageVisit: one live part + one cancelled → neither', () => {
+    const v = visit(part('a', '2030-01-08T09:00:00Z'), part('b', '2030-01-08T10:00:00Z', 'cancelled'));
+    expect(canManageVisit(v)).toEqual({ remove: false, move: false });
+  });
+
+  it('canManageVisit: parts on two dates → remove only', () => {
+    const v = visit(part('a', '2030-01-08T09:00:00Z'), part('b', '2030-01-15T09:00:00Z'));
+    expect(canManageVisit(v)).toEqual({ remove: true, move: false });
+  });
+
+  it('canManageVisit: a cancelled visit → neither', () => {
+    const v = visit(part('a', '2030-01-08T09:00:00Z', 'cancelled'), part('b', '2030-01-08T10:00:00Z', 'cancelled'));
+    expect(canManageVisit(v)).toEqual({ remove: false, move: false });
+  });
+
+  it('toAdminError maps last_part, not_movable, visit_spans_days', () => {
+    expect(toAdminError({ message: 'last_part' })).toBe('last_part');
+    expect(toAdminError({ message: 'not_movable' })).toBe('not_movable');
+    expect(toAdminError({ message: 'visit_spans_days' })).toBe('visit_spans_days');
+  });
+
+  it('moveVisit sends p_id, p_date as YYYY-MM-DD, p_time, p_stylists', async () => {
+    rpc.mockResolvedValue({ data: null, error: null });
+    await moveVisit({ id: 'p1', date: new Date(2030, 0, 9), time: '10:30', stylists: { p1: 'amina', p2: 'sara' } });
+    expect(rpc).toHaveBeenCalledWith('admin_move_visit', {
+      p_id: 'p1', p_date: '2030-01-09', p_time: '10:30', p_stylists: { p1: 'amina', p2: 'sara' },
+    });
   });
 });
