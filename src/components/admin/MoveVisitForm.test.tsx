@@ -34,8 +34,8 @@ const second = adminBooking({
 });
 const visit = visitOf(first, [first, second]);
 
-function renderForm(v = visit, onMoved = vi.fn()) {
-  render(<LanguageProvider><MoveVisitForm visit={v} onMoved={onMoved} onBack={vi.fn()} /></LanguageProvider>);
+function renderForm(v = visit, onMoved = vi.fn(), onFailed = vi.fn()) {
+  render(<LanguageProvider><MoveVisitForm visit={v} onMoved={onMoved} onBack={vi.fn()} onFailed={onFailed} /></LanguageProvider>);
   return onMoved;
 }
 const rows = () => screen.getAllByRole('listitem').map((li) => li.textContent);
@@ -88,6 +88,7 @@ describe('MoveVisitForm', () => {
     daysOff = [{ id: 'o1', stylistId: 'sara', from: '2030-01-08', to: '2030-01-08' }];
     renderForm();
     expect(screen.getByText('Sara ne travaille pas ce jour-là')).toBeInTheDocument();
+    pickOption('Heure', '14:00');
     expect(screen.getByRole('button', { name: 'Déplacer' })).toBeEnabled();
   });
 
@@ -112,9 +113,29 @@ describe('MoveVisitForm', () => {
 
   it('slot_taken without an item shows the generic message', () => {
     mutate.mockImplementation((_i, opts) => opts.onError(new Error('slot_taken')));
-    renderForm();
+    const onFailed = vi.fn();
+    renderForm(visit, vi.fn(), onFailed);
+    pickOption('Heure', '14:00');
     fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
     expect(screen.getByRole('alert')).toHaveTextContent(/^Cette styliste a déjà/);
+    expect(onFailed).toHaveBeenCalledWith(expect.stringMatching(/^Cette styliste a déjà/));
+  });
+
+  it('submit is disabled while nothing changed', () => {
+    renderForm();
+    const submit = screen.getByRole('button', { name: 'Déplacer' });
+    expect(submit).toBeDisabled();
+    pickOption('Heure', '14:00');
+    expect(submit).toBeEnabled();
+    pickOption('Heure', '10:00');
+    expect(submit).toBeDisabled();
+    pickOption('Coiffeuse · Coloration', 'Leila');
+    expect(submit).toBeEnabled();
+    fireEvent.submit(submit.closest('form')!);
+    expect(mutate).toHaveBeenCalledTimes(1);
+    pickOption('Coiffeuse · Coloration', 'Sara');
+    fireEvent.submit(submit.closest('form')!);
+    expect(mutate).toHaveBeenCalledTimes(1);
   });
 
   it('keeps an off-grid own start selectable on its own day', () => {
@@ -123,7 +144,7 @@ describe('MoveVisitForm', () => {
     renderForm(visitOf(odd, [odd, later]));
     expect(screen.getByRole('combobox', { name: 'Heure' })).toHaveTextContent('10:10');
     expect(optionNames('Heure')).toContain('10:10');
-    expect(screen.getByRole('button', { name: 'Déplacer' })).toBeEnabled();
+    expect(screen.queryByText('En dehors des horaires du salon ce jour-là.')).toBeNull();
   });
 
   it('a kept time before opening warns and disables submit', () => {

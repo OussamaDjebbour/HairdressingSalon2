@@ -688,8 +688,27 @@ describe('BookingSheet — visit', () => {
 
     it('shows Retirer on each part of a two-part visit', () => {
       renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
-      expect(screen.getByRole('button', { name: 'Retirer Coupe & Brushing' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Retirer Coloration' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Retirer Coupe & Brushing' })).toHaveClass('tap');
+      expect(screen.getByRole('button', { name: 'Retirer Coloration' })).toHaveClass('tap');
+    });
+
+    it('the per-part edit link reads Modifier cette partie on a visit, Modifier ou déplacer on a single booking', () => {
+      const { unmount: un } = render(
+        <LanguageProvider><FeedbackProvider><BookingSheet state={{ mode: 'edit', booking: first }} onClose={vi.fn()} visit={visit} /></FeedbackProvider></LanguageProvider>
+      );
+      expect(screen.getByRole('button', { name: 'Modifier cette partie' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Modifier ou déplacer' })).toBeNull();
+      un();
+      renderSheet({ mode: 'edit', booking: adminBooking() });
+      expect(screen.getByRole('button', { name: 'Modifier ou déplacer' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Modifier cette partie' })).toBeNull();
+    });
+
+    it('the Retirer question names the client and the service', async () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      const dialog = await screen.findByRole('alertdialog', { name: 'Retirer cette prestation ?' });
+      expect(dialog).toHaveTextContent('La prestation « Coloration » sera retirée de la visite de Yasmine.');
     });
 
     it('no Retirer on a visit of one', () => {
@@ -830,10 +849,46 @@ describe('BookingSheet — visit', () => {
       const named = { ...first, clientName: 'Nadia', clientPhone: '0770998877' };
       renderSheet({ mode: 'edit', booking: named }, vi.fn(), visitOf(named, [named, second]));
       fireEvent.click(move()!);
+      pickOption('Heure', '14:00');
       fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
       await screen.findByText('Visite déplacée');
       expect(whatsappText()).toContain('Nadia');
       expect(screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')).toContain('213770998877');
+    });
+
+    it('a visit cancelled elsewhere: a refused move falls back to the summary with the error', () => {
+      const cancelled = [first, second].map((p) => ({ ...p, status: 'cancelled' as const }));
+      moveVisit.mockImplementation((_i, opts) => {
+        // The refusal invalidates ['admin']: the visit's parts come back all cancelled.
+        visitParts = cancelled;
+        opts.onError(new Error('not_movable'));
+      });
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      pickOption('Heure', '14:00');
+      fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
+      expect(screen.queryByRole('button', { name: 'Déplacer' })).toBeNull();
+      // The summary again (the opened part is the caller's snapshot; the other one is now cancelled).
+      expect(screen.queryByRole('dialog', { name: 'Déplacer la visite' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Cette visite ne peut pas être déplacée.');
+      expect(move()).toBeNull();
+    });
+
+    it('the move view gives way to the summary when the visit stops being movable on a refetch', () => {
+      const { rerender } = render(
+        <LanguageProvider><FeedbackProvider><BookingSheet state={{ mode: 'edit', booking: first }} onClose={vi.fn()} visit={visit} /></FeedbackProvider></LanguageProvider>
+      );
+      fireEvent.click(move()!);
+      expect(screen.getByRole('dialog', { name: 'Déplacer la visite' })).toBeInTheDocument();
+      visitParts = [first, second].map((p) => ({ ...p, status: 'cancelled' as const }));
+      rerender(
+        <LanguageProvider><FeedbackProvider><BookingSheet state={{ mode: 'edit', booking: first }} onClose={vi.fn()} visit={visit} /></FeedbackProvider></LanguageProvider>
+      );
+      expect(screen.queryByRole('button', { name: 'Déplacer' })).toBeNull();
+      // The summary again (the opened part is the caller's snapshot; the other one is now cancelled).
+      expect(screen.queryByRole('dialog', { name: 'Déplacer la visite' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
     });
 
     it('after a move: toast and the moved message with all services and the new start', async () => {

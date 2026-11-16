@@ -91,7 +91,7 @@ export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessa
                     disabled={busy}
                     onClick={() => onRemovePart(p)}
                     aria-label={t('admin.summary.removePartLabel').replace('{service}', p.serviceName[lang])}
-                    className="btn-ghost btn-sm text-rust-700 hover:bg-rust-50"
+                    className="btn-ghost btn-sm tap text-rust-700 hover:bg-rust-50"
                   >
                     {t('admin.summary.removePart')}
                   </button>
@@ -150,7 +150,7 @@ export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessa
       )}
 
       <button type="button" onClick={onEdit} className="tap flex items-center mx-auto px-3 text-sm text-rose-700 underline underline-offset-4 hover:text-rose-900">
-        {t('admin.summary.edit')}
+        {t(listed.length > 1 ? 'admin.summary.editPart' : 'admin.summary.edit')}
       </button>
     </div>
   );

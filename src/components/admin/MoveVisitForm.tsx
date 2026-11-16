@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { formatAlgiersTime, liveParts, toAdminError, useMoveVisit, type AdminVisit } from '../../data/admin';
 import { failedItem, toYmd } from '../../data/bookings';
+import { nameInText } from '../../data/formatters';
 import { useAllStylists } from '../../data/queries';
 import { dayHours, stylistWorks } from '../../data/hours';
 import { useClosedDates, useSalonHours, useStylistDaysOff } from '../../data/salonSettings';
@@ -11,16 +12,19 @@ import { DateField } from '../form/DateField';
 import { SelectField } from '../form/SelectField';
 
 interface MoveVisitFormProps {
+  /** A movable visit (`canManageVisit(visit).move`): the form needs at least one live part. */
   visit: AdminVisit;
   /** `stylists` holds only the parts whose stylist was changed. */
   onMoved(newStart: Date, stylists: Record<string, string>): void;
   onBack(): void;
+  /** The move was refused; the message, so the sheet can keep showing it if the form goes away. */
+  onFailed?(message: string): void;
   /** Tells the sheet whether there are unsaved changes (to ask before discarding). */
   onDirtyChange?(dirty: boolean): void;
 }
 
 /** Moves a whole visit to a new day and start time; the parts keep their order and gaps. */
-export function MoveVisitForm({ visit, onMoved, onBack, onDirtyChange }: MoveVisitFormProps) {
+export function MoveVisitForm({ visit, onMoved, onBack, onFailed, onDirtyChange }: MoveVisitFormProps) {
   const { lang, t } = useLang();
   const allStylists = useAllStylists().data ?? [];
   const salonHours = useSalonHours().data;
@@ -71,14 +75,14 @@ export function MoveVisitForm({ visit, onMoved, onBack, onDirtyChange }: MoveVis
           const code = toAdminError(err);
           const n = failedItem(err);
           const part = code === 'slot_taken' && n !== null ? live[n] : undefined;
-          setError(
-            part
-              ? t('admin.move.partTaken')
-                  .replace('{service}', part.serviceName[lang])
-                  .replace('{stylist}', stylistName(chosen[part.id]))
-                  .replace('{time}', newTime(offsetOf(part)))
-              : t(`admin.error.${code}`)
-          );
+          const message = part
+            ? t('admin.move.partTaken')
+                .replace('{service}', part.serviceName[lang])
+                .replace('{stylist}', nameInText(stylistName(chosen[part.id]), lang))
+                .replace('{time}', newTime(offsetOf(part)))
+            : t(`admin.error.${code}`);
+          setError(message);
+          onFailed?.(message);
         },
       }
     );
@@ -90,7 +94,7 @@ export function MoveVisitForm({ visit, onMoved, onBack, onDirtyChange }: MoveVis
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        if (!pastClosing) submit();
+        if (dirty && !pastClosing) submit();
       }}
     >
       <button type="button" disabled={move.isPending} onClick={onBack} className="tap -ms-1 inline-flex items-center gap-1.5 px-1 text-sm text-rose-700 hover:text-rose-900">
@@ -126,7 +130,7 @@ export function MoveVisitForm({ visit, onMoved, onBack, onDirtyChange }: MoveVis
                   onValueChange={(v) => setChosen((c) => ({ ...c, [p.id]: v }))}
                 />
                 {off && stylist && (
-                  <p role="status" className="mt-1 text-xs text-amber-800">{t('schedule.stylistOff').replace('{name}', stylist.name)}</p>
+                  <p role="status" className="mt-1 text-xs text-amber-800">{t('schedule.stylistOff').replace('{name}', nameInText(stylist.name, lang))}</p>
                 )}
               </div>
             </li>
@@ -135,7 +139,7 @@ export function MoveVisitForm({ visit, onMoved, onBack, onDirtyChange }: MoveVis
       </ul>
 
       {error && <p role="alert" className="rounded-xl border border-rust-200 bg-rust-50 px-3 py-2 text-sm text-rust-700">{error}</p>}
-      <button type="submit" disabled={move.isPending || pastClosing} className="btn-primary w-full">{t('admin.move.submit')}</button>
+      <button type="submit" disabled={move.isPending || pastClosing || !dirty} className="btn-primary w-full">{t('admin.move.submit')}</button>
     </form>
   );
 }
