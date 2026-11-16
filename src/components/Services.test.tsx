@@ -24,7 +24,6 @@ beforeEach(() => {
 
 const mk = (id: string, category: string, fr: string, image = '') => ({ ...service, id, category, image, name: { fr, ar: fr } });
 const renderCarte = () => render(<LanguageProvider><Services /></LanguageProvider>);
-const strip = (c: HTMLElement) => c.querySelector('[data-strip]');
 
 describe('Services (La carte)', () => {
   it('each service is one link to #booking with name, description, price and duration', () => {
@@ -86,20 +85,7 @@ describe('Services (La carte)', () => {
     expect(screen.getByRole('link', { name: /Brushing/ }).querySelector('img')).toBeNull();
   });
 
-  it('the strip shows the first three service photos', () => {
-    list = [1, 2, 3, 4].map((n) => mk(`s${n}`, 'coiffure', `S${n}`, `https://x.test/${n}.jpg`));
-    const { container } = renderCarte();
-    const imgs = [...strip(container)!.querySelectorAll('img')].map((i) => i.getAttribute('src'));
-    expect(imgs).toEqual(['https://x.test/1.jpg', 'https://x.test/2.jpg', 'https://x.test/3.jpg']);
-    expect(strip(container)).toHaveAttribute('aria-hidden', 'true');
-  });
 
-  it('no strip and text-only rows when no service has a photo', () => {
-    list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'coiffure', 'Brushing')];
-    const { container } = renderCarte();
-    expect(strip(container)).toBeNull();
-    expect(container.querySelector('img')).toBeNull();
-  });
 
   it('shows quiet placeholder rows while loading', () => {
     state = { isLoading: true, isError: false };
@@ -115,10 +101,23 @@ describe('Services (La carte)', () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it('shows a photo shared by two services only once in the strip', () => {
-    list = [mk('s1', 'coiffure', 'S1', 'https://x.test/same.jpg'), mk('s2', 'coiffure', 'S2', 'https://x.test/same.jpg'), mk('s3', 'coiffure', 'S3', 'https://x.test/3.jpg')];
+
+  it('has no photo strip: each service photo appears once, on its own row', () => {
+    list = [1, 2, 3, 4].map((n) => mk(`s${n}`, 'coiffure', `S${n}`, `https://x.test/${n}.jpg`));
     const { container } = renderCarte();
-    const imgs = [...strip(container)!.querySelectorAll('img')].map((i) => i.getAttribute('src'));
-    expect(imgs).toEqual(['https://x.test/same.jpg', 'https://x.test/3.jpg']);
+    const srcs = [...container.querySelectorAll('img')].map((i) => i.getAttribute('src'));
+    expect(srcs).toEqual(['https://x.test/1.jpg', 'https://x.test/2.jpg', 'https://x.test/3.jpg', 'https://x.test/4.jpg']);
+    for (const img of container.querySelectorAll('img')) expect(img.closest('a')).not.toBeNull();
+  });
+
+  it('text-only rows when no service has a photo', () => {
+    list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'coiffure', 'Brushing')];
+    const { container } = renderCarte();
+    expect(container.querySelector('img')).toBeNull();
+  });
+
+  it('each row ends with a Réserver cue', () => {
+    renderCarte();
+    expect(within(screen.getByRole('link', { name: /Soin éclat/ })).getByText('Réserver')).toBeInTheDocument();
   });
 });
