@@ -254,6 +254,7 @@ export function PacksSettings() {
         {ordered.map((s) => (
           <CatalogRow
             key={s.id} s={s} toggling={setActive.isPending} onToggle={() => toggle(s)}
+            person={stylistsQuery.data?.find((st) => st.id === s.packStylistId)}
             onOpen={() => { setError(null); setDraft({ id: s.id, sortOrder: s.sortOrder, values: toValues(s), image: s.image }); }}
           />
         ))}

@@ -5,7 +5,7 @@ import { toYmd } from '../../data/bookings';
 import { algiersTodayYmd } from '../../data/algiersTime';
 import { formatDuration, formatPrice } from '../../data/formatters';
 import type { Period } from '../../data/period';
-import type { Service } from '../../data/types';
+import type { Service, Stylist } from '../../data/types';
 import { TextField } from '../form/TextField';
 import { DateRangeField } from '../form/DateRangeField';
 import type { SaveServiceInput } from '../../data/salonSettings';
@@ -85,10 +85,11 @@ export function PromoFields<T extends FieldValues & PromoValues>({
   );
 }
 
-/** One catalogue row: the whole row opens the form, a separate button hides/shows. */
+/** One catalogue row: the whole row opens the form, a separate button hides/shows. A pack's row names its
+ * person responsible (`person`) and warns when she is hidden. */
 export function CatalogRow({
-  s, onOpen, onToggle, toggling,
-}: { s: Service; onOpen(): void; onToggle(): void; toggling: boolean }) {
+  s, person, onOpen, onToggle, toggling,
+}: { s: Service; person?: Stylist; onOpen(): void; onToggle(): void; toggling: boolean }) {
   const { t, lang } = useLang();
   const today = algiersTodayYmd();
   const promo = s.promo && s.promo.to >= today ? s.promo : null;
@@ -104,8 +105,12 @@ export function CatalogRow({
           <span data-testid="service-name" className="block font-medium text-rose-800 break-words">{s.name[lang]}</span>
           <span className="block text-sm text-rose-600">
             {formatPrice(s.price, lang)} · {formatDuration(s.duration, lang)}
+            {person && ` · ${person.name}`}
             {!s.active && <span className="ms-2 text-xs font-semibold text-amber-800">{t('settings.services.hidden')}</span>}
           </span>
+          {person && !person.active && (
+            <span className="block text-xs font-semibold text-amber-800">{t('settings.pack.unbookable')}</span>
+          )}
           {promo && (
             <span className="block text-xs font-semibold text-gold-700">
               {t(running ? 'settings.promo.running' : 'settings.promo.upcoming')} · {formatPrice(promo.price, lang)}

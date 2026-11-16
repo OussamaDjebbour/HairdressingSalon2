@@ -98,6 +98,19 @@ describe('PacksSettings', () => {
     expect(screen.getByRole('checkbox', { name: 'Brushing' })).toBeChecked();
   });
 
+  it('each pack row shows its person, and warns in the list when she is hidden', () => {
+    services = [
+      svc('p1', 'Pack Mariée', { category: 'pack', packStylistId: 'st1', price: 25000, duration: 300 }),
+      svc('p2', 'Pack Éclat', { category: 'pack', packStylistId: 'st3' }),
+    ];
+    renderIt();
+    const [mariee, eclat] = screen.getAllByRole('listitem');
+    expect(mariee.textContent).toMatch(/25\s?000 DA · 300 min · Amina/);
+    expect(mariee.textContent).not.toMatch(/ne peut pas être réservé en ligne/);
+    expect(eclat.textContent).toContain('Nour');
+    expect(eclat.textContent).toMatch(/ce pack ne peut pas être réservé en ligne/);
+  });
+
   it('lists only packs and keeps the promotion when saving an edit', async () => {
     services = [
       svc('p1', 'Pack', { category: 'pack', packStylistId: 'st1', promo: { price: 100, from: '2000-01-01', to: '2999-12-31' } }),
