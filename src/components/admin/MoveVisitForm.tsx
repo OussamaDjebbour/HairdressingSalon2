@@ -43,10 +43,18 @@ export function MoveVisitForm({ visit, onMoved, onBack, onDirtyChange }: MoveVis
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   const hours = salonHours ? dayHours(salonHours, closedDates, date) : null;
-  const timeOptions = hours ? staffTimeOptions(span, hours) : [];
+  const ownTime = formatAlgiersTime(first.startsAt);
+  const ownDate = salonDate(first.startsAt);
+  const gridOptions = hours ? staffTimeOptions(span, hours) : [];
+  // On the visit's own day its current start stays selectable (and in order) even if off the grid.
+  const timeOptions =
+    toYmd(date) === toYmd(ownDate) && !gridOptions.includes(ownTime)
+      ? [...gridOptions, ownTime].sort((a, b) => a.localeCompare(b))
+      : gridOptions;
   const [h, m] = time.split(':').map(Number);
   const start = h * 60 + m;
-  const pastClosing = !!salonHours && (!hours || start + span > hours.closes);
+  // A closed day, or a kept time that doesn't fit the day (before opening, past closing, not offered): say so, don't change it.
+  const pastClosing = !!salonHours && (!hours || start < hours.opens || start + span > hours.closes || !timeOptions.includes(time));
 
   const newTime = (offsetMin: number) => minutesToTime(start + offsetMin);
   const offsetOf = (p: (typeof live)[number]) => Math.round((p.startsAt.getTime() - first.startsAt.getTime()) / 60000);
@@ -85,7 +93,7 @@ export function MoveVisitForm({ visit, onMoved, onBack, onDirtyChange }: MoveVis
         if (!pastClosing) submit();
       }}
     >
-      <button type="button" onClick={onBack} className="tap -ms-1 inline-flex items-center gap-1.5 px-1 text-sm text-rose-700 hover:text-rose-900">
+      <button type="button" disabled={move.isPending} onClick={onBack} className="tap -ms-1 inline-flex items-center gap-1.5 px-1 text-sm text-rose-700 hover:text-rose-900">
         <ArrowLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} aria-hidden="true" />
         {t('admin.sheet.backToSummary')}
       </button>
@@ -112,7 +120,7 @@ export function MoveVisitForm({ visit, onMoved, onBack, onDirtyChange }: MoveVis
               <div className="flex-1">
                 <SelectField
                   id={`move-stylist-${p.id}`}
-                  label={p.serviceName[lang]}
+                  label={`${t('admin.sheet.stylist')} · ${p.serviceName[lang]}`}
                   value={chosen[p.id]}
                   options={allStylists.filter((s) => s.active || s.id === p.stylistId).map((s) => ({ value: s.id, label: s.name }))}
                   onValueChange={(v) => setChosen((c) => ({ ...c, [p.id]: v }))}

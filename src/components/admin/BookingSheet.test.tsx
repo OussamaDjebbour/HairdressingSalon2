@@ -790,6 +790,52 @@ describe('BookingSheet — visit', () => {
       }
     });
 
+    it('the move view is titled Déplacer la visite', () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      expect(screen.getByRole('dialog', { name: 'Déplacer la visite' })).toBeInTheDocument();
+    });
+
+    it('closing from the move view with changes asks to discard', async () => {
+      const onClose = renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      pickOption('Heure', '14:00');
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+      await answer('Abandonner les modifications non enregistrées ?', 'Continuer');
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closing from an unchanged move view does not ask', async () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+
+    it('a stale Retirer error is cleared when entering and leaving the move view', async () => {
+      removePart.mockImplementation((_id, opts) => opts.onError(new Error('last_part')));
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      await answer('Retirer cette prestation ?', 'Retirer');
+      expect(await screen.findByRole('alert')).toBeInTheDocument();
+      fireEvent.click(move()!);
+      expect(screen.queryByRole('alert')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('the moved message uses the opened booking client', async () => {
+      moveVisit.mockImplementation((_i, opts) => opts.onSuccess());
+      const named = { ...first, clientName: 'Nadia', clientPhone: '0770998877' };
+      renderSheet({ mode: 'edit', booking: named }, vi.fn(), visitOf(named, [named, second]));
+      fireEvent.click(move()!);
+      fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
+      await screen.findByText('Visite déplacée');
+      expect(whatsappText()).toContain('Nadia');
+      expect(screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')).toContain('213770998877');
+    });
+
     it('after a move: toast and the moved message with all services and the new start', async () => {
       moveVisit.mockImplementation((_i, opts) => opts.onSuccess());
       renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);

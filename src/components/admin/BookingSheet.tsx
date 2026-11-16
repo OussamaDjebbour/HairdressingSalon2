@@ -267,7 +267,7 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
     );
   };
 
-  const title = notice ? t(`admin.ready.${notice.kind}`) : t(state.mode === 'add' ? 'admin.sheet.addTitle' : 'admin.sheet.editTitle');
+  const title = notice ? t(`admin.ready.${notice.kind}`) : view === 'move' && editing ? t('admin.move.title') : t(state.mode === 'add' ? 'admin.sheet.addTitle' : 'admin.sheet.editTitle');
 
   return (
     <Sheet

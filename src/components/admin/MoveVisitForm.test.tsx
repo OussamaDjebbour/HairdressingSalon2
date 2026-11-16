@@ -50,23 +50,23 @@ describe('MoveVisitForm', () => {
   it("prefills the visit's date, first start time and each part's stylist", () => {
     renderForm();
     expect(screen.getByRole('combobox', { name: 'Heure' })).toHaveTextContent('10:00');
-    expect(screen.getByRole('combobox', { name: 'Coupe & Brushing' })).toHaveTextContent('Amina');
-    expect(screen.getByRole('combobox', { name: 'Coloration' })).toHaveTextContent('Sara');
+    expect(screen.getByRole('combobox', { name: 'Coiffeuse · Coupe & Brushing' })).toHaveTextContent('Amina');
+    expect(screen.getByRole('combobox', { name: 'Coiffeuse · Coloration' })).toHaveTextContent('Sara');
   });
 
   it("shows each part's new time as the start changes", () => {
     renderForm();
-    expect(rows()[0]).toContain('10:00Coupe');
+    expect(rows()[0]).toContain('10:00Coiffeuse · Coupe');
     pickOption('Heure', '14:00');
-    expect(rows()[0]).toMatch(/^14:00Coupe & Brushing/);
-    expect(rows()[1]).toMatch(/^15:00Coloration/);
+    expect(rows()[0]).toMatch(/^14:00Coiffeuse · Coupe & Brushing/);
+    expect(rows()[1]).toMatch(/^15:00Coiffeuse · Coloration/);
   });
 
   it('keeps a gap between parts', () => {
     const late = { ...second, startsAt: new Date('2030-01-08T10:30:00Z'), endsAt: new Date('2030-01-08T11:30:00Z') };
     renderForm(visitOf(first, [first, late]));
     pickOption('Heure', '14:00');
-    expect(rows()[1]).toMatch(/^15:30Coloration/);
+    expect(rows()[1]).toMatch(/^15:30Coiffeuse · Coloration/);
   });
 
   it('time options fit the whole visit', () => {
@@ -94,7 +94,7 @@ describe('MoveVisitForm', () => {
   it('submits id, date, time and only changed stylists', () => {
     renderForm();
     pickOption('Heure', '14:00');
-    pickOption('Coloration', 'Leila');
+    pickOption('Coiffeuse · Coloration', 'Leila');
     fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
     expect(mutate).toHaveBeenCalledWith(
       { id: 'p1', date: new Date(2030, 0, 8), time: '14:00', stylists: { p2: 'leila' } },
@@ -114,6 +114,29 @@ describe('MoveVisitForm', () => {
     mutate.mockImplementation((_i, opts) => opts.onError(new Error('slot_taken')));
     renderForm();
     fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
-    expect(within(screen.getByRole('alert')).queryByText(/Coloration/)).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Cette styliste a déjà/);
+  });
+
+  it('keeps an off-grid own start selectable on its own day', () => {
+    const odd = { ...first, startsAt: new Date('2030-01-08T09:10:00Z'), endsAt: new Date('2030-01-08T10:10:00Z') };
+    const later = { ...second, startsAt: new Date('2030-01-08T10:10:00Z'), endsAt: new Date('2030-01-08T11:10:00Z') };
+    renderForm(visitOf(odd, [odd, later]));
+    expect(screen.getByRole('combobox', { name: 'Heure' })).toHaveTextContent('10:10');
+    expect(optionNames('Heure')).toContain('10:10');
+    expect(screen.getByRole('button', { name: 'Déplacer' })).toBeEnabled();
+  });
+
+  it('a kept time before opening warns and disables submit', () => {
+    hours = { ...eleganceHours, 2: { opens: 660, closes: 1080 } };
+    renderForm();
+    expect(screen.getByText('En dehors des horaires du salon ce jour-là.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Déplacer' })).toBeDisabled();
+  });
+
+  it('a closed day has no time options, warns and disables submit', () => {
+    hours = { ...eleganceHours, 2: null };
+    renderForm();
+    expect(screen.getByText('En dehors des horaires du salon ce jour-là.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Déplacer' })).toBeDisabled();
   });
 });
