@@ -79,6 +79,10 @@ const PROVISION_ERRORS: Record<string, string> = {
   invalid_phone: 'the WhatsApp number is not an Algerian mobile number',
   invalid_url: 'the Instagram/Facebook link must start with https://',
   invalid_service: 'a service is invalid (id, category, name, price or duration)',
+  invalid_promo:
+    "a service's price in the file is at or under the promotion the owner set on it in Réglages: " +
+    'keep the price, or have the promotion lowered or removed in Réglages first',
+  invalid_pack: "a service id in the file is one of the owner's packs (made in Réglages): give the service another id",
   invalid_stylist: 'a stylist is invalid (id, name or workdays)',
   unknown_service: "a stylist offers a service that is not this salon's",
   domain_taken: 'a domain already belongs to another salon',
