@@ -452,7 +452,7 @@ grant execute on function public.provision_salon(jsonb) to service_role;
 -- 4. demo_reset. Latest body: 20261115100100_demo_reset.sql. The prospect's services (packs included)
 -- go before the snapshot is re-applied, the prospect's stylists after it (a pack may name one as its
 -- person until the snapshot puts its own person back); every snapshot service is re-applied with its
--- promotion (none when the snapshot has no promo keys).
+-- promotion (none when the snapshot has no promo keys), moved to start on the reset day.
 create or replace function private.demo_reset(p_salon_id text)
 returns void
 language plpgsql volatile security definer set search_path = ''
@@ -461,6 +461,7 @@ declare
   v_settings private.demo_settings;
   v_snapshot jsonb;
   v_user     uuid;
+  v_today    date := (now() at time zone 'Africa/Algiers')::date;
 begin
   -- the demo check, on the locked salon row (a nightly and an on-demand reset never interleave)
   perform 1 from public.salons s where s.id = p_salon_id and s.demo for update;
@@ -486,8 +487,14 @@ begin
 
   v_snapshot := (v_settings.snapshot - 'domains' - 'owner_user_id' - 'add_owner') || jsonb_build_object('id', p_salon_id);
   if jsonb_typeof(v_snapshot -> 'services') = 'array' then
+    -- a snapshot promotion runs again from the reset day, for as many days (the pitch always shows it)
     v_snapshot := jsonb_set(v_snapshot, '{services}', coalesce((
-      select jsonb_agg('{"promo_price": null, "promo_from": null, "promo_to": null}'::jsonb || x order by n)
+      select jsonb_agg('{"promo_price": null, "promo_from": null, "promo_to": null}'::jsonb || x
+                       || case when jsonb_typeof(x -> 'promo_from') = 'string' and jsonb_typeof(x -> 'promo_to') = 'string'
+                               then jsonb_build_object('promo_from', v_today,
+                                                       'promo_to', v_today + ((x ->> 'promo_to')::date - (x ->> 'promo_from')::date))
+                               else '{}'::jsonb end
+                       order by n)
       from jsonb_array_elements(v_snapshot -> 'services') with ordinality t(x, n)), '[]'));
   end if;
   perform public.provision_salon(v_snapshot);
@@ -521,7 +528,7 @@ begin
     where u.id = v_user and i.user_id = v_user and i.provider = 'email';
   end loop;
 
-  perform private.demo_fake_bookings(p_salon_id, (now() at time zone 'Africa/Algiers')::date, 7);
+  perform private.demo_fake_bookings(p_salon_id, v_today, 7);
 end;
 $$;
 

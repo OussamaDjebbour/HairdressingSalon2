@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(73);
+select plan(77);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password)
 values
@@ -254,6 +254,21 @@ delete from private.bookings where service_id = 'demo-pack';
 delete from public.services where id = 'demo-pack';
 select lives_ok($$ select private.demo_reset('elegance') $$, 'demo reset runs after the pack was deleted');
 select is(pg_temp.svc('demo-pack') || ' ' || pg_temp.links('demo-pack'), (select pack from pack_before) || ' leila', '... the pack is back with its person');
+
+-- the demo's promotion never expires: a snapshot promotion whose days are past runs again from the
+-- reset day, for as many days
+update private.demo_settings d set snapshot = jsonb_set(d.snapshot, '{services}',
+  (select jsonb_agg(case when x ->> 'id' = 'manucure'
+                         then x || jsonb_build_object('promo_from', pg_temp.today() - 30, 'promo_to', pg_temp.today() - 25)
+                         else x end order by n)
+   from jsonb_array_elements(d.snapshot -> 'services') with ordinality t(x, n)))
+where d.salon_id = 'elegance';
+update public.services set promo_price = 100, promo_from = pg_temp.today(), promo_to = pg_temp.today() where id = 'soin-visage';
+select lives_ok($$ select private.demo_reset('elegance') $$, 'demo reset runs with a snapshot promotion in the past');
+select is((select promo_price || ' ' || promo_from || '..' || promo_to from public.services where id = 'manucure'),
+  '1500 ' || pg_temp.today() || '..' || (pg_temp.today() + 5), '... it runs from the reset day, with the same length');
+select is(private.service_price('elegance', 'manucure'), 1500, '... so the demo shows its promo price');
+select is(pg_temp.svc('soin-visage'), 'beaute  3500', '... and a prospect''s promotion the snapshot doesn''t have is still gone');
 
 -- a snapshot taken before promotions existed (no promo keys) still clears promotions
 update private.demo_settings d set snapshot = jsonb_set(d.snapshot, '{services}',
