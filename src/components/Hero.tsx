@@ -20,10 +20,12 @@ export function Hero() {
           <img
             src={salon.heroImage}
             alt=""
-            fetchPriority="high"
+            {...{ fetchpriority: 'high' }}
             className="hero-settle absolute inset-0 h-full w-full object-cover object-[50%_25%]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-rose-900 via-rose-900/55 via-40% to-rose-900/10" />
+          {/* A bright photo top must not swallow the transparent bar's light text. */}
+          <div data-top-scrim className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-rose-900/50 to-transparent" />
           {/* Wide screens: the type sits beside the subject, so the reading side gets a soft shade too. */}
           <div className="hidden lg:block absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l from-rose-900/70 via-rose-900/25 via-45% to-transparent" />
         </>

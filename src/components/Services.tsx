@@ -36,8 +36,8 @@ function Row({ service }: { service: Service }) {
           <span className="font-display text-[1.3rem] sm:text-[1.45rem] leading-tight text-rose-900 tabular-nums whitespace-nowrap self-baseline">
             {formatPrice(service.price, lang)}
           </span>
-          <span className="text-[15px] leading-relaxed text-rose-900/60 max-w-md">{service.description[lang]}</span>
-          <span className="text-sm text-rose-900/50 text-end self-start pt-0.5 whitespace-nowrap">
+          <span className="text-[15px] leading-relaxed text-rose-900/75 max-w-md">{service.description[lang]}</span>
+          <span className="text-sm text-rose-900/70 text-end self-start pt-0.5 whitespace-nowrap">
             {formatDuration(service.duration, lang)}
           </span>
         </span>
@@ -67,7 +67,8 @@ export function Services() {
   const { t } = useLang();
   const { data: services, isLoading, isError, refetch } = useServices();
   const groups = groupByCategory(services ?? []);
-  const stripImages = (services ?? []).filter((s) => s.image).slice(0, STRIP_SIZE).map((s) => s.image);
+  // Two services may share a photo: show each photo once.
+  const stripImages = [...new Set((services ?? []).map((s) => s.image).filter(Boolean))].slice(0, STRIP_SIZE);
 
   return (
     <section id="services" className="bg-pearl-50 text-rose-900 scroll-mt-16">

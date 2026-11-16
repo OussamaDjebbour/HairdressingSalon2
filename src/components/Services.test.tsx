@@ -114,4 +114,11 @@ describe('Services (La carte)', () => {
     fireEvent.click(screen.getByRole('button', { name: /réessayer/i }));
     expect(refetch).toHaveBeenCalled();
   });
+
+  it('shows a photo shared by two services only once in the strip', () => {
+    list = [mk('s1', 'coiffure', 'S1', 'https://x.test/same.jpg'), mk('s2', 'coiffure', 'S2', 'https://x.test/same.jpg'), mk('s3', 'coiffure', 'S3', 'https://x.test/3.jpg')];
+    const { container } = renderCarte();
+    const imgs = [...strip(container)!.querySelectorAll('img')].map((i) => i.getAttribute('src'));
+    expect(imgs).toEqual(['https://x.test/same.jpg', 'https://x.test/3.jpg']);
+  });
 });

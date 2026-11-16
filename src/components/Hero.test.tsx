@@ -17,6 +17,14 @@ const hero = () => document.getElementById('home') as HTMLElement;
 afterEach(() => setCurrentSalon(ELEGANCE));
 
 describe('Hero', () => {
+  // First on purpose: React prints each unknown-prop warning once per module.
+  it('renders without React warnings', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderHero();
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
   it('shows the salon name as the h1 and both taglines', () => {
     renderHero();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Élégance');
@@ -62,5 +70,10 @@ describe('Hero', () => {
     expect(within(hero()).getByText('Votre beauté, notre savoir-faire')).toBeInTheDocument();
     expect(within(hero()).getByText('جمالكِ، خبرتنا')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Élégance');
+  });
+
+  it('shades the top of the photo so the bar stays readable on a bright photo', () => {
+    renderHero();
+    expect(hero().querySelector('[data-top-scrim]')).not.toBeNull();
   });
 });

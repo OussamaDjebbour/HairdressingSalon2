@@ -473,7 +473,11 @@
 
   html.site .input {
     @apply bg-transparent rounded-[2px] border-rose-900/25 placeholder:text-rose-900/40
-           focus:border-rose-900 focus:ring-0 focus:bg-transparent;
+           focus:border-rose-900 focus:ring-1 focus:ring-rose-900 focus:bg-transparent;
+  }
+  /* A field with an error must still look different from a valid one. */
+  html.site .input[aria-invalid="true"] {
+    @apply border-rust-500 focus:border-rust-500 focus:ring-rust-500;
   }
   html.site .label {
     @apply text-rose-900/70 font-normal;
@@ -497,6 +501,13 @@
   }
   html.site .chip-disabled {
     @apply bg-transparent text-rose-900/40 border-rose-900/10;
+  }
+
+  /* Arabic has no italic: Amiri is upright and a slanted Arabic line looks broken. Latin lines marked
+     lang="fr" (the French tagline) keep their italic in both directions. */
+  html.site[dir='rtl'] .font-display.italic:not(:lang(fr)),
+  html.site[dir='rtl'] .group:hover .group-hover\:italic {
+    font-style: normal;
   }
 
   /* No tracked capitals on the client page. */

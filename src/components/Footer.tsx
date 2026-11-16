@@ -47,7 +47,7 @@ export function Footer() {
             <ul className="space-y-2 text-[15px] text-pearl-50/70">
               {hours &&
                 groupHours(hours).map((g) => (
-                  <li key={g.from} className={`flex justify-between gap-4 ${g.hours ? '' : 'text-pearl-50/40'}`}>
+                  <li key={g.from} className={`flex justify-between gap-4 ${g.hours ? '' : 'text-pearl-50/60'}`}>
                     <span>
                       {g.from === g.to
                         ? dayName(g.from, lang)
