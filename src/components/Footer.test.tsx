@@ -66,4 +66,24 @@ describe('Footer', () => {
     const { container } = renderFooter();
     expect(container.querySelector('footer .uppercase')).toBeNull();
   });
+
+  it('links Itinéraire to Google Maps under the address', () => {
+    renderFooter();
+    expect(screen.getByRole('link', { name: 'Itinéraire' })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('12 Rue Didouche Mourad, Alger Centre 16000, Alger')
+    );
+  });
+
+  it('offers WhatsApp beside the phone', () => {
+    renderFooter();
+    expect(screen.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', 'https://wa.me/213561234567');
+  });
+
+  it('no Itinéraire or WhatsApp when the salon has neither address nor WhatsApp', () => {
+    info = { ...info, address: { fr: '', ar: '' }, city: { fr: '', ar: '' }, whatsapp: null };
+    renderFooter();
+    expect(screen.queryByRole('link', { name: 'Itinéraire' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'WhatsApp' })).toBeNull();
+  });
 });

@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
-import { Instagram, Facebook } from 'lucide-react';
+import { Instagram, Facebook, MapPin, MessageCircle } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import { useSalon } from '../data/salon';
 import { useSalonHours, useSalonInfo } from '../data/salonSettings';
 import { groupHours } from '../data/hours';
 import { formatDayName, formatPhone, salonSubtitle } from '../data/formatters';
 import { minutesToTime } from '../data/week';
-import { toWaNumber } from '../data/whatsapp';
+import { toWaNumber, waLink } from '../data/whatsapp';
+import { mapsLink } from '../data/clientLinks';
 import type { Weekday } from '../data/types';
 
 /** A date falling on the given ISO weekday (1 January 2024 was a Monday). */
@@ -22,6 +23,7 @@ export function Footer() {
   const salon = useSalon();
   const info = useSalonInfo().data;
   const hours = useSalonHours().data;
+  const directions = info ? mapsLink(info.address[lang], info.city[lang]) : null;
 
   return (
     <footer id="contact" className="bg-rose-900 text-pearl-50">
@@ -40,6 +42,12 @@ export function Footer() {
                 <span key={i} className="block">{line}</span>
               ))}
             </p>
+            {directions && (
+              <a href={directions} target="_blank" rel="noopener noreferrer" className={`${textLink} mt-2`}>
+                <MapPin className="w-4 h-4" strokeWidth={1.6} aria-hidden="true" />
+                {t('contact.directions')}
+              </a>
+            )}
           </div>
 
           <div>
@@ -64,9 +72,15 @@ export function Footer() {
           <div>
             <h4 className={heading}>{t('contact.phone')}</h4>
             {info?.whatsapp && (
-              <a href={`tel:+${toWaNumber(info.whatsapp)}`} className={textLink} dir="ltr">
-                {formatPhone(info.whatsapp)}
-              </a>
+              <div className="flex flex-col items-start gap-1">
+                <a href={`tel:+${toWaNumber(info.whatsapp)}`} className={textLink} dir="ltr">
+                  {formatPhone(info.whatsapp)}
+                </a>
+                <a href={waLink(toWaNumber(info.whatsapp))} target="_blank" rel="noopener noreferrer" className={textLink}>
+                  <MessageCircle className="w-4 h-4" strokeWidth={1.6} aria-hidden="true" />
+                  WhatsApp
+                </a>
+              </div>
             )}
             {(info?.instagramUrl || info?.facebookUrl) && (
               <div className="mt-6 flex flex-col items-start gap-1">
