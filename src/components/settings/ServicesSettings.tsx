@@ -103,7 +103,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
   const [preparing, setPreparing] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const {
-    register, control, handleSubmit, setError, watch,
+    register, control, handleSubmit, setError, setValue, watch,
     formState: { errors, submitCount },
   } = useForm<ServiceForm>({ mode: 'onTouched', resolver: zodResolver(serviceSchema), defaultValues: draft.values });
 
@@ -186,7 +186,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
         error={errors.sortOrder?.message}
         {...register('sortOrder')}
       />
-      <PromoFields idPrefix="svc" register={register} control={control} errors={errors} />
+      <PromoFields idPrefix="svc" register={register} control={control} errors={errors} setValue={setValue} />
       {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
       {formError && <p role="alert" className="text-sm text-rust-600">{formError}</p>}
       <div className="flex gap-3">

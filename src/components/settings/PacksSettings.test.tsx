@@ -113,4 +113,17 @@ describe('PacksSettings', () => {
       }))
     );
   });
+
+  it('removing the promotion saves without one', async () => {
+    services = [svc('p1', 'Pack', { category: 'pack', packStylistId: 'st1', promo: { price: 100, from: '2000-01-01', to: '2999-12-31' } })];
+    renderIt();
+    fireEvent.click(screen.getByText('Pack'));
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer la promotion' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.objectContaining({
+        p_id: 'p1', p_promo_price: null, p_promo_from: null, p_promo_to: null,
+      }))
+    );
+  });
 });

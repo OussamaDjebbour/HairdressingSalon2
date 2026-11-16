@@ -94,7 +94,7 @@ function PackFormCard({ draft, services, onSaved, onCancel }: { draft: Draft; se
   const [preparing, setPreparing] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const {
-    register, control, handleSubmit, setError, watch,
+    register, control, handleSubmit, setError, setValue, watch,
     formState: { errors, submitCount },
   } = useForm<PackForm>({ mode: 'onTouched', resolver: zodResolver(packSchema), defaultValues: draft.values });
 
@@ -186,7 +186,7 @@ function PackFormCard({ draft, services, onSaved, onCancel }: { draft: Draft; se
           );
         }}
       />
-      <PromoFields idPrefix="pack" register={register} control={control} errors={errors} />
+      <PromoFields idPrefix="pack" register={register} control={control} errors={errors} setValue={setValue} />
       {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
       {formError && <p role="alert" className="text-sm text-rust-600">{formError}</p>}
       <div className="flex gap-3">

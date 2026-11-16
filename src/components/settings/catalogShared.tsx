@@ -1,4 +1,4 @@
-import { Controller, type Control, type FieldErrors, type FieldValues, type Path, type UseFormRegister } from 'react-hook-form';
+import { Controller, useWatch, type Control, type FieldErrors, type FieldValues, type Path, type PathValue, type UseFormRegister, type UseFormSetValue } from 'react-hook-form';
 import { ChevronRight } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { toYmd } from '../../data/bookings';
@@ -36,14 +36,22 @@ export function promoToInput(v: PromoValues): SaveServiceInput['promo'] {
 
 /** Price + days of a promotion. Both empty = no promotion. */
 export function PromoFields<T extends FieldValues & PromoValues>({
-  idPrefix, register, control, errors,
+  idPrefix, register, control, errors, setValue,
 }: {
   idPrefix: string;
   register: UseFormRegister<T>;
   control: Control<T>;
   errors: FieldErrors<T>;
+  setValue: UseFormSetValue<T>;
 }) {
   const { t } = useLang();
+  const price = useWatch({ control, name: 'promoPrice' as Path<T> }) as string;
+  const period = useWatch({ control, name: 'promoPeriod' as Path<T> }) as Period | null;
+  const clear = () => {
+    const opts = { shouldDirty: true, shouldValidate: true };
+    setValue('promoPrice' as Path<T>, '' as PathValue<T, Path<T>>, opts);
+    setValue('promoPeriod' as Path<T>, null as PathValue<T, Path<T>>, opts);
+  };
   return (
     <fieldset className="space-y-3">
       <legend className="label">{t('settings.promo.title')}</legend>
@@ -70,6 +78,9 @@ export function PromoFields<T extends FieldValues & PromoValues>({
           />
         )}
       />
+      {(price?.trim() || period) && (
+        <button type="button" className="btn-ghost btn-sm" onClick={clear}>{t('settings.promo.remove')}</button>
+      )}
     </fieldset>
   );
 }
