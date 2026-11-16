@@ -89,6 +89,11 @@ export function useServices() {
   return useQuery({ queryKey: ['services'], queryFn: () => fetchServices(), staleTime: STALE_MS });
 }
 
+/** Public: every service of the salon, hidden ones too (to name what a pack includes). */
+export function useCatalogue() {
+  return useQuery({ queryKey: ['services', 'all'], queryFn: () => fetchServices(true), staleTime: STALE_MS });
+}
+
 /** Public: active stylists only. */
 export function useStylists() {
   return useQuery({ queryKey: ['stylists'], queryFn: () => fetchStylists(), staleTime: STALE_MS });

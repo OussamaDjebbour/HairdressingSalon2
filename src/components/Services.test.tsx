@@ -5,10 +5,12 @@ const service = {
   id: 'new-soin', category: 'beaute', icon: 'sparkles', image: '', price: 3000, duration: 45,
   name: { fr: 'Soin éclat', ar: 'عناية' }, description: { fr: 'Une courte ligne', ar: 'd' }, active: true, sortOrder: 0,
 };
-let list = [service];
+let list: (typeof service & Record<string, unknown>)[] = [service];
+let catalogue: (typeof service)[] = [];
 let state = { isLoading: false, isError: false };
 const refetch = vi.fn();
 vi.mock('../data/queries', () => ({
+  useCatalogue: () => ({ data: catalogue }),
   useServices: () => ({ data: state.isLoading || state.isError ? undefined : list, ...state, refetch }),
 }));
 
@@ -18,6 +20,7 @@ import { BookingIntentProvider, useBookingIntent } from '../context/BookingInten
 
 beforeEach(() => {
   list = [service];
+  catalogue = [];
   state = { isLoading: false, isError: false };
   refetch.mockReset();
 });
@@ -119,5 +122,30 @@ describe('Services (La carte)', () => {
   it('each row ends with a Réserver cue', () => {
     renderCarte();
     expect(within(screen.getByRole('link', { name: /Soin éclat/ })).getByText('Réserver')).toBeInTheDocument();
+  });
+
+  it('packs come first under Packs with what they include', () => {
+    const hidden = { ...mk('h1', 'coiffure', 'Masque secret'), active: false };
+    const coupe = mk('c1', 'coiffure', 'Coupe');
+    const pack = { ...mk('p1', 'pack', 'Pack Mariée'), includes: ['c1', 'h1'] };
+    list = [coupe, pack];
+    catalogue = [coupe, hidden];
+    renderCarte();
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(headings).toEqual(['Packs', 'Coiffure']);
+    const link = screen.getByRole('link', { name: /Pack Mariée/ });
+    expect(link.textContent).toContain('Comprend : Coupe, Masque secret');
+  });
+
+  it('a running promo shows the crossed regular price', () => {
+    list = [{ ...mk('s1', 'coiffure', 'Coupe'), price: 3000, promo: { price: 2000, from: '2000-01-01', to: '2999-12-31' } }, mk('s2', 'coiffure', 'Brushing')];
+    renderCarte();
+    const link = screen.getByRole('link', { name: /Coupe/ });
+    const crossed = link.querySelector('.line-through')!;
+    expect(crossed.textContent).toMatch(/3\s?000/);
+    expect(crossed.className).toContain('opacity-60');
+    expect(link.textContent).toMatch(/2\s?000/);
+    expect(within(link).getByText(/au lieu de/)).toHaveClass('sr-only');
+    expect(screen.getByRole('link', { name: /Brushing/ }).querySelector('.line-through')).toBeNull();
   });
 });

@@ -2,15 +2,19 @@ import { ChevronRight } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import type { Service } from '../data/types';
 import { useServices } from '../data/queries';
-import { formatPrice, formatDuration } from '../data/formatters';
+import { formatDuration } from '../data/formatters';
 import { DataError } from './DataError';
 import { groupByCategory } from '../data/categories';
 import { useBookingIntent } from '../context/BookingIntentContext';
+import { effectivePrice } from '../data/pricing';
+import { PriceTag } from './PriceTag';
+import { PackIncludes } from './PackIncludes';
 
 /** One line of the carte: tapping it opens the booking on that service. */
 function Row({ service }: { service: Service }) {
   const { lang, t } = useLang();
   const { chooseService } = useBookingIntent();
+  const { price, regular } = effectivePrice(service);
 
   return (
     <li>
@@ -33,10 +37,13 @@ function Row({ service }: { service: Service }) {
               {service.name[lang]}
             </span>
             <span className="font-display text-[1.2rem] sm:text-[1.45rem] leading-tight text-rose-900 tabular-nums whitespace-nowrap">
-              {formatPrice(service.price, lang)}
+              <PriceTag price={price} regular={regular} />
             </span>
           </span>
           <span className="mt-1.5 text-[15px] leading-relaxed text-rose-900/75 text-pretty">{service.description[lang]}</span>
+          {service.category === 'pack' && (
+            <PackIncludes service={service} className="mt-1.5 text-[15px] leading-relaxed text-rose-900/75 text-pretty" />
+          )}
           <span className="mt-2 flex items-center justify-between gap-4 text-sm">
             <span className="text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
             <span className="inline-flex items-center gap-1 text-rose-900 underline decoration-rose-900/25 underline-offset-4 group-hover:decoration-rose-900">

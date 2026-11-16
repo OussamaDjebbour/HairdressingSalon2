@@ -22,9 +22,11 @@ const stylist = (id: string, name: string, serviceIds: string[]) => ({
 const amina = stylist('amina', 'Amina', ['coupe-femme', 'coloration']);
 const sara = stylist('sara', 'Sara', ['manucure']);
 
-let serviceList: (typeof service)[] = [service];
+let serviceList: Record<string, unknown>[] = [service];
+const refetchServices = vi.fn();
 vi.mock('../data/queries', () => ({
-  useServices: () => ({ data: serviceList, isLoading: false, isError: false, refetch: vi.fn() }),
+  useServices: () => ({ data: serviceList, isLoading: false, isError: false, refetch: refetchServices }),
+  useCatalogue: () => ({ data: serviceList }),
   useStylists: () => ({ data: [amina, sara], isLoading: false, isError: false, refetch: vi.fn() }),
 }));
 
@@ -1236,3 +1238,73 @@ function upcomingOpenDays(): Date[] {
   }
   return out;
 }
+
+describe('Booking packs and promotions', () => {
+  const pack = {
+    ...service, id: 'pack-mariee', category: 'pack', sortOrder: 9, price: 9000, duration: 150,
+    name: { fr: 'Pack Mariée', ar: 'باقة' }, includes: ['coupe-femme', 'coloration'], packStylistId: 'amina', promo: null,
+  };
+  const withDefaults = (s: Record<string, unknown>) => ({ includes: [], packStylistId: null, promo: null, ...s });
+
+  beforeEach(() => {
+    serviceList = [...threeServices.map(withDefaults), pack];
+  });
+
+  it('shows packs first in step 0, with what they include', () => {
+    renderWizard();
+    const heads = screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent);
+    expect(heads[0]).toBe('Packs');
+    expect(serviceButton('Pack Mariée').textContent).toContain('Comprend : Coupe & Brushing, Coloration & Balayage');
+  });
+
+  it('a pack alone skips the stylist step and Retour comes back to services', () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Pack Mariée'));
+    next();
+    expect(screen.getByText('Choisissez une date')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
+    expect(screen.getByText('Choisissez votre prestation')).toBeInTheDocument();
+  });
+
+  it('a pack with a service shows only the service in the stylist step', () => {
+    renderWizard();
+    fireEvent.click(serviceButton('Pack Mariée'));
+    fireEvent.click(serviceButton('Manucure & Vernis'));
+    next();
+    expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Pack Mariée' })).toBeNull();
+    expect(screen.getByText('Rôle Sara')).toBeInTheDocument();
+    expect(screen.queryByText('Rôle Amina')).toBeNull();
+  });
+
+  it('a running promo shows the crossed regular price and the effective total', () => {
+    serviceList = [withDefaults({ ...service, promo: { price: 1500, from: '2000-01-01', to: '2999-12-31' } })];
+    renderWizard();
+    const btn = serviceButton('Coupe & Brushing');
+    expect(btn.querySelector('.line-through')!.textContent).toMatch(/2\s?500/);
+    fireEvent.click(btn);
+    expect(screen.getByText('1 prestation · 1 500 DA · 60 min')).toBeInTheDocument();
+  });
+
+  it('sends the total it showed', async () => {
+    serviceList = [withDefaults({ ...service, promo: { price: 1500, from: '2000-01-01', to: '2999-12-31' } })];
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await waitFor(() => expect(mutate).toHaveBeenCalled());
+    expect(mutate.mock.calls[0][0].expectedTotal).toBe(1500);
+  });
+
+  it('price_changed refreshes prices and stays on the confirm step', async () => {
+    serviceList = [withDefaults(service)];
+    refetchServices.mockImplementation(() => {
+      serviceList = [withDefaults({ ...service, promo: { price: 1500, from: '2000-01-01', to: '2999-12-31' } })];
+    });
+    failWith('price_changed');
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Le prix vient de changer');
+    expect(refetchServices).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Confirmer la réservation/ })).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/1\s?500/);
+  });
+});
