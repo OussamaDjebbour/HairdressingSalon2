@@ -6,7 +6,7 @@ import { MAX_VISIT_SERVICES, joinNames, missingAllDay, planVisit, slotState, vis
 function svc(id: string, sortOrder: number, fr = id, price = 1000, duration = 60): Service {
   return {
     id, category: 'c', name: { fr, ar: fr }, description: { fr: '', ar: '' },
-    price, duration, image: '', icon: '', active: true, sortOrder,
+    price, duration, image: '', icon: '', active: true, sortOrder, includes: [], packStylistId: null, promo: null,
   };
 }
 const sl = (slot: string, available: boolean, missing: number[]): VisitSlot => ({ slot, available, missing });
@@ -29,8 +29,15 @@ describe('visit helpers', () => {
     expect(planVisit([svc('a', 0, 'a', 1, 45), svc('b', 1, 'b', 1, 60)], '09:30').map((p) => p.time)).toEqual(['09:30', '10:15']);
   });
 
+  it('visitTotals uses promo prices', () => {
+    const promo = { price: 2000, from: '2030-01-01', to: '2030-01-31' };
+    expect(visitTotals([{ price: 2500, duration: 60, promo }, { price: 1000, duration: 30, promo: null }], '2030-01-15'))
+      .toEqual({ price: 3000, duration: 90 });
+    expect(visitTotals([{ price: 2500, duration: 60, promo }], '2030-02-01').price).toBe(2500);
+  });
+
   it('visitTotals sums price and duration', () => {
-    expect(visitTotals([{ price: 2500, duration: 60 }, { price: 6000, duration: 120 }])).toEqual({ price: 8500, duration: 180 });
+    expect(visitTotals([{ price: 2500, duration: 60, promo: null }, { price: 6000, duration: 120, promo: null }])).toEqual({ price: 8500, duration: 180 });
   });
 
   it('slotState', () => {

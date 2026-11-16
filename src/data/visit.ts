@@ -1,5 +1,6 @@
 import type { Service } from './types';
 import type { VisitSlot } from './bookings';
+import { effectivePrice } from './pricing';
 
 export const MAX_VISIT_SERVICES = 4;
 
@@ -13,9 +14,12 @@ export function visitOrder<T extends Pick<Service, 'id' | 'sortOrder' | 'name'>>
   );
 }
 
-export function visitTotals(services: Pick<Service, 'price' | 'duration'>[]): { price: number; duration: number } {
+export function visitTotals(
+  services: Pick<Service, 'price' | 'duration' | 'promo'>[],
+  today?: string,
+): { price: number; duration: number } {
   return services.reduce(
-    (t, s) => ({ price: t.price + s.price, duration: t.duration + s.duration }),
+    (t, s) => ({ price: t.price + effectivePrice(s, today).price, duration: t.duration + s.duration }),
     { price: 0, duration: 0 },
   );
 }

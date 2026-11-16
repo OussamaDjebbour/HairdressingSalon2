@@ -168,6 +168,9 @@ describe('mutations', () => {
         price: 2500,
         duration: 60,
         sortOrder: 3,
+        includes: ['Coupe', 'Soin'],
+        packStylistId: 'amina',
+        promo: { price: 2000, from: '2030-01-01', to: '2030-01-31' },
       });
     });
 
@@ -179,6 +182,11 @@ describe('mutations', () => {
       p_price: 2500,
       p_duration: 60,
       p_sort_order: 3,
+      p_includes: ['Coupe', 'Soin'],
+      p_pack_stylist_id: 'amina',
+      p_promo_price: 2000,
+      p_promo_from: '2030-01-01',
+      p_promo_to: '2030-01-31',
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['services'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['stylists'] });
@@ -190,7 +198,7 @@ describe('mutations', () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          id: null, name: { fr: 'x', ar: '' }, description: null, category: 'coiffure', price: -1, duration: 60, sortOrder: null,
+          id: null, name: { fr: 'x', ar: '' }, description: null, category: 'coiffure', price: -1, duration: 60, sortOrder: null, includes: [], packStylistId: null, promo: null,
         })
       ).rejects.toMatchObject({ message: 'invalid_price' });
     });

@@ -9,7 +9,7 @@ vi.mock('../../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => rpc
 
 const svc = (id: string, fr: string, active: boolean): Service => ({
   id, category: 'coiffure', name: { fr, ar: `${fr}-ar` }, description: { fr: 'd', ar: 'د' },
-  price: 3000, duration: 45, image: '', icon: '', active, sortOrder: 1,
+  price: 3000, duration: 45, image: '', icon: '', active, sortOrder: 1, includes: [], packStylistId: null, promo: null,
 });
 let services: Service[] = [];
 let stylists: Stylist[] = [];

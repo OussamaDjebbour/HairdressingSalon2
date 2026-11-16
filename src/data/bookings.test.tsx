@@ -45,6 +45,7 @@ describe('phone rules (mirror of the DB)', () => {
 describe('toBookingError', () => {
   it('maps known RPC error messages', () => {
     expect(toBookingError({ message: 'slot_taken', code: 'P0001' })).toBe('slot_taken');
+    expect(toBookingError({ message: 'price_changed' })).toBe('price_changed');
     expect(toBookingError({ message: 'too_many_bookings' })).toBe('too_many_bookings');
     expect(toBookingError({ message: 'rate_limited' })).toBe('rate_limited');
   });
@@ -108,6 +109,7 @@ describe('useCreateVisit', () => {
         clientName: 'Yasmine',
         clientPhone: '0555 12 34 56',
         lang: 'fr',
+        expectedTotal: 8500,
       });
     });
     expect(rpc).toHaveBeenCalledWith('create_visit', {
@@ -121,6 +123,7 @@ describe('useCreateVisit', () => {
       p_client_name: 'Yasmine',
       p_client_phone: '0555 12 34 56',
       p_lang: 'fr',
+      p_expected_total: 8500,
     });
     expect(created).toEqual([
       { bookingId: 'b1', serviceId: 'coupe-femme', stylistId: 'amina', startsAt: new Date('2030-01-08T09:00:00Z') },

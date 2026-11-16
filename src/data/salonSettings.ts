@@ -177,6 +177,11 @@ export interface SaveServiceInput {
   price: number;
   duration: number;
   sortOrder: number | null;
+  /** Pack: included service names (empty for a service). */
+  includes: string[];
+  packStylistId: string | null;
+  /** null = no promotion (a save always replaces the promotion). */
+  promo: { price: number; from: string; to: string } | null;
 }
 
 export interface SaveStylistInput {
@@ -199,6 +204,11 @@ const saveService = (i: SaveServiceInput) =>
     p_price: i.price,
     p_duration: i.duration,
     p_sort_order: i.sortOrder,
+    p_includes: i.includes,
+    p_pack_stylist_id: i.packStylistId,
+    p_promo_price: i.promo?.price ?? null,
+    p_promo_from: i.promo?.from ?? null,
+    p_promo_to: i.promo?.to ?? null,
   });
 
 export type PhotoChange = { kind: 'keep' } | { kind: 'remove' } | { kind: 'new'; blob: Blob };
@@ -344,6 +354,8 @@ export type SettingsErrorCode =
   | 'invalid_weekday'
   | 'invalid_phone'
   | 'invalid_photo'
+  | 'invalid_promo'
+  | 'invalid_pack'
   | 'demo_disabled'
   | 'upload_failed'
   | 'unknown';
@@ -351,7 +363,7 @@ export type SettingsErrorCode =
 const SETTINGS_ERROR_CODES: readonly SettingsErrorCode[] = [
   'not_authorized', 'not_found', 'unknown_service', 'invalid_name', 'invalid_price', 'invalid_duration',
   'invalid_hours', 'invalid_dates', 'invalid_url', 'invalid_weekday', 'invalid_phone',
-  'invalid_photo', 'demo_disabled', 'upload_failed',
+  'invalid_photo', 'invalid_promo', 'invalid_pack', 'demo_disabled', 'upload_failed',
 ];
 
 export function toSettingsError(err: unknown): SettingsErrorCode {

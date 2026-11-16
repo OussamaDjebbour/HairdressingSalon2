@@ -26,7 +26,7 @@ import { QueryFallback, queriesReady } from './QueryFallback';
 import { useToast } from '../admin/feedback';
 import { useMyRole } from '../../data/admin';
 import { ServicePhotoField } from './ServicePhotoField';
-import { CATEGORIES, isCategory } from '../../data/categories';
+import { SERVICE_FORM_CATEGORIES, isServiceFormCategory } from '../../data/categories';
 
 const DURATIONS = Array.from({ length: 40 }, (_, i) => (i + 1) * 15); // 15 … 600
 const ERROR_KEYS = ['invalid_name', 'invalid_price', 'invalid_duration', 'not_found', 'not_authorized', 'demo_disabled', 'invalid_photo', 'upload_failed'];
@@ -38,7 +38,7 @@ const serviceSchema = z.object({
   nameAr: z.string(),
   descFr: z.string(),
   descAr: z.string(),
-  category: z.enum(CATEGORIES),
+  category: z.enum(SERVICE_FORM_CATEGORIES),
   price: z.string().superRefine((v, ctx) => {
     const n = v.trim();
     if (!/^\d+$/.test(n) || parseInt(n, 10) > 1_000_000) ctx.addIssue({ code: 'custom', message: 'form.error.price' });
@@ -60,7 +60,7 @@ function toValues(s: Service): ServiceForm {
     nameAr: s.name.ar,
     descFr: s.description.fr,
     descAr: s.description.ar,
-    category: isCategory(s.category) ? s.category : 'coiffure',
+    category: isServiceFormCategory(s.category) ? s.category : 'coiffure',
     price: String(s.price),
     duration: String(s.duration),
     sortOrder: String(s.sortOrder),
@@ -77,6 +77,9 @@ function toInput(id: string | null, d: ServiceForm): SaveServiceInput {
     price: parseInt(d.price.trim(), 10),
     duration: parseInt(d.duration, 10),
     sortOrder: d.sortOrder.trim() === '' ? null : parseInt(d.sortOrder.trim(), 10),
+    includes: [],
+    packStylistId: null,
+    promo: null,
   };
 }
 
@@ -147,7 +150,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
             onValueChange={field.onChange}
             onBlur={field.onBlur}
             ref={field.ref}
-            options={CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) }))}
+            options={SERVICE_FORM_CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) }))}
           />
         )}
       />

@@ -17,6 +17,7 @@ export type BookingErrorCode =
   | 'outside_hours'
   | 'unknown_service'
   | 'too_many_services'
+  | 'price_changed'
   | 'unknown';
 
 const KNOWN_ERRORS: BookingErrorCode[] = [
@@ -28,6 +29,7 @@ const KNOWN_ERRORS: BookingErrorCode[] = [
   'outside_hours',
   'unknown_service',
   'too_many_services',
+  'price_changed',
 ];
 
 export function toBookingError(err: unknown): BookingErrorCode {
@@ -98,6 +100,8 @@ export interface CreateVisitInput {
   clientName: string;
   clientPhone: string;
   lang: Lang;
+  /** The total the client saw; the server refuses with `price_changed` if it differs. */
+  expectedTotal: number;
 }
 
 export interface CreatedPart {
@@ -116,6 +120,7 @@ export async function createVisit(input: CreateVisitInput): Promise<CreatedPart[
     p_client_name: input.clientName,
     p_client_phone: input.clientPhone,
     p_lang: input.lang,
+    p_expected_total: input.expectedTotal,
   });
   if (error) throw error;
   return ((data ?? []) as { booking_id: string; service_id: string; stylist_id: string; starts_at: string }[]).map(

@@ -239,6 +239,7 @@ export function Booking() {
         clientName,
         clientPhone,
         lang,
+        expectedTotal: totals.price,
       },
       {
         onSuccess: (created) => {
@@ -290,6 +291,7 @@ export function Booking() {
     outside_hours: t('booking.error.generic'),
     unknown_service: t('booking.error.generic'),
     too_many_services: t('booking.error.generic'),
+    price_changed: t('booking.error.generic'),
     unknown: t('booking.error.generic'),
   };
 

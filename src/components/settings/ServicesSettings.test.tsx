@@ -30,7 +30,7 @@ vi.mock('../../data/admin', async (importOriginal) => ({
 
 const svc = (id: string, fr: string, active: boolean, sortOrder: number): Service => ({
   id, category: 'coiffure', name: { fr, ar: `${fr}-ar` }, description: { fr: 'd', ar: 'د' },
-  price: 3000, duration: 45, image: '', icon: '', active, sortOrder,
+  price: 3000, duration: 45, image: '', icon: '', active, sortOrder, includes: [], packStylistId: null, promo: null,
 });
 let services: Service[] = [];
 let servicesQuery: { data?: Service[]; isLoading: boolean; isError: boolean; refetch?: () => void } | null = null;
@@ -162,6 +162,7 @@ describe('ServicesSettings', () => {
         p_price: 3500,
         p_duration: 60,
         p_sort_order: 7,
+        p_includes: [], p_pack_stylist_id: null, p_promo_price: null, p_promo_from: null, p_promo_to: null,
       })
     );
   });

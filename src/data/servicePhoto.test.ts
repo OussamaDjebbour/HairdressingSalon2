@@ -11,7 +11,7 @@ vi.mock('../lib/supabase', () => ({
 import { saveServiceWithPhoto, ServiceSaveError, toSettingsError, type SaveServiceInput } from './salonSettings';
 
 const input = (id: string | null): SaveServiceInput => ({
-  id, name: { fr: 'Coupe', ar: 'قص' }, description: null, category: 'coiffure', price: 3000, duration: 45, sortOrder: null,
+  id, name: { fr: 'Coupe', ar: 'قص' }, description: null, category: 'coiffure', price: 3000, duration: 45, sortOrder: null, includes: [], packStylistId: null, promo: null,
 });
 const blob = new Blob(['x'], { type: 'image/jpeg' });
 
@@ -22,6 +22,14 @@ beforeEach(() => {
 });
 
 describe('saveServiceWithPhoto', () => {
+  it('always sends all five pack/promo params (null when none)', async () => {
+    rpc.mockResolvedValueOnce({ data: 's1', error: null });
+    await saveServiceWithPhoto(input('s1'), { kind: 'keep' });
+    expect(rpc.mock.calls[0][1]).toMatchObject({
+      p_includes: [], p_pack_stylist_id: null, p_promo_price: null, p_promo_from: null, p_promo_to: null,
+    });
+  });
+
   it('keep: only saves the service', async () => {
     rpc.mockResolvedValueOnce({ data: 's1', error: null });
     expect(await saveServiceWithPhoto(input('s1'), { kind: 'keep' })).toBe('s1');
