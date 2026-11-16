@@ -351,7 +351,7 @@ describe('Booking intent from a service tile', () => {
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
-    expect(screen.getByText('Soin visage').closest('button')?.className).toContain('ring-gold-300');
+    expect(screen.getByText('Soin visage').closest('button')?.className).toContain('ring-rose-900');
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
     fireEvent.click(screen.getByText('choose-soin'));
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();

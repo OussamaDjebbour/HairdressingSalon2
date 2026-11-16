@@ -434,3 +434,73 @@
     animation-delay: 0.48s;
   }
 }
+
+/* ---- The client page's look for the classes it shares with the admin (html.site only).
+   Near-square corners, thin rules instead of shadows, the salon's brand colour for what is chosen. ---- */
+@layer components {
+  html.site .btn-primary,
+  html.site .btn-secondary,
+  html.site .btn-ghost,
+  html.site .btn-whatsapp,
+  html.site .btn-danger {
+    @apply rounded-[2px] shadow-none tracking-[0.02em] focus-visible:ring-rose-900 focus-visible:ring-offset-pearl-50 active:scale-100;
+  }
+  html.site .btn-primary {
+    @apply bg-rose-900 text-pearl-50 hover:bg-rose-800 hover:shadow-none;
+  }
+  html.site .btn-secondary {
+    @apply border-rose-900/30 hover:border-rose-900 hover:bg-transparent;
+  }
+  html.site .btn-ghost {
+    @apply text-rose-900 hover:bg-rose-900/5;
+  }
+  html.site .btn-whatsapp,
+  html.site .btn-danger {
+    @apply hover:shadow-none;
+  }
+
+  html.site .card,
+  html.site .card-hover,
+  html.site .card-interactive {
+    @apply bg-pearl-50 rounded-[2px] shadow-none border-rose-900/10 hover:shadow-none hover:translate-y-0;
+  }
+  html.site .card-interactive {
+    @apply hover:border-rose-900/40;
+  }
+  html.site .card-selected {
+    @apply border-rose-900 shadow-none ring-1 ring-rose-900;
+  }
+
+  html.site .input {
+    @apply bg-transparent rounded-[2px] border-rose-900/25 placeholder:text-rose-900/40
+           focus:border-rose-900 focus:ring-0 focus:bg-transparent;
+  }
+  html.site .label {
+    @apply text-rose-900/70 font-normal;
+  }
+
+  html.site .chip-available,
+  html.site .chip-selected,
+  html.site .chip-partial,
+  html.site .chip-disabled {
+    @apply rounded-[2px] shadow-none focus-visible:ring-rose-900;
+  }
+  html.site .chip-available {
+    @apply bg-transparent text-rose-900 border-rose-900/20 hover:bg-transparent hover:border-rose-900 hover:shadow-none;
+  }
+  html.site .chip-selected {
+    @apply bg-rose-900 text-pearl-50 border-rose-900;
+  }
+  /* Bookable without some parts: dashed, and its "sans X" line says which. */
+  html.site .chip-partial {
+    @apply bg-transparent text-rose-900 border-dashed border-rose-900/40 hover:bg-transparent hover:border-rose-900;
+  }
+  html.site .chip-disabled {
+    @apply bg-transparent text-rose-900/40 border-rose-900/10;
+  }
+
+  /* No tracked capitals on the client page. */
+  html.site .eyebrow {
+    display: none;
+  }
+}

@@ -26,7 +26,7 @@ export function VisitParts({ parts, total }: { parts: VisitPart[]; total?: numbe
         ))}
       </ol>
       {total !== undefined && (
-        <div className="border-t border-cream-200 mt-3 pt-3 flex justify-between items-center gap-4">
+        <div className="border-t border-rose-900/10 mt-3 pt-3 flex justify-between items-center gap-4">
           <span className="text-sm font-semibold text-rose-700">{t('booking.summary.total')}</span>{' '}
           <span className="text-lg font-display font-semibold text-rose-800">{formatPrice(total, lang)}</span>
         </div>
