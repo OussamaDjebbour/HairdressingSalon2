@@ -279,9 +279,9 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
         <BookingSummary
           booking={editing}
           visit={visit}
-          onConfirm={() => actions.confirm(visit, editing)}
-          onRefuse={() => actions.refuse(visit, editing)}
-          onCancel={() => actions.refuse(visit, editing)}
+          onConfirm={() => { setRemoveError(null); actions.confirm(visit, editing); }}
+          onRefuse={() => { setRemoveError(null); actions.refuse(visit, editing); }}
+          onCancel={() => { setRemoveError(null); actions.refuse(visit, editing); }}
           onMessage={() => setNotice({ kind: 'confirmed', booking: { ...visit.first, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang, serviceName: visit.serviceName } })}
           onEdit={() => setView('form')}
           onRemovePart={onRemovePart}

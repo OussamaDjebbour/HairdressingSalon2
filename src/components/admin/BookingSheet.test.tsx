@@ -682,6 +682,7 @@ describe('BookingSheet — visit', () => {
 
   describe('Retirer', () => {
     const cancelledSecond = { ...second, status: 'cancelled' as const };
+    beforeEach(() => { removePart.mockReset(); });
 
     it('shows Retirer on each part of a two-part visit', () => {
       renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
@@ -732,6 +733,35 @@ describe('BookingSheet — visit', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
       await answer('Retirer cette prestation ?', 'Retirer');
       expect(await screen.findByRole('alert')).toHaveTextContent('dernière prestation');
+    });
+    it('a later failed Confirmer replaces a stale Retirer error', async () => {
+      removePart.mockImplementation((_id, opts) => opts.onError(new Error('last_part')));
+      setStatus.mockImplementation((_input, opts) => opts.onError(new Error('slot_taken')));
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      await answer('Retirer cette prestation ?', 'Retirer');
+      expect(await screen.findByRole('alert')).toHaveTextContent('dernière prestation');
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+      expect(screen.getByRole('alert')).not.toHaveTextContent('dernière prestation');
+    });
+
+    it('a cancelled part is not listed and the total counts live parts only', () => {
+      const third = adminBooking({
+        id: 'p3', visitId: 'v1', startIso: '2030-01-08T11:00:00Z', price: 1500, serviceId: 'manucure',
+        serviceName: { fr: 'Manucure', ar: 'مانيكير' }, stylistId: 'leila', stylistName: 'Leila', status: 'cancelled',
+      });
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visitOf(first, [first, second, third]));
+      const items = within(screen.getByRole('list', { name: 'Toute la visite' })).getAllByRole('listitem');
+      expect(items).toHaveLength(2);
+      expect(screen.queryByText(/Manucure/)).toBeNull();
+      expect(screen.getByText('8 500 DA')).toBeInTheDocument();
+    });
+
+    it('a fully cancelled visit still lists every part, without Retirer', () => {
+      const c1 = { ...first, status: 'cancelled' as const };
+      renderSheet({ mode: 'edit', booking: c1 }, vi.fn(), visitOf(c1, [c1, cancelledSecond]));
+      expect(within(screen.getByRole('list', { name: 'Toute la visite' })).getAllByRole('listitem')).toHaveLength(2);
+      expect(screen.queryByRole('button', { name: /^Retirer/ })).toBeNull();
     });
   });
 
