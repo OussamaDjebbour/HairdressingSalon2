@@ -1,10 +1,14 @@
 /** Links and files that help the client around her booking: directions and a calendar entry. Public code. */
 
+/** The salon's address lines and city on one line: "12 Rue Didouche Mourad, Alger Centre 16000, Alger". */
+export function addressLine(address: string, city: string): string {
+  return [...address.split('\n'), city].map((s) => s.trim()).filter(Boolean).join(', ');
+}
+
 /** A Google Maps search for the salon, from its address lines and city; null when neither is set. */
 export function mapsLink(address: string, city: string): string | null {
-  const parts = [...address.split('\n'), city].map((s) => s.trim()).filter(Boolean);
-  if (parts.length === 0) return null;
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(parts.join(', '))}`;
+  const line = addressLine(address, city);
+  return line ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(line)}` : null;
 }
 
 /** RFC 5545 date-time in UTC: 20300108T090000Z. */

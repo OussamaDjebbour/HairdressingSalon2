@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapsLink, visitIcs } from './clientLinks';
+import { addressLine, mapsLink, visitIcs } from './clientLinks';
 
 describe('mapsLink', () => {
   it('mapsLink joins address lines and city', () => {
@@ -9,6 +9,12 @@ describe('mapsLink', () => {
   });
   it('mapsLink is null without address and city', () => {
     expect(mapsLink('  ', '')).toBeNull();
+  });
+});
+
+describe('addressLine', () => {
+  it('puts address lines and city on one line', () => {
+    expect(addressLine('12 Rue Didouche Mourad\nAlger Centre 16000\n', ' Alger ')).toBe('12 Rue Didouche Mourad, Alger Centre 16000, Alger');
   });
 });
 

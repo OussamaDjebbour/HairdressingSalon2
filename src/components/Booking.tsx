@@ -4,10 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { TextField } from './form/TextField';
 import { FormSummary } from './form/FormSummary';
 import { clientDetailsSchema, type ClientDetails } from '../data/schemas';
-import { Check, ChevronLeft, ChevronRight, User, MessageCircle, AlertCircle } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, User, MessageCircle, AlertCircle, CalendarPlus, MapPin } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import {
-  useVisitSlots, useCreateVisit, toBookingError, failedItem, type BookingErrorCode, type VisitItem,
+  useVisitSlots, useCreateVisit, toBookingError, failedItem, normalizePhone, type BookingErrorCode, type VisitItem,
 } from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
@@ -24,6 +24,10 @@ import { TimeSlotChip } from './TimeSlotChip';
 import { dayHours } from '../data/hours';
 import { useClosedDates, useSalonHours, useSalonInfo } from '../data/salonSettings';
 import { toWaNumber, waLink } from '../data/whatsapp';
+import { addressLine, mapsLink, visitIcs } from '../data/clientLinks';
+import { forgetClient, loadClient, saveClient } from '../data/rememberedClient';
+import { currentSalon } from '../data/salon';
+import { salonInstant } from '../data/week';
 import { SmartImage } from './SmartImage';
 import { groupByCategory } from '../data/categories';
 import { useBookingIntent } from '../context/BookingIntentContext';
@@ -34,6 +38,40 @@ const initials = (name: string) =>
 
 type Step = 0 | 1 | 2 | 3;
 
+const successLink =
+  'inline-flex items-center gap-2 min-h-[44px] text-[15px] text-rose-900 underline decoration-rose-900/25 underline-offset-4 hover:decoration-rose-900';
+
+/** A data: link to an .ics file for the booked visit (first part's start to the last part's end). */
+function visitCalendarHref(
+  booked: { parts: VisitPart[]; date: Date | null },
+  salon: string,
+  location: string,
+  pending: string,
+  lang: 'fr' | 'ar'
+): string | null {
+  if (!booked.date || booked.parts.length === 0) return null;
+  const first = booked.parts[0];
+  const last = booked.parts[booked.parts.length - 1];
+  const start = salonInstant(booked.date, first.time);
+  const end = new Date(salonInstant(booked.date, last.time).getTime() + last.service.duration * 60_000);
+  const ics = visitIcs({
+    salon,
+    services: booked.parts.map((p) => p.service.name[lang]).join(' + '),
+    start,
+    end,
+    location,
+    description: pending,
+    uid: `${start.getTime()}-${salon}@salon`,
+  });
+  return `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
+}
+
+/** The confirm step's fields: the client remembered on this device, else empty. */
+function rememberedValues(): ClientDetails {
+  const c = loadClient(currentSalon().id);
+  return { clientName: c?.name ?? '', clientPhone: c?.phone ?? '' };
+}
+
 export function Booking() {
   const { lang, t } = useLang();
   const servicesQuery = useServices();
@@ -42,7 +80,8 @@ export function Booking() {
   const closedQuery = useClosedDates();
   const salonHours = hoursQuery.data;
   const closedDates = closedQuery.data;
-  const whatsapp = useSalonInfo().data?.whatsapp;
+  const salonInfo = useSalonInfo().data;
+  const whatsapp = salonInfo?.whatsapp;
   const waNumber = whatsapp ? toWaNumber(whatsapp) : null;
   const services = servicesQuery.data ?? [];
   // Grouped under category headings when the salon offers more than one category (e.g. Coiffure and Spa).
@@ -70,7 +109,7 @@ export function Booking() {
   } = useForm<ClientDetails>({
     resolver: zodResolver(clientDetailsSchema),
     mode: 'onTouched',
-    defaultValues: { clientName: '', clientPhone: '' },
+    defaultValues: rememberedValues(),
   });
   const createVisitMutation = useCreateVisit();
   // The visit as booked (names, the staff the salon assigned, the booked times), frozen at confirm time.
@@ -83,6 +122,13 @@ export function Booking() {
   const [race, setRace] = useState<string | null>(null);
   // A ticked service the salon no longer offers was removed.
   const [dropped, setDropped] = useState(false);
+  // A client remembered on this device (her own name and phone, saved after a booking).
+  const [remembered, setRemembered] = useState(() => loadClient(currentSalon().id) !== null);
+  const forgetMe = () => {
+    forgetClient(currentSalon().id);
+    setRemembered(false);
+    reset({ clientName: '', clientPhone: '' });
+  };
 
   const upcomingDays = useMemo(() => {
     const days: Date[] = [];
@@ -196,6 +242,8 @@ export function Booking() {
       },
       {
         onSuccess: (created) => {
+          saveClient(currentSalon().id, { name: clientName.trim(), phone: normalizePhone(clientPhone) });
+          setRemembered(true);
           setBooked({
             date: selectedDate,
             total: totals.price,
@@ -251,7 +299,7 @@ export function Booking() {
     setStylistFor({});
     setSelectedDate(null);
     clearTime();
-    if (!keepClient) reset();
+    if (!keepClient) reset(rememberedValues());
     setSubmitError(null);
     setSlotNotice(null);
     setRace(null);
@@ -279,6 +327,82 @@ export function Booking() {
     else focusHeading.current = true;
     setStep(s);
   };
+
+  // Each step opens in view: from the bottom of a long list, the next step would start off-screen.
+  const topRef = useRef<HTMLDivElement>(null);
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    topRef.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+  }, [step]);
+
+  // The success screen replaces the taller wizard: bring it into view, or she'd be looking at the section above.
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!booked) return;
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    sectionRef.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+  }, [booked]);
+
+  // History moves (the back button, releasing the guard below) must not restore an old scroll position over the
+  // view the wizard just placed: the browser's restoration is off while the booking is on the page.
+  useEffect(() => {
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => {
+      window.history.scrollRestoration = previous;
+    };
+  }, []);
+
+  // The phone's back button goes to the previous step: past the first step, one history entry guards the
+  // wizard (same URL). Back there = one step back; on the first step, or once booked, back leaves as usual.
+  const guarded = useRef(false);
+  const releasing = useRef(false);
+  useEffect(() => {
+    const wantGuard = step > 0 && !booked;
+    if (wantGuard && !guarded.current) {
+      window.history.pushState({ ...window.history.state, bookingGuard: true }, '');
+      guarded.current = true;
+    } else if (!wantGuard && guarded.current && window.history.state?.bookingGuard) {
+      releasing.current = true;
+      window.history.back();
+    }
+  }, [step, booked]);
+  useEffect(() => {
+    const onPop = () => {
+      if (!guarded.current) return;
+      guarded.current = false;
+      if (releasing.current) {
+        releasing.current = false;
+        return;
+      }
+      setStep((s) => (s > 0 ? ((s - 1) as Step) : s));
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // The date step opens on the first open day; while the client hasn't tapped a day herself, a day with no
+  // free time moves on to the next open one (up to the last day of the strip).
+  const autoDay = useRef(false);
+  useEffect(() => {
+    if (step === 2 && !selectedDate && upcomingDays.length > 0) {
+      autoDay.current = true;
+      setSelectedDate(upcomingDays[0]);
+    }
+  }, [step, selectedDate, upcomingDays]);
+  useEffect(() => {
+    if (!autoDay.current || step !== 2 || !selectedDate || !freshSlots) return;
+    if (freshSlots.some((sl) => slotState(sl, items.length) !== 'full')) {
+      autoDay.current = false;
+      return;
+    }
+    const i = upcomingDays.findIndex((d) => d.toDateString() === selectedDate.toDateString());
+    if (i >= 0 && i < upcomingDays.length - 1) setSelectedDate(upcomingDays[i + 1]);
+    else autoDay.current = false;
+  }, [step, selectedDate, freshSlots, items.length, upcomingDays]);
 
   /** "Réserver les autres prestations": leave out these parts, keep the time (re-checked below), back to the times. */
   const bookOthers = (time: string, ids: string[]) => {
@@ -412,9 +536,14 @@ export function Booking() {
   const dayMissing = missingAllDay(slots, items.length).filter((i) => visit[i]);
   const without = (indexes: number[]) => t('booking.visit.without').replace('{services}', joinNames(partNames(indexes)));
 
+  const address = salonInfo?.address?.[lang] ?? '';
+  const city = salonInfo?.city?.[lang] ?? '';
+  const directions = mapsLink(address, city);
+  const calendarHref = booked ? visitCalendarHref(booked, currentSalon().name[lang], addressLine(address, city), t('booking.calendarPending'), lang) : null;
+
   if (booked) {
     return (
-      <section id="booking" className="relative py-20 lg:py-28 bg-pearl-100">
+      <section ref={sectionRef} id="booking" className="relative py-20 lg:py-28 bg-pearl-100">
         <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-sage-100 mb-6 animate-fadeIn">
             <Check className="w-10 h-10 text-sage-600" strokeWidth={2} />
@@ -425,6 +554,21 @@ export function Booking() {
 
           <div className="rounded-[2px] bg-pearl-50 border border-rose-900/10 p-5 text-start mb-6">
             {summary(booked.parts, booked.total, booked.date)}
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-6">
+            {calendarHref && (
+              <a href={calendarHref} download="rendez-vous.ics" className={successLink}>
+                <CalendarPlus className="w-4 h-4" strokeWidth={1.6} aria-hidden="true" />
+                {t('booking.addToCalendar')}
+              </a>
+            )}
+            {directions && (
+              <a href={directions} target="_blank" rel="noopener noreferrer" className={successLink}>
+                <MapPin className="w-4 h-4" strokeWidth={1.6} aria-hidden="true" />
+                {t('booking.directions')}
+              </a>
+            )}
           </div>
 
           {waNumber && (
@@ -452,7 +596,7 @@ export function Booking() {
         </div>
 
         {/* Step indicator: a quiet line and words, not icon circles */}
-        <div className="max-w-md mx-auto mb-10">
+        <div ref={topRef} data-booking-top className="max-w-md mx-auto mb-10 scroll-mt-24">
           <div className="flex gap-1.5" aria-hidden="true">
             {steps.map((label, i) => (
               <span key={label} className={`h-0.5 flex-1 transition-colors duration-300 ${i <= step ? 'bg-rose-900' : 'bg-rose-900/15'}`} />
@@ -461,6 +605,18 @@ export function Booking() {
           <p className="mt-3 text-center text-sm text-rose-900/70">
             {`${t('booking.stepOf').replace('{n}', formatNumber(step + 1, lang)).replace('{total}', formatNumber(steps.length, lang))} — ${steps[step]}`}
           </p>
+          {waNumber && (
+            <p className="mt-2 text-center text-sm">
+              <a
+                href={waLink(waNumber)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center min-h-[44px] text-rose-900/80 underline decoration-rose-900/25 underline-offset-4 hover:text-rose-900"
+              >
+                {t('booking.questionsWhatsapp')}
+              </a>
+            </p>
+          )}
         </div>
 
         {dataLoading ? (
@@ -616,7 +772,8 @@ export function Booking() {
                     return (
                       <button
                         key={i}
-                        onClick={() => { setSelectedDate(day); clearTime(); }}
+                        aria-pressed={isSelected}
+                        onClick={() => { autoDay.current = false; setSelectedDate(day); clearTime(); }}
                         className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-[2px] border transition-all duration-200 ease-silk ${
                           isSelected
                             ? 'border-rose-800 bg-rose-800 text-pearl-50'
@@ -748,6 +905,15 @@ export function Booking() {
                   error={errors.clientPhone?.message}
                   {...register('clientPhone')}
                 />
+                {remembered && (
+                  <button
+                    type="button"
+                    onClick={forgetMe}
+                    className="inline-flex items-center min-h-[44px] text-sm text-rose-900/70 underline decoration-rose-900/25 underline-offset-4 hover:text-rose-900"
+                  >
+                    {t('booking.notYou')}
+                  </button>
+                )}
               </div>
 
               {submitCount > 0 && <FormSummary count={Object.keys(errors).length} />}
