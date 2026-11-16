@@ -13,27 +13,23 @@ function StartupScreen({ icon, title, body, children }: {
   body: string;
   children?: ReactNode;
 }) {
-  const { lang, toggleLang } = useLang();
+  const { toggleLang, t } = useLang();
   useSiteScope();
   return (
-    <main className="min-h-screen bg-cream-50 flex items-center justify-center px-4 py-12">
-      <div className="card w-full max-w-sm p-8 text-center">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-cream-100 text-rose-700">
-          {icon}
-        </div>
-        <h1 className="font-display text-2xl text-rose-800 mb-3">{title}</h1>
-        <p className="text-sm text-rose-700/80 mb-6">{body}</p>
+    <main className="min-h-screen bg-pearl-50 text-rose-900 flex items-center justify-center px-6 py-12">
+      <div className="w-full max-w-sm text-center">
+        <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center text-rose-900/60">{icon}</div>
+        <h1 className="font-display text-[2rem] leading-tight mb-3">{title}</h1>
+        <p className="text-[15px] text-rose-900/65 leading-relaxed mb-8">{body}</p>
         {children}
         <button
           type="button"
           onClick={toggleLang}
-          className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-rose-700 bg-cream-100 border border-cream-200 transition-all duration-200 ease-silk hover:bg-cream-200"
-          aria-label="Toggle language"
+          className="mt-4 inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-[2px] border border-rose-900/30 text-[15px] transition-colors duration-300 hover:border-rose-900"
+          aria-label={t('nav.switchLangLabel')}
         >
-          <Globe className="w-4 h-4" strokeWidth={1.8} />
-          <span className={lang === 'fr' ? 'font-semibold text-rose-800' : ''}>FR</span>
-          <span className="text-cream-400">|</span>
-          <span className={lang === 'ar' ? 'font-semibold text-rose-800' : ''}>AR</span>
+          <Globe className="w-4 h-4" strokeWidth={1.6} aria-hidden="true" />
+          {t('nav.switchLang')}
         </button>
       </div>
     </main>
