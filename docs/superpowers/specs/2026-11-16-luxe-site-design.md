@@ -138,3 +138,18 @@ centre-top; add a short photo guideline to `salons/README.md` (portrait or wide,
 - Exact sizes/spacing within the tokens above; component split; how the scope class is applied.
 - Desktop composition of the hero (the throwaway crops the face tight on wide screens; a split or an
   `object-position` per breakpoint are both fine).
+
+## Amendment (2026-11-16): La carte without the photo strip — user's choice "A"
+
+Seen on a phone after the build: the strip repeated the thumbnails right below it (the demo's sink photo showed
+three times in a row), the section ran to 2.4 screens for 6 services, rows didn't look tappable, and the strip
+put weak salon photos first. Options shown: A (tighter list, no strip), B (category tabs), C (signature cards +
+list). **The user chose A.**
+
+- No strip: every service photo appears once, as its row's thumbnail.
+- Row: thumbnail at the start; first line = name and price; below, the description at the full width of the
+  text column; last line = duration at the start and a small "Réserver ›" cue at the end (`services.book`, chevron
+  flipped in RTL). The whole row stays one link to `#booking` that opens the wizard on that service.
+- Everything else in the section is unchanged (title, subtitle, category headings, loading and error states).
+- Later, not now: tabs (B) automatically for salons with many services; signature cards (C) once salons have
+  strong photos.
