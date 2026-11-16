@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft, Check } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
-  formatAlgiersTime, toAdminError, useMyRole, useVisitParts, useCreateStaffBooking, useUpdateStaffBooking,
+  canManageVisit, formatAlgiersTime, toAdminError, liveParts, useMyRole, useRemoveVisitPart, useVisitParts, useCreateStaffBooking, useUpdateStaffBooking,
   visitOf, type AdminBooking, type AdminVisit, type StaffBookingInput,
 } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
+import { nameInText } from '../../data/formatters';
 import { clientNameSchema, mobilePhoneSchema } from '../../data/schemas';
 import { useAllServices, useAllStylists } from '../../data/queries';
 import { salonDate, salonInstant, salonMinutes, staffTimeOptions } from '../../data/week';
@@ -20,6 +21,7 @@ import { SelectField } from '../form/SelectField';
 import { DateField } from '../form/DateField';
 import { FormSummary } from '../form/FormSummary';
 import { applyServerError } from '../form/serverErrors';
+import { MoveVisitForm } from './MoveVisitForm';
 import { BookingSummary } from './BookingSummary';
 import { MessageReady } from './MessageReady';
 import { useBookingActions, type Notice } from './useBookingActions';
@@ -96,6 +98,10 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
   const demo = useMyRole() === 'demo';
   const create = useCreateStaffBooking();
   const update = useUpdateStaffBooking();
+  const removePart = useRemoveVisitPart();
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  // A refused move, kept for the summary in case the visit can no longer be moved (the form goes away).
+  const [moveError, setMoveError] = useState<string | null>(null);
   const actions = useBookingActions();
   const ask = useConfirm();
   const toast = useToast();
@@ -117,7 +123,17 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
   });
   const form = watch();
   const [error, setFormError] = useState<string | null>(null);
-  const [view, setView] = useState<'summary' | 'form'>(state.mode === 'edit' ? 'summary' : 'form');
+  const [view, setView] = useState<'summary' | 'form' | 'move'>(state.mode === 'edit' ? 'summary' : 'form');
+  const [moveDirty, setMoveDirty] = useState(false);
+  // The move form only while the visit can be moved: cancelled or changed elsewhere, back to the summary.
+  const canMove = !!visit && canManageVisit(visit).move;
+  const shown = view === 'move' && !canMove ? 'summary' : view;
+  useEffect(() => {
+    if (view === 'move' && !canMove) {
+      setView('summary');
+      setMoveDirty(false);
+    }
+  }, [view, canMove]);
   // A move (from the form) or "Message WhatsApp" sets this; confirm/refuse set actions.notice.
   const [ownNotice, setNotice] = useState<Notice | null>(null);
   const notice = ownNotice ?? actions.notice;
@@ -167,7 +183,8 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
 
   /** Backdrop, Escape and ✕ go through here: a half-typed booking or unsaved edit isn't thrown away silently. */
   const requestClose = async () => {
-    if (!notice && view === 'form' && dirty && !(await askDiscard(state.mode === 'add' ? 'admin.sheet.discardNew' : 'admin.sheet.discardChanges'))) {
+    if (!notice && shown === 'move' && moveDirty && !(await askDiscard('admin.sheet.discardChanges'))) return;
+    if (!notice && shown === 'form' && dirty && !(await askDiscard(state.mode === 'add' ? 'admin.sheet.discardNew' : 'admin.sheet.discardChanges'))) {
       return;
     }
     close();
@@ -182,6 +199,45 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
     reset(initialForm(state, lang));
     setFormError(null);
     setView('summary');
+  };
+
+  const backFromMove = async () => {
+    if (moveDirty && !(await askDiscard('admin.sheet.discardChanges'))) return;
+    setRemoveError(null);
+    setMoveError(null);
+    actions.clearError();
+    setMoveDirty(false);
+    setView('summary');
+  };
+
+  /** Cancels one part of the visit on the server (after asking); the other parts keep their time. */
+  const onRemovePart = async (part: AdminBooking) => {
+    if (!editing || !visit) return;
+    setRemoveError(null);
+    setMoveError(null);
+    const ok = await ask({
+      title: t('admin.removePart.title'),
+      text: t('admin.removePart.text').replace('{service}', part.serviceName[lang]).replace('{name}', nameInText(editing.clientName, lang)),
+      confirmLabel: t('admin.removePart.confirm'),
+      cancelLabel: t('admin.removePart.keep'),
+      danger: true,
+    });
+    if (!ok) return;
+    removePart.mutate(part.id, {
+      onSuccess: () => {
+        const rest = liveParts(visit).filter((p) => p.id !== part.id);
+        const names = (l: Lang) => rest.map((p) => p.serviceName[l]).join(' + ');
+        toast(t('admin.toast.partRemoved'));
+        setNotice({
+          kind: 'changed',
+          booking: {
+            startsAt: rest[0].startsAt, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang,
+            serviceName: { fr: names('fr'), ar: names('ar') },
+          },
+        });
+      },
+      onError: (err) => setRemoveError(t(`admin.error.${toAdminError(err)}`)),
+    });
   };
 
   const save = (values: StaffBookingInput) => {
@@ -225,7 +281,7 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
     );
   };
 
-  const title = notice ? t(`admin.ready.${notice.kind}`) : t(state.mode === 'add' ? 'admin.sheet.addTitle' : 'admin.sheet.editTitle');
+  const title = notice ? t(`admin.ready.${notice.kind}`) : shown === 'move' && editing ? t('admin.move.title') : t(state.mode === 'add' ? 'admin.sheet.addTitle' : 'admin.sheet.editTitle');
 
   return (
     <Sheet
@@ -244,17 +300,38 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
     >
       {notice ? (
         <MessageReady notice={notice} onSend={close} onLater={close} />
-      ) : editing && visit && view === 'summary' ? (
+      ) : editing && visit && shown === 'summary' ? (
         <BookingSummary
           booking={editing}
           visit={visit}
-          onConfirm={() => actions.confirm(visit, editing)}
-          onRefuse={() => actions.refuse(visit, editing)}
-          onCancel={() => actions.refuse(visit, editing)}
+          onConfirm={() => { setRemoveError(null); setMoveError(null); actions.confirm(visit, editing); }}
+          onRefuse={() => { setRemoveError(null); setMoveError(null); actions.refuse(visit, editing); }}
+          onCancel={() => { setRemoveError(null); setMoveError(null); actions.refuse(visit, editing); }}
           onMessage={() => setNotice({ kind: 'confirmed', booking: { ...visit.first, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang, serviceName: visit.serviceName } })}
-          onEdit={() => setView('form')}
-          busy={actions.pendingId === visit.id}
-          error={actions.error}
+          onEdit={() => { setRemoveError(null); setMoveError(null); setView('form'); }}
+          onMove={() => { setRemoveError(null); setMoveError(null); actions.clearError(); setView('move'); }}
+          onRemovePart={onRemovePart}
+          busy={actions.pendingId === visit.id || removePart.isPending}
+          error={removeError ?? moveError ?? actions.error}
+        />
+      ) : editing && visit && shown === 'move' ? (
+        <MoveVisitForm
+          visit={visit}
+          onBack={backFromMove}
+          onDirtyChange={setMoveDirty}
+          onFailed={setMoveError}
+          onMoved={(newStart) => {
+            const live = liveParts(visit);
+            const names = (l: Lang) => live.map((p) => p.serviceName[l]).join(' + ');
+            toast(t('admin.toast.visitMoved'));
+            setNotice({
+              kind: 'moved',
+              booking: {
+                startsAt: newStart, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang,
+                serviceName: { fr: names('fr'), ar: names('ar') },
+              },
+            });
+          }}
         />
       ) : (
         <form className="space-y-3" noValidate onSubmit={handleSubmit(save)}>

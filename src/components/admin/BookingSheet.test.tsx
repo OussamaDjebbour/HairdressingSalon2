@@ -34,6 +34,8 @@ vi.mock('../../data/salonSettings', async () => {
 const create = vi.fn();
 const update = vi.fn();
 const setStatus = vi.fn();
+const removePart = vi.fn();
+const moveVisit = vi.fn();
 let pending = false;
 let visitParts: import('../../data/admin').AdminBooking[] | undefined;
 let role: 'owner' | 'demo' | null = 'owner';
@@ -42,6 +44,8 @@ vi.mock('../../data/admin', async (importOriginal) => ({
   useCreateStaffBooking: () => ({ mutate: create, isPending: pending }),
   useUpdateStaffBooking: () => ({ mutate: update, isPending: pending }),
   useSetBookingStatus: () => ({ mutate: setStatus, isPending: pending }),
+  useRemoveVisitPart: () => ({ mutate: removePart, isPending: pending }),
+  useMoveVisit: () => ({ mutate: moveVisit, isPending: pending }),
   useMyRole: () => role,
   useVisitParts: () => ({ data: visitParts }),
 }));
@@ -676,6 +680,228 @@ describe('BookingSheet — visit', () => {
     expect(items).toHaveLength(3);
     expect(items[2]).toHaveTextContent('12:00 Manucure · Leila');
     expect(screen.getByText('10 000 DA')).toBeInTheDocument();
+  });
+
+  describe('Retirer', () => {
+    const cancelledSecond = { ...second, status: 'cancelled' as const };
+    beforeEach(() => { removePart.mockReset(); });
+
+    it('shows Retirer on each part of a two-part visit', () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      expect(screen.getByRole('button', { name: 'Retirer Coupe & Brushing' })).toHaveClass('tap');
+      expect(screen.getByRole('button', { name: 'Retirer Coloration' })).toHaveClass('tap');
+    });
+
+    it('the per-part edit link reads Modifier cette partie on a visit, Modifier ou déplacer on a single booking', () => {
+      const { unmount: un } = render(
+        <LanguageProvider><FeedbackProvider><BookingSheet state={{ mode: 'edit', booking: first }} onClose={vi.fn()} visit={visit} /></FeedbackProvider></LanguageProvider>
+      );
+      expect(screen.getByRole('button', { name: 'Modifier cette partie' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Modifier ou déplacer' })).toBeNull();
+      un();
+      renderSheet({ mode: 'edit', booking: adminBooking() });
+      expect(screen.getByRole('button', { name: 'Modifier ou déplacer' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Modifier cette partie' })).toBeNull();
+    });
+
+    it('the Retirer question names the client and the service', async () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      const dialog = await screen.findByRole('alertdialog', { name: 'Retirer cette prestation ?' });
+      expect(dialog).toHaveTextContent('La prestation « Coloration » sera retirée de la visite de Yasmine.');
+    });
+
+    it('no Retirer on a visit of one', () => {
+      renderSheet({ mode: 'edit', booking: adminBooking() });
+      expect(screen.queryByRole('button', { name: /^Retirer/ })).toBeNull();
+    });
+
+    it('no Retirer when the other part is cancelled', () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visitOf(first, [first, cancelledSecond]));
+      expect(screen.queryByRole('button', { name: /^Retirer/ })).toBeNull();
+    });
+
+    it('Retirer asks first, then calls admin_remove_visit_part with that part\'s id', async () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      const dialog = await screen.findByRole('alertdialog', { name: 'Retirer cette prestation ?' });
+      expect(dialog).toHaveTextContent('Coloration');
+      expect(dialog).toHaveTextContent('Yasmine');
+      await answer('Retirer cette prestation ?', 'Garder');
+      expect(removePart).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      await answer('Retirer cette prestation ?', 'Retirer');
+      expect(removePart).toHaveBeenCalledWith('p2', expect.anything());
+    });
+
+    it('after Retirer: toast and the changed message names the remaining service and its start', async () => {
+      removePart.mockImplementation((_id, opts) => opts.onSuccess());
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      await answer('Retirer cette prestation ?', 'Retirer');
+      expect(await screen.findByText('Prestation retirée')).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Visite modifiée' })).toBeInTheDocument();
+      const text = whatsappText();
+      expect(text).toContain('Coupe & Brushing');
+      expect(text).not.toContain('Coloration');
+      expect(text).toContain('10:00');
+    });
+
+    it('Retirer error shows inline', async () => {
+      removePart.mockImplementation((_id, opts) => opts.onError(new Error('last_part')));
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      await answer('Retirer cette prestation ?', 'Retirer');
+      expect(await screen.findByRole('alert')).toHaveTextContent('dernière prestation');
+    });
+    it('a later failed Confirmer replaces a stale Retirer error', async () => {
+      removePart.mockImplementation((_id, opts) => opts.onError(new Error('last_part')));
+      setStatus.mockImplementation((_input, opts) => opts.onError(new Error('slot_taken')));
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      await answer('Retirer cette prestation ?', 'Retirer');
+      expect(await screen.findByRole('alert')).toHaveTextContent('dernière prestation');
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }));
+      expect(screen.getByRole('alert')).not.toHaveTextContent('dernière prestation');
+    });
+
+    it('a cancelled part is not listed and the total counts live parts only', () => {
+      const third = adminBooking({
+        id: 'p3', visitId: 'v1', startIso: '2030-01-08T11:00:00Z', price: 1500, serviceId: 'manucure',
+        serviceName: { fr: 'Manucure', ar: 'مانيكير' }, stylistId: 'leila', stylistName: 'Leila', status: 'cancelled',
+      });
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visitOf(first, [first, second, third]));
+      const items = within(screen.getByRole('list', { name: 'Toute la visite' })).getAllByRole('listitem');
+      expect(items).toHaveLength(2);
+      expect(screen.queryByText(/Manucure/)).toBeNull();
+      expect(screen.getByText('8 500 DA')).toBeInTheDocument();
+    });
+
+    it('a fully cancelled visit still lists every part, without Retirer', () => {
+      const c1 = { ...first, status: 'cancelled' as const };
+      renderSheet({ mode: 'edit', booking: c1 }, vi.fn(), visitOf(c1, [c1, cancelledSecond]));
+      expect(within(screen.getByRole('list', { name: 'Toute la visite' })).getAllByRole('listitem')).toHaveLength(2);
+      expect(screen.queryByRole('button', { name: /^Retirer/ })).toBeNull();
+    });
+  });
+
+  describe('Déplacer', () => {
+    const move = () => screen.queryByRole('button', { name: 'Déplacer la visite' });
+
+    it('shows only for a movable visit', () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      expect(move()).toBeInTheDocument();
+    });
+
+    it('is hidden for a visit of one, a cancelled visit, and a visit over two days', () => {
+      const cases = [
+        { b: adminBooking(), v: undefined },
+        { b: first, v: visitOf(first, [first, { ...second, status: 'cancelled' as const }]) },
+        { b: first, v: visitOf(first, [first, { ...second, startsAt: new Date('2030-01-09T10:00:00Z'), endsAt: new Date('2030-01-09T11:00:00Z') }]) },
+      ];
+      for (const c of cases) {
+        const { unmount: un } = render(
+          <LanguageProvider><FeedbackProvider><BookingSheet state={{ mode: 'edit', booking: c.b }} onClose={vi.fn()} visit={c.v} /></FeedbackProvider></LanguageProvider>
+        );
+        expect(move()).toBeNull();
+        un();
+      }
+    });
+
+    it('the move view is titled Déplacer la visite', () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      expect(screen.getByRole('dialog', { name: 'Déplacer la visite' })).toBeInTheDocument();
+    });
+
+    it('closing from the move view with changes asks to discard', async () => {
+      const onClose = renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      pickOption('Heure', '14:00');
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+      await answer('Abandonner les modifications non enregistrées ?', 'Continuer');
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closing from an unchanged move view does not ask', async () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+
+    it('a stale Retirer error is cleared when entering and leaving the move view', async () => {
+      removePart.mockImplementation((_id, opts) => opts.onError(new Error('last_part')));
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(screen.getByRole('button', { name: 'Retirer Coloration' }));
+      await answer('Retirer cette prestation ?', 'Retirer');
+      expect(await screen.findByRole('alert')).toBeInTheDocument();
+      fireEvent.click(move()!);
+      expect(screen.queryByRole('alert')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Retour au résumé' }));
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('the moved message uses the opened booking client', async () => {
+      moveVisit.mockImplementation((_i, opts) => opts.onSuccess());
+      const named = { ...first, clientName: 'Nadia', clientPhone: '0770998877' };
+      renderSheet({ mode: 'edit', booking: named }, vi.fn(), visitOf(named, [named, second]));
+      fireEvent.click(move()!);
+      pickOption('Heure', '14:00');
+      fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
+      await screen.findByText('Visite déplacée');
+      expect(whatsappText()).toContain('Nadia');
+      expect(screen.getByRole('link', { name: /Envoyer sur WhatsApp/ }).getAttribute('href')).toContain('213770998877');
+    });
+
+    it('a visit cancelled elsewhere: a refused move falls back to the summary with the error', () => {
+      const cancelled = [first, second].map((p) => ({ ...p, status: 'cancelled' as const }));
+      moveVisit.mockImplementation((_i, opts) => {
+        // The refusal invalidates ['admin']: the visit's parts come back all cancelled.
+        visitParts = cancelled;
+        opts.onError(new Error('not_movable'));
+      });
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      pickOption('Heure', '14:00');
+      fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
+      expect(screen.queryByRole('button', { name: 'Déplacer' })).toBeNull();
+      // The summary again (the opened part is the caller's snapshot; the other one is now cancelled).
+      expect(screen.queryByRole('dialog', { name: 'Déplacer la visite' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('Cette visite ne peut pas être déplacée.');
+      expect(move()).toBeNull();
+    });
+
+    it('the move view gives way to the summary when the visit stops being movable on a refetch', () => {
+      const { rerender } = render(
+        <LanguageProvider><FeedbackProvider><BookingSheet state={{ mode: 'edit', booking: first }} onClose={vi.fn()} visit={visit} /></FeedbackProvider></LanguageProvider>
+      );
+      fireEvent.click(move()!);
+      expect(screen.getByRole('dialog', { name: 'Déplacer la visite' })).toBeInTheDocument();
+      visitParts = [first, second].map((p) => ({ ...p, status: 'cancelled' as const }));
+      rerender(
+        <LanguageProvider><FeedbackProvider><BookingSheet state={{ mode: 'edit', booking: first }} onClose={vi.fn()} visit={visit} /></FeedbackProvider></LanguageProvider>
+      );
+      expect(screen.queryByRole('button', { name: 'Déplacer' })).toBeNull();
+      // The summary again (the opened part is the caller's snapshot; the other one is now cancelled).
+      expect(screen.queryByRole('dialog', { name: 'Déplacer la visite' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+    });
+
+    it('after a move: toast and the moved message with all services and the new start', async () => {
+      moveVisit.mockImplementation((_i, opts) => opts.onSuccess());
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      pickOption('Heure', '14:00');
+      fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
+      expect(await screen.findByText('Visite déplacée')).toBeInTheDocument();
+      const text = whatsappText();
+      expect(text).toContain('Coupe & Brushing + Coloration');
+      expect(text).toContain('14:00');
+    });
   });
 
   it('a visit of one looks as before', () => {

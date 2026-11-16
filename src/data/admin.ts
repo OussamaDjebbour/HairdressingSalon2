@@ -5,6 +5,7 @@ import { toYmd } from './bookings';
 import { useSession } from '../lib/auth';
 import { algiersToday, formatAlgiersTime } from './algiersTime';
 import { fetchDemoLogin } from './demoLogin';
+import { salonDate } from './week';
 
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
 /** Where a booking came from: the public form, or added by the owner in /admin. */
@@ -271,6 +272,54 @@ export function useUpdateStaffBooking() {
   return useAdminWrite(updateStaffBooking);
 }
 
+export async function removeVisitPart(id: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_remove_visit_part', { p_id: id });
+  if (error) throw error;
+}
+
+export function useRemoveVisitPart() {
+  return useAdminWrite(removeVisitPart);
+}
+
+export interface MoveVisitInput {
+  /** Any part of the visit. */
+  id: string;
+  date: Date;
+  /** "HH:MM", salon wall-clock time of the first part. */
+  time: string;
+  /** Booking id → stylist id, for every live part. */
+  stylists: Record<string, string>;
+}
+
+export async function moveVisit(input: MoveVisitInput): Promise<void> {
+  const { error } = await supabase.rpc('admin_move_visit', {
+    p_id: input.id, p_date: toYmd(input.date), p_time: input.time, p_stylists: input.stylists,
+  });
+  if (error) throw error;
+}
+
+export function useMoveVisit() {
+  return useAdminWrite(moveVisit);
+}
+
+/** Non-cancelled parts by start, then id: the server's `item:<n>` order. */
+export function liveParts(v: AdminVisit): AdminBooking[] {
+  return v.parts
+    .filter((p) => p.status !== 'cancelled')
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/** What the owner may do to a visit: remove one part (2+ live) / move it whole (all open, one day). */
+export function canManageVisit(v: AdminVisit): { remove: boolean; move: boolean } {
+  const live = liveParts(v);
+  const remove = live.length >= 2;
+  const move =
+    remove &&
+    live.every((p) => p.status === 'pending' || p.status === 'confirmed') &&
+    new Set(live.map((p) => salonDate(p.startsAt).getTime())).size === 1;
+  return { remove, move };
+}
+
 export type AdminErrorCode =
   | 'not_authorized'
   | 'invalid_name'
@@ -279,10 +328,14 @@ export type AdminErrorCode =
   | 'outside_hours'
   | 'slot_taken'
   | 'not_found'
+  | 'last_part'
+  | 'not_movable'
+  | 'visit_spans_days'
   | 'unknown';
 
 const ADMIN_ERROR_CODES: readonly AdminErrorCode[] = [
   'not_authorized', 'invalid_name', 'invalid_phone', 'unknown_service', 'outside_hours', 'slot_taken', 'not_found',
+  'last_part', 'not_movable', 'visit_spans_days',
 ];
 
 export function toAdminError(err: unknown): AdminErrorCode {

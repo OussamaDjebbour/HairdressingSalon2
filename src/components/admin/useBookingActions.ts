@@ -64,6 +64,7 @@ export function useBookingActions(onDone?: (visit: AdminVisit, status: 'confirme
       });
       if (ok) run(v, 'cancelled', contact);
     },
+    clearError: () => { setError(null); setErrorId(null); },
     pendingId,
     error,
     errorId,

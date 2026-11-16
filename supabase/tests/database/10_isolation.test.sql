@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(79);
+select plan(86);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -77,6 +77,13 @@ values
    '2030-01-08 10:00+01', '2030-01-08 11:00+01', 1000, 'Rival Client', '0555999999', 'fr', 'pending'),
   ('aaaaaaaa-0000-0000-0000-000000000001', 'elegance', 'coupe-femme', 'amina',
    '2030-01-08 09:00+01', '2030-01-08 10:00+01', 2500, 'Own', '0555000000', 'fr', 'pending');
+-- a two-part visit in each salon (dates kept out of January 2030 so the rival list stays one row)
+insert into private.bookings (id, visit_id, salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, status)
+values
+  ('bbbbbbbb-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-0000000000b0', 'rival', 'rival-cut', 'nadia', '2031-03-05 10:00+01', '2031-03-05 11:00+01', 1000, 'Rival Visit', '0555999998', 'fr', 'pending'),
+  ('bbbbbbbb-0000-0000-0000-000000000003', 'bbbbbbbb-0000-0000-0000-0000000000b0', 'rival', 'rival-cut', 'nadia', '2031-03-05 11:00+01', '2031-03-05 12:00+01', 1000, 'Rival Visit', '0555999998', 'fr', 'pending'),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'aaaaaaaa-0000-0000-0000-0000000000a0', 'elegance', 'maquillage', 'leila', '2031-03-05 10:00+01', '2031-03-05 11:30+01', 5000, 'Own Visit', '0555000010', 'fr', 'pending'),
+  ('aaaaaaaa-0000-0000-0000-000000000003', 'aaaaaaaa-0000-0000-0000-0000000000a0', 'elegance', 'soin-visage', 'leila', '2031-03-05 11:30+01', '2031-03-05 12:45+01', 3500, 'Own Visit', '0555000010', 'fr', 'pending');
 
 create function pg_temp.act_as(p_uid text) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true) $$;
@@ -91,6 +98,9 @@ select throws_ok($$ select public.admin_create_booking('rival-cut', 'amina', '20
 select throws_ok($$ select public.admin_create_booking('coupe-femme', 'nadia', '2030-01-08', '10:00', 'Hack', '0555000000', 'fr') $$, 'P0001', 'unknown_service', 'create: other salon''s stylist');
 -- own booking moved onto the other salon's stylist/service:
 select throws_ok($$ select public.admin_update_booking('aaaaaaaa-0000-0000-0000-000000000001', 'rival-cut', 'nadia', '2030-01-08', '10:00', 'Own', '0555000000', 'fr') $$, 'P0001', 'unknown_service', 'update: cannot move to other salon''s service/stylist');
+select throws_ok($$ select public.admin_remove_visit_part('bbbbbbbb-0000-0000-0000-000000000002') $$, 'P0001', 'not_found', 'remove_visit_part: other salon''s booking is not_found');
+select throws_ok($$ select public.admin_move_visit('bbbbbbbb-0000-0000-0000-000000000002', '2031-03-06', '10:00', '{}') $$, 'P0001', 'not_found', 'move_visit: other salon''s booking is not_found');
+select throws_ok($$ select public.admin_move_visit('aaaaaaaa-0000-0000-0000-000000000002', '2031-03-06', '10:00', '{"aaaaaaaa-0000-0000-0000-000000000003": "nadia"}') $$, 'P0001', 'unknown_service', 'move_visit: cannot give a part to another salon''s stylist');
 select is((select salon_id from private.bookings where client_name = 'Walkin'), 'elegance', 'create stores my salon');
 -- row-level security on the table itself
 select is((select count(*)::int from private.bookings where salon_id <> 'elegance'), 0, 'RLS: staff read only their salon''s rows');
@@ -109,6 +119,11 @@ select is((select status || ' ' || client_name || ' ' || stylist_id from private
           'pending Rival Client nadia', 'other salon''s booking unchanged');
 select is((select service_id || ' ' || stylist_id from private.bookings where id = 'aaaaaaaa-0000-0000-0000-000000000001'),
           'coupe-femme amina', 'own booking not moved to the other salon');
+select is((select string_agg(status || ' ' || stylist_id || ' ' || starts_at || ' ' || visit_id, ', ' order by id) from private.bookings where id in ('bbbbbbbb-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000003')),
+          'pending nadia 2031-03-05 09:00:00+00 bbbbbbbb-0000-0000-0000-0000000000b0, pending nadia 2031-03-05 10:00:00+00 bbbbbbbb-0000-0000-0000-0000000000b0',
+          'remove/move visit: other salon''s visit unchanged');
+select is((select string_agg(status || ' ' || stylist_id || ' ' || starts_at, ', ' order by id) from private.bookings where visit_id = 'aaaaaaaa-0000-0000-0000-0000000000a0'),
+          'pending leila 2031-03-05 09:00:00+00, pending leila 2031-03-05 10:30:00+00', 'move_visit: own visit not moved onto another salon''s stylist');
 
 select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
 set local role authenticated;
@@ -268,6 +283,11 @@ values ('c1000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-0000000
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select public.admin_set_booking_status('c1000000-0000-0000-0000-000000000002', 'confirmed');
+reset role;
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select throws_ok($$ select public.admin_remove_visit_part('c1000000-0000-0000-0000-000000000002') $$, 'P0001', 'last_part', 'remove_visit_part: another salon''s row with the same visit id is not a part');
+select throws_ok($$ select public.admin_move_visit('c1000000-0000-0000-0000-000000000002', '2031-03-05', '10:00', '{}') $$, 'P0001', 'not_movable', 'move_visit: another salon''s row with the same visit id is not a part');
 reset role;
 select is((select status from private.bookings where id = 'c1000000-0000-0000-0000-000000000001'), 'pending', 'a shared visit id never reaches another salon');
 
