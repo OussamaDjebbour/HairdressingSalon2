@@ -71,6 +71,13 @@ describe('StylistsSettings', () => {
     expect(screen.getAllByText('Masquée')).toHaveLength(1);
   });
 
+  it('the stylist form doesn\'t offer packs', () => {
+    services = [...services, { ...svc('pk', 'Pack mariée', true), category: 'pack' }];
+    renderIt();
+    fireEvent.click(screen.getByText('Amina'));
+    expect(screen.queryByLabelText(/Pack mariée/)).not.toBeInTheDocument();
+  });
+
   it('saves the full arrays, hidden linked services included', async () => {
     renderIt();
     fireEvent.click(screen.getByText('Amina'));

@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Service } from '../../data/types';
-import { pickOption } from '../../test/select';
+import { pickOption, optionNames } from '../../test/select';
 
 const rpc = vi.fn();
 const upload = vi.fn();
@@ -187,6 +187,33 @@ describe('ServicesSettings', () => {
     expect(await screen.findByText('Prestation masquée')).toBeInTheDocument();
     const link = await screen.findByRole('link', { name: /Sara/ });
     expect(link).toHaveAttribute('href', '/admin?day=2030-01-08&booking=b1');
+  });
+
+  it('the service list marks a running promotion', () => {
+    services = [
+      svc('a1', 'Brushing', true, 1),
+      { ...svc('a2', 'Coloration', true, 2), promo: { price: 2000, from: '2000-01-01', to: '2999-12-31' } },
+      { ...svc('p1', 'Pack', true, 3), category: 'pack' },
+    ];
+    renderIt();
+    expect(screen.getAllByTestId('service-name').map((n) => n.textContent)).toEqual(['Brushing', 'Coloration']);
+    expect(screen.getByText(/Promotion en cours/)).toHaveTextContent('2 000 DA');
+  });
+
+  it('the service form doesn\'t offer the pack category', () => {
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    expect(optionNames('Catégorie')).toEqual(['Coiffure', 'Beauté', 'Spa']);
+  });
+
+  it('keeps an existing promotion when the service is saved', async () => {
+    services = [{ ...svc('a1', 'Brushing', true, 1), promo: { price: 2000, from: '2000-01-01', to: '2999-12-31' } }];
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.objectContaining({ p_promo_price: 2000, p_promo_from: '2000-01-01', p_promo_to: '2999-12-31' }))
+    );
   });
 
   it('shows no card when nothing is affected', async () => {

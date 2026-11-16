@@ -106,8 +106,9 @@ function SettingsHome() {
           <Row
             to="/admin/settings/services"
             label={t('settings.services')}
-            summary={services.data && t('settings.servicesSummary').replace('{n}', String(services.data.length))}
+            summary={services.data && t('settings.servicesSummary').replace('{n}', String(services.data.filter((x) => x.category !== 'pack').length))}
           />
+          <Row to="/admin/settings/packs" label={t('settings.section.packs')} />
           <Row
             to="/admin/settings/stylists"
             label={t('settings.stylists')}
