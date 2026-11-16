@@ -30,7 +30,6 @@ import { salonSubtitle } from '../data/formatters';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { Hero } from './Hero';
-import { TrustBadges } from './TrustBadges';
 import { Philosophy } from './Philosophy';
 import { AdminShell } from './admin/AdminShell';
 
@@ -63,7 +62,6 @@ const page = (
   <>
     <Navbar />
     <Hero />
-    <TrustBadges />
     <Philosophy />
     <Footer />
   </>
@@ -86,13 +84,10 @@ describe('a salon without claims or story', () => {
     expect(screen.getByText('Maison de beauté, Oran')).toBeInTheDocument();
   });
 
-  it('shows only the stylist count, no rating line and no story', () => {
-    renderAll(page);
-    expect(screen.getByText('2')).toBeInTheDocument();
-    expect(screen.queryByText('15+')).toBeNull();
-    expect(screen.queryByText('4,9')).toBeNull();
-    expect(screen.queryByText(/avis vérifiés/)).toBeNull();
-    expect(screen.queryByText('La maison')).toBeNull();
+  it('shows no claims, no rating and no story', () => {
+    const { container } = renderAll(page);
+    expect(container.textContent).not.toMatch(/Depuis|Plus de|\/5|clientes/);
+    expect(container.querySelector('blockquote')).toBeNull();
   });
 
   it('shows a photo-less tile instead of a hero image', () => {
@@ -115,23 +110,18 @@ describe('a salon without claims or story', () => {
 describe('Élégance', () => {
   it('keeps its claims, story and founder', () => {
     renderAll(page);
-    expect(screen.getByText('15+')).toBeInTheDocument();
-    expect(screen.getByText('2 500+')).toBeInTheDocument();
-    expect(screen.getAllByText('4,9').length).toBeGreaterThan(0);
+    expect(screen.getByText('Depuis 15 ans à Oran. Plus de 2 500 clientes.')).toBeInTheDocument();
     expect(screen.getByText('Maison de beauté, Oran — 4,9/5')).toBeInTheDocument();
     expect(screen.getByText('Amina')).toBeInTheDocument();
     expect(screen.getByText(/Fondatrice & coiffeuse/)).toBeInTheDocument();
     expect(screen.getByText(/Depuis quinze ans/)).toBeInTheDocument();
   });
 
-  it('shows its claims in Arabic: Latin "15+", "2 500+", "4,9"; Arabic digits for counts', () => {
+  it('shows its claims in Arabic with Latin claim digits', () => {
     renderAll(page);
     fireEvent.click(screen.getByRole('button', { name: 'Afficher le site en arabe' }));
-    expect(screen.getByText('15+')).toBeInTheDocument();
-    expect(screen.getByText('2 500+')).toBeInTheDocument();
-    expect(screen.getByText('4,9')).toBeInTheDocument();
+    expect(screen.getByText('منذ 15 سنة في وهران. أكثر من 2 500 عميلة.')).toBeInTheDocument();
     expect(screen.getByText('صالون تجميل، وهران — 4,9/5')).toBeInTheDocument();
-    expect(screen.getByText('٢')).toBeInTheDocument();
   });
 });
 

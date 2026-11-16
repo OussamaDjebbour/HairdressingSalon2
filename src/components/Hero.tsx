@@ -1,7 +1,7 @@
 import { translations, useLang } from '../context/LanguageContext';
 import { useSalon } from '../data/salon';
 import { useSalonInfo } from '../data/salonSettings';
-import { heroLine } from '../data/formatters';
+import { claimsSentence, heroLine } from '../data/formatters';
 
 /**
  * The first screen: the salon's own photo full height, its name very large, the tagline in both
@@ -11,6 +11,7 @@ export function Hero() {
   const { t, lang } = useLang();
   const salon = useSalon();
   const city = useSalonInfo().data?.city[lang];
+  const claims = claimsSentence(t, lang, salon.yearsOpen, salon.clientCount, city);
 
   return (
     <section id="home" className="relative min-h-[100svh] flex items-end overflow-hidden bg-rose-900 text-pearl-50">
@@ -57,6 +58,8 @@ export function Hero() {
         </div>
 
         <p className="hero-sub mt-12 text-sm text-pearl-50/65">{heroLine(t, city, salon.rating)}</p>
+        {/* Without a story there is no "La maison" section: the claims sit here instead. */}
+        {!salon.story && claims && <p className="hero-sub mt-1.5 text-sm text-pearl-50/65">{claims}</p>}
       </div>
     </section>
   );

@@ -177,6 +177,27 @@ export function heroLine(t: (key: string) => string, city: string | undefined, r
   return rating === null ? line : `${line} — ${formatClaim(rating)}/5`;
 }
 
+/**
+ * The salon's claims as one plain sentence ("Depuis 15 ans à Alger. Plus de 2 500 clientes."), only
+ * with the claims it set; null when it set none. Claim numbers keep Latin digits in both languages.
+ */
+export function claimsSentence(
+  t: (key: string) => string,
+  _lang: Lang,
+  yearsOpen: number | null,
+  clientCount: number | null,
+  city: string | undefined
+): string | null {
+  const name = city?.trim();
+  const parts: string[] = [];
+  if (yearsOpen !== null) {
+    const years = formatClaim(yearsOpen);
+    parts.push(name ? t('maison.years').replace('{years}', years).replace('{city}', name) : t('maison.yearsNoCity').replace('{years}', years));
+  }
+  if (clientCount !== null) parts.push(t('maison.clients').replace('{count}', formatClaim(clientCount)));
+  return parts.length ? parts.join(' ') : null;
+}
+
 /** The hero/footer sentence naming the city, with French elision ("au cœur d’Alger", "au cœur de Blida"). */
 export function salonSubtitle(t: (key: string) => string, lang: Lang, city: string | undefined): string {
   const name = city?.trim();

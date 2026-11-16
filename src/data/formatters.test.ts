@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { heroLine, formatAgo, formatClaim, formatCompactDate, formatCompactRange, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
+import { translations } from '../context/LanguageContext';
+import { claimsSentence, heroLine, formatAgo, formatClaim, formatCompactDate, formatCompactRange, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
 
 const LRI = '⁦'; // LEFT-TO-RIGHT ISOLATE
 const PDI = '⁩'; // POP DIRECTIONAL ISOLATE
@@ -125,5 +126,25 @@ describe('heroLine', () => {
   it('falls back to the plain line without city or rating', () => {
     expect(heroLine(t, undefined, null)).toBe('Maison de beauté');
     expect(heroLine(t, '  ', 4)).toBe('Maison de beauté — 4/5');
+  });
+});
+
+describe('claimsSentence', () => {
+  const tr = (lang: 'fr' | 'ar') => (k: string) => translations[lang][k];
+  it('names the years, the city and the clients', () => {
+    expect(claimsSentence(tr('fr'), 'fr', 15, 2500, 'Alger')).toBe('Depuis 15 ans à Alger. Plus de 2 500 clientes.');
+  });
+  it('says only the years when there is no client count', () => {
+    expect(claimsSentence(tr('fr'), 'fr', 8, null, 'Oran')).toBe('Depuis 8 ans à Oran.');
+    expect(claimsSentence(tr('fr'), 'fr', 8, null, undefined)).toBe('Depuis 8 ans.');
+  });
+  it('says only the clients when there is no year count', () => {
+    expect(claimsSentence(tr('fr'), 'fr', null, 900, 'Oran')).toBe('Plus de 900 clientes.');
+  });
+  it('is null without claims', () => {
+    expect(claimsSentence(tr('fr'), 'fr', null, null, 'Oran')).toBeNull();
+  });
+  it('speaks Arabic with the same Latin claim digits', () => {
+    expect(claimsSentence(tr('ar'), 'ar', 15, 2500, 'الجزائر العاصمة')).toBe('منذ 15 سنة في الجزائر العاصمة. أكثر من 2 500 عميلة.');
   });
 });
