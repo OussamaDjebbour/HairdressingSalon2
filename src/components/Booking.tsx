@@ -816,6 +816,10 @@ export function Booking() {
             </div>
           )}
 
+          {/* Room for the bar's fade (h-10) after the last service, so at the end of the list the fade
+              covers this space and never the last card. */}
+          {step === 0 && <div data-fade-room aria-hidden="true" className="h-10 shrink-0" />}
+
           {/* Navigation (on the service step it sticks to the bottom of the screen with the running total) */}
           <div
             className={

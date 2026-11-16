@@ -979,4 +979,12 @@ describe('Booking service step on the client page', () => {
     expect(bar).not.toHaveClass('border-t');
     expect(bar.querySelector('[data-fade]')).toHaveAttribute('aria-hidden', 'true');
   });
+
+  it('leaves room after the last service so the fade never covers it at the end of the list', () => {
+    renderWizard();
+    const bar = screen.getByRole('button', { name: /Continuer/ }).closest('.sticky') as HTMLElement;
+    const room = bar.previousElementSibling as HTMLElement;
+    expect(room).toHaveAttribute('data-fade-room');
+    expect(room).toHaveClass('h-10');
+  });
 });
