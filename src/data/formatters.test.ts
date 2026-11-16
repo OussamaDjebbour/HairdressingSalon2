@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatAgo, formatClaim, formatCompactDate, formatCompactRange, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
+import { heroLine, formatAgo, formatClaim, formatCompactDate, formatCompactRange, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
 
 const LRI = '⁦'; // LEFT-TO-RIGHT ISOLATE
 const PDI = '⁩'; // POP DIRECTIONAL ISOLATE
@@ -111,5 +111,19 @@ describe('formatCompactRange', () => {
   it('names both months when they differ', () => {
     expect(formatCompactRange(new Date(2026, 10, 30), new Date(2026, 11, 2), 'fr')).toBe('Lun. 30 nov. → Mer. 2 déc.');
     expect(formatCompactRange(new Date(2026, 11, 30), new Date(2027, 0, 2), 'fr')).toBe('Mer. 30 déc. → Sam. 2 janv.');
+  });
+});
+
+describe('heroLine', () => {
+  const t = (k: string) => ({ 'hero.line': 'Maison de beauté, {city}', 'hero.lineNoCity': 'Maison de beauté' })[k] ?? k;
+  it('names the city and the rating', () => {
+    expect(heroLine(t, 'Alger', 4.9)).toBe('Maison de beauté, Alger — 4,9/5');
+  });
+  it('names the city alone when there is no rating', () => {
+    expect(heroLine(t, 'Oran', null)).toBe('Maison de beauté, Oran');
+  });
+  it('falls back to the plain line without city or rating', () => {
+    expect(heroLine(t, undefined, null)).toBe('Maison de beauté');
+    expect(heroLine(t, '  ', 4)).toBe('Maison de beauté — 4/5');
   });
 });

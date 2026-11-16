@@ -81,9 +81,9 @@ describe('a salon without claims or story', () => {
     expect(container.textContent).not.toContain('Élégance');
   });
 
-  it('puts the salon city in the subtitle', () => {
+  it('puts the salon city in the hero line', () => {
     renderAll(<Hero />);
-    expect(screen.getByText(/au cœur d\u2019Oran,/)).toBeInTheDocument();
+    expect(screen.getByText('Maison de beauté, Oran')).toBeInTheDocument();
   });
 
   it('shows only the stylist count, no rating line and no story', () => {
@@ -118,19 +118,19 @@ describe('Élégance', () => {
     expect(screen.getByText('15+')).toBeInTheDocument();
     expect(screen.getByText('2 500+')).toBeInTheDocument();
     expect(screen.getAllByText('4,9').length).toBeGreaterThan(0);
-    expect(screen.getByText('240 avis vérifiés')).toBeInTheDocument();
+    expect(screen.getByText('Maison de beauté, Oran — 4,9/5')).toBeInTheDocument();
     expect(screen.getByText('Amina')).toBeInTheDocument();
     expect(screen.getByText(/Fondatrice & coiffeuse/)).toBeInTheDocument();
     expect(screen.getByText(/Depuis quinze ans/)).toBeInTheDocument();
   });
 
-  it('shows its claims in Arabic exactly as before: Latin "15+", "2 500+", "4,9"; Arabic digits for counts', () => {
+  it('shows its claims in Arabic: Latin "15+", "2 500+", "4,9"; Arabic digits for counts', () => {
     renderAll(page);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Toggle language' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Afficher le site en arabe' }));
     expect(screen.getByText('15+')).toBeInTheDocument();
     expect(screen.getByText('2 500+')).toBeInTheDocument();
-    expect(screen.getAllByText('4,9')).toHaveLength(2);
-    expect(screen.getByText('٢٤٠ تقييم')).toBeInTheDocument();
+    expect(screen.getByText('4,9')).toBeInTheDocument();
+    expect(screen.getByText('صالون تجميل، وهران — 4,9/5')).toBeInTheDocument();
     expect(screen.getByText('٢')).toBeInTheDocument();
   });
 });
