@@ -7,8 +7,9 @@ describe('mapsLink', () => {
       'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('12 Rue Didouche Mourad, Alger Centre 16000, Alger')
     );
   });
-  it('mapsLink is null without address and city', () => {
+  it('mapsLink is null without an address, even with a city', () => {
     expect(mapsLink('  ', '')).toBeNull();
+    expect(mapsLink('', 'Alger')).toBeNull();
   });
 });
 

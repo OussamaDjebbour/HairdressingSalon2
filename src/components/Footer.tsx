@@ -23,7 +23,8 @@ export function Footer() {
   const salon = useSalon();
   const info = useSalonInfo().data;
   const hours = useSalonHours().data;
-  const directions = info ? mapsLink(info.address[lang], info.city[lang]) : null;
+  // Maps finds the Latin (French) address more reliably, whatever the page's language.
+  const directions = info ? mapsLink(info.address.fr, info.city.fr) : null;
 
   return (
     <footer id="contact" className="bg-rose-900 text-pearl-50">

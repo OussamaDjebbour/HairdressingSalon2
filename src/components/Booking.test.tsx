@@ -69,6 +69,7 @@ import type { ClosedDates, SalonHours } from '../data/types';
 import type { VisitItem, VisitSlot } from '../data/bookings';
 import { LanguageProvider, useLang, translations } from '../context/LanguageContext';
 import { Booking } from './Booking';
+import { useInPageLinks } from '../lib/useInPageLinks';
 import { BookingIntentProvider, useBookingIntent } from '../context/BookingIntentContext';
 
 function ToArabic() {
@@ -776,7 +777,8 @@ describe('Booking several services', () => {
       calls = [];
       Element.prototype.scrollIntoView = function (this: Element, o?: boolean | ScrollIntoViewOptions) {
         // Only the plan's own scroll: each step change also brings the booking card's top into view.
-        if (!(this as Element).hasAttribute('data-booking-top')) calls.push([this, o as ScrollIntoViewOptions]);
+        // (the booking card's top on step changes, and the chosen day in the date strip, are other scrolls)
+        if (!(this as Element).hasAttribute('data-booking-top') && !(this as Element).hasAttribute('aria-pressed')) calls.push([this, o as ScrollIntoViewOptions]);
       };
     });
     afterEach(() => {
@@ -1156,6 +1158,49 @@ describe('Booking comfort', () => {
     );
   });
 });
+
+describe('Booking comfort after review', () => {
+  it('scrolls an automatically chosen day into view in the date strip', async () => {
+    const days = upcomingOpenDays();
+    slotsByDay = Object.fromEntries(days.slice(0, 6).map((d) => [d.toDateString(), []]));
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderWizard();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    next();
+    await waitFor(() => expect(document.querySelector('.overflow-x-auto button[aria-pressed="true"]')).toBe(
+      document.querySelectorAll('.overflow-x-auto button')[6]
+    ));
+    const calls = spy.mock.calls.filter((_, k) => (spy.mock.contexts[k] as Element).getAttribute('aria-pressed') === 'true');
+    expect(calls.at(-1)?.[0]).toEqual({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    spy.mockRestore();
+  });
+
+  it('a tap on an in-page link mid-booking does not break the back-button guard', async () => {
+    mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
+    render(<LanguageProvider><InPageLinks /><a href="#home">to-home</a><Booking /></LanguageProvider>);
+    fireEvent.click(screen.getByText('Coupe & Brushing'));
+    next();
+    fireEvent.click(screen.getByText('to-home'));
+    expect(history.state?.bookingGuard).toBe(true);
+    next();
+    fireEvent.click(document.body.querySelector('.overflow-x-auto button') as HTMLButtonElement);
+    fireEvent.click(screen.getByRole('button', { name: '10:00' }));
+    next();
+    fireEvent.change(screen.getByLabelText('Votre nom'), { target: { value: 'Yasmine' } });
+    fireEvent.change(screen.getByLabelText('Votre téléphone'), { target: { value: '0555 12 34 56' } });
+    const back = vi.spyOn(history, 'back');
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    await screen.findByText('Le salon vous confirmera votre rendez-vous sur WhatsApp.');
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+    back.mockRestore();
+  });
+});
+
+function InPageLinks() {
+  useInPageLinks();
+  return null;
+}
 
 describe('Booking success screen comes into view', () => {
   it('the browser does not restore old scroll positions while the booking is on the page', () => {

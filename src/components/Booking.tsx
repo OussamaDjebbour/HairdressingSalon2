@@ -387,6 +387,15 @@ export function Booking() {
   // The date step opens on the first open day; while the client hasn't tapped a day herself, a day with no
   // free time moves on to the next open one (up to the last day of the strip).
   const autoDay = useRef(false);
+  const stripRef = useRef<HTMLDivElement>(null);
+  // A day chosen for her may be off-screen in the strip (about 5 of 14 show on a phone): bring it into view.
+  useEffect(() => {
+    if (!autoDay.current || !selectedDate) return;
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    stripRef.current
+      ?.querySelector('button[aria-pressed="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+  }, [selectedDate]);
   useEffect(() => {
     if (step === 2 && !selectedDate && upcomingDays.length > 0) {
       autoDay.current = true;
@@ -538,7 +547,8 @@ export function Booking() {
 
   const address = salonInfo?.address?.[lang] ?? '';
   const city = salonInfo?.city?.[lang] ?? '';
-  const directions = mapsLink(address, city);
+  // Maps finds the Latin (French) address more reliably, whatever the page's language.
+  const directions = mapsLink(salonInfo?.address?.fr ?? '', salonInfo?.city?.fr ?? '');
   const calendarHref = booked ? visitCalendarHref(booked, currentSalon().name[lang], addressLine(address, city), t('booking.calendarPending'), lang) : null;
 
   if (booked) {
@@ -765,7 +775,7 @@ export function Booking() {
               <div>
                 <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-3 focus:outline-none">{t('booking.selectDate')}</h3>
                 {recap}
-                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1">
+                <div ref={stripRef} className="flex gap-2 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1">
                   {upcomingDays.map((day, i) => {
                     const isSelected = selectedDate?.toDateString() === day.toDateString();
                     const isToday = i === 0;
