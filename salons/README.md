@@ -67,11 +67,16 @@ See `example.json`. Texts shown on the site are `{"fr": "…", "ar": "…"}`; a 
 | `services[]` | yes | `{id, category: "coiffure" \| "beaute" \| "spa", name, description?, price (DA), duration (minutes, multiple of 15), photo?}`. |
 | `stylists[]` | yes | `{id, name, role?, services: [service ids], workdays?: ["tuesday", …], photo?}`. No `workdays`: the salon's open days. |
 | `owner` | yes | `{"email": "…"}` — the owner's `/admin` login. |
-| `heroPhoto` | no | The big photo at the top of the site. |
+| `heroPhoto` | no | The big photo at the top of the site, shown full screen height (see "Photos" below). |
 
 Service and stylist ids are shared by all salons: start them with the salon id (`sara-coupe`).
 A photo is either a file name inside `salons/<slug>/photos/` (e.g. `"coupe.jpg"`, uploaded by the
 script; JPG, PNG, WebP, AVIF or GIF, 20 MB max; SVG not accepted) or an `https://` address used as is.
+**Photos that look right.** The site opens on the hero photo at full screen height, so pick a photo of a
+result — hair, a face, light — never tools, sinks or gloves. Portrait or wide, at least 1600 px on the long
+side, with the subject in the upper half (the salon's name sits on the lower part). Service photos show as
+slim portrait thumbnails and the first three as a tall strip: portrait (3:4), one result per photo.
+
 Owners can also set service photos themselves in Réglages (stored under `<salon id>/uploads/`);
 `--reapply-settings` overwrites those with the file's `photo` when the service has one; a service without `photo` keeps the owner's.
 

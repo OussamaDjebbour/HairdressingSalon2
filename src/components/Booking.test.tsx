@@ -351,7 +351,7 @@ describe('Booking intent from a service tile', () => {
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
-    expect(screen.getByText('Soin visage').closest('button')?.className).toContain('ring-gold-300');
+    expect(screen.getByText('Soin visage').closest('button')?.className).toContain('ring-rose-900');
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
     fireEvent.click(screen.getByText('choose-soin'));
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();
@@ -969,5 +969,44 @@ describe('Booking unavailable parts', () => {
     rerender(wizard());
     expect(screen.getByRole('button', { name: '10:00' })).toHaveClass('chip-selected');
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
+  });
+});
+
+describe('Booking on the client page (look and navigation)', () => {
+  it('the navigation is never sticky', () => {
+    renderWizard();
+    expect(screen.getByRole('button', { name: /Continuer/ }).closest('.sticky')).toBeNull();
+    expect(document.querySelector('[data-fade], [data-fade-room]')).toBeNull();
+  });
+
+  it('shows no Retour on the first step, and Retour from the second', () => {
+    renderWizard();
+    expect(screen.queryByRole('button', { name: /Retour/ })).toBeNull();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    expect(screen.getByRole('button', { name: /Retour/ })).toBeInTheDocument();
+  });
+
+  it('says which step this is in words instead of icon circles', () => {
+    renderWizard();
+    expect(screen.getByText('Étape 1 sur 4 — Service')).toBeInTheDocument();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    expect(screen.getByText('Étape 2 sur 4 — Coiffeuse')).toBeInTheDocument();
+  });
+
+  it('the primary action is full width on phones', () => {
+    renderWizard();
+    expect(screen.getByRole('button', { name: /Continuer/ })).toHaveClass('w-full', 'sm:w-auto');
+  });
+
+  it('service rows look like La carte: no icon tile, the photo when there is one', () => {
+    serviceList = [service, { ...service, id: 'soin', image: 'https://x.test/soin.jpg', name: { fr: 'Soin visage', ar: 'س' } }];
+    renderWizard();
+    const plain = screen.getByText(service.name.fr).closest('button')!;
+    expect(plain.querySelector('svg')).toBeNull();
+    expect(plain.querySelector('img')).toBeNull();
+    const withPhoto = screen.getByText('Soin visage').closest('button')!;
+    expect(withPhoto.querySelector('img')).toHaveAttribute('src', 'https://x.test/soin.jpg');
   });
 });

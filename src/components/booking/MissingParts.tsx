@@ -4,7 +4,7 @@ import { nameInText } from '../../data/formatters';
 import { joinNames } from '../../data/visit';
 import type { Service } from '../../data/types';
 
-const box = 'mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 text-start';
+const box = 'mb-4 rounded-[2px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 text-start';
 const link = 'tap font-medium text-rose-800 underline underline-offset-2 hover:text-rose-900';
 
 /** The parts that can't be done at all on the chosen day, each with "Retirer" (and "Changer de coiffeuse" if one was chosen). */

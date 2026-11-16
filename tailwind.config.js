@@ -9,6 +9,12 @@ export default {
         arabic: ['Cairo', 'sans-serif'],
       },
       colors: {
+        // The client page's grounds (html.site): a cool blush pearl, not the admin's cream.
+        pearl: {
+          50: '#FBF9F8',
+          100: '#F4EFEC',
+          200: '#E7DFDA',
+        },
         cream: {
           50: '#FDFBF8',
           100: '#FAF6F1',

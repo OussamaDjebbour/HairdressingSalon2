@@ -88,7 +88,7 @@ describe('startApp', () => {
     expect(document.documentElement.style.getPropertyValue('--brand-600')).toBe('');
     expect(document.title).toBe('Salon introuvable');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle language' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Afficher le site en arabe' }));
     expect(screen.getByRole('heading', { name: 'الصالون غير موجود' })).toBeInTheDocument();
   });
 

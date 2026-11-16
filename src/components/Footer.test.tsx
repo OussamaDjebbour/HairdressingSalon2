@@ -61,4 +61,9 @@ describe('Footer', () => {
     expect(screen.queryByRole('link', { name: 'Instagram' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Facebook' })).toHaveAttribute('href', 'https://facebook.com/elegance');
   });
+
+  it('has no all-caps labels', () => {
+    const { container } = renderFooter();
+    expect(container.querySelector('footer .uppercase')).toBeNull();
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatAgo, formatClaim, formatCompactDate, formatCompactRange, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
+import { translations } from '../context/LanguageContext';
+import { claimsSentence, heroLine, formatAgo, formatClaim, formatCompactDate, formatCompactRange, formatMonthYear, formatNumber, formatPrice, nameInText, pluralCategory, weekdayInitials } from './formatters';
 
 const LRI = '⁦'; // LEFT-TO-RIGHT ISOLATE
 const PDI = '⁩'; // POP DIRECTIONAL ISOLATE
@@ -111,5 +112,39 @@ describe('formatCompactRange', () => {
   it('names both months when they differ', () => {
     expect(formatCompactRange(new Date(2026, 10, 30), new Date(2026, 11, 2), 'fr')).toBe('Lun. 30 nov. → Mer. 2 déc.');
     expect(formatCompactRange(new Date(2026, 11, 30), new Date(2027, 0, 2), 'fr')).toBe('Mer. 30 déc. → Sam. 2 janv.');
+  });
+});
+
+describe('heroLine', () => {
+  const t = (k: string) => ({ 'hero.line': 'Maison de beauté, {city}', 'hero.lineNoCity': 'Maison de beauté' })[k] ?? k;
+  it('names the city and the rating', () => {
+    expect(heroLine(t, 'Alger', 4.9)).toBe('Maison de beauté, Alger — 4,9/5');
+  });
+  it('names the city alone when there is no rating', () => {
+    expect(heroLine(t, 'Oran', null)).toBe('Maison de beauté, Oran');
+  });
+  it('falls back to the plain line without city or rating', () => {
+    expect(heroLine(t, undefined, null)).toBe('Maison de beauté');
+    expect(heroLine(t, '  ', 4)).toBe('Maison de beauté — 4/5');
+  });
+});
+
+describe('claimsSentence', () => {
+  const tr = (lang: 'fr' | 'ar') => (k: string) => translations[lang][k];
+  it('names the years, the city and the clients', () => {
+    expect(claimsSentence(tr('fr'), 'fr', 15, 2500, 'Alger')).toBe('Depuis 15 ans à Alger. Plus de 2 500 clientes.');
+  });
+  it('says only the years when there is no client count', () => {
+    expect(claimsSentence(tr('fr'), 'fr', 8, null, 'Oran')).toBe('Depuis 8 ans à Oran.');
+    expect(claimsSentence(tr('fr'), 'fr', 8, null, undefined)).toBe('Depuis 8 ans.');
+  });
+  it('says only the clients when there is no year count', () => {
+    expect(claimsSentence(tr('fr'), 'fr', null, 900, 'Oran')).toBe('Plus de 900 clientes.');
+  });
+  it('is null without claims', () => {
+    expect(claimsSentence(tr('fr'), 'fr', null, null, 'Oran')).toBeNull();
+  });
+  it('speaks Arabic with the same Latin claim digits', () => {
+    expect(claimsSentence(tr('ar'), 'ar', 15, 2500, 'الجزائر العاصمة')).toBe('منذ 15 سنة في الجزائر العاصمة. أكثر من 2 500 عميلة.');
   });
 });

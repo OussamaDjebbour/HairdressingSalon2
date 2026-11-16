@@ -4,10 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { TextField } from './form/TextField';
 import { FormSummary } from './form/FormSummary';
 import { clientDetailsSchema, type ClientDetails } from '../data/schemas';
-import {
-  Clock, Check, ChevronLeft, ChevronRight, Calendar, User,
-  MessageCircle, Sparkle, AlertCircle,
-} from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, User, MessageCircle, AlertCircle } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import {
   useVisitSlots, useCreateVisit, toBookingError, failedItem, type BookingErrorCode, type VisitItem,
@@ -16,7 +13,7 @@ import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
 import { formatAlgiersTime } from '../data/algiersTime';
-import { countText, formatPrice, formatDuration, formatLongDate } from '../data/formatters';
+import { countText, formatPrice, formatDuration, formatLongDate, formatNumber } from '../data/formatters';
 import {
   MAX_VISIT_SERVICES, joinNames, missingAllDay, planVisit, slotState, visitOrder, visitTotals,
 } from '../data/visit';
@@ -29,7 +26,6 @@ import { useClosedDates, useSalonHours, useSalonInfo } from '../data/salonSettin
 import { toWaNumber, waLink } from '../data/whatsapp';
 import { SmartImage } from './SmartImage';
 import { groupByCategory } from '../data/categories';
-import { serviceIcon } from './serviceIcons';
 import { useBookingIntent } from '../context/BookingIntentContext';
 
 /** Up to two initials, e.g. "Lina Benali" → "LB" (Array.from keeps accented and Arabic letters whole). */
@@ -161,12 +157,7 @@ export function Booking() {
   const stylistLabel = (id: string | null | undefined, none: string) =>
     id ? stylists.find((s) => s.id === id)?.name ?? '' : none;
 
-  const steps = [
-    { label: t('booking.step.service'), icon: Sparkle },
-    { label: t('booking.step.stylist'), icon: User },
-    { label: t('booking.step.datetime'), icon: Calendar },
-    { label: t('booking.step.confirm'), icon: Check },
-  ];
+  const steps = [t('booking.step.service'), t('booking.step.stylist'), t('booking.step.datetime'), t('booking.step.confirm')];
 
   const canProceed = () => {
     if (step === 0) return visit.length > 0;
@@ -357,7 +348,7 @@ export function Booking() {
   }, [request, services, sending]);
 
   const recap = visit.length > 0 && (
-    <div className="flex items-center justify-between gap-2 rounded-xl bg-cream-100 ps-3 pe-1 text-sm text-rose-700 mb-5">
+    <div className="flex items-center justify-between gap-2 rounded-[2px] bg-pearl-100 ps-3 pe-1 text-sm text-rose-700 mb-5">
       <p className="min-w-0 py-2">
         <span className="font-medium text-rose-900">{joinNames(visit.map((s) => s.name[lang]))}</span>
         {' · '}
@@ -400,7 +391,7 @@ export function Booking() {
         {row('booking.summary.date', dateText)}
         {row('booking.summary.time', part.time)}
         {duration !== undefined && row('booking.summary.duration', formatDuration(duration, lang))}
-        <div className="border-t border-cream-200 pt-3 flex justify-between items-center gap-4">
+        <div className="border-t border-rose-900/10 pt-3 flex justify-between items-center gap-4">
           <span className="text-sm font-semibold text-rose-700">{t('booking.summary.price')}</span>
           <span className="text-lg font-display font-semibold text-rose-800">{formatPrice(total, lang)}</span>
         </div>
@@ -409,7 +400,7 @@ export function Booking() {
   };
 
   const notice = (text: string) => (
-    <p role="alert" className="flex items-center gap-2 mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+    <p role="alert" className="flex items-center gap-2 mb-4 rounded-[2px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
       <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
       {text}
     </p>
@@ -423,7 +414,7 @@ export function Booking() {
 
   if (booked) {
     return (
-      <section id="booking" className="relative py-20 lg:py-28 bg-cream-100/50">
+      <section id="booking" className="relative py-20 lg:py-28 bg-pearl-100">
         <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-sage-100 mb-6 animate-fadeIn">
             <Check className="w-10 h-10 text-sage-600" strokeWidth={2} />
@@ -432,7 +423,7 @@ export function Booking() {
           <h2 className="font-display text-3xl font-semibold text-rose-800 mb-3">{t('booking.successTitle')}</h2>
           <p className="text-rose-600 text-lg mb-6">{t('booking.successText')}</p>
 
-          <div className="rounded-2xl bg-white border border-cream-200 p-5 text-start mb-6">
+          <div className="rounded-[2px] bg-pearl-50 border border-rose-900/10 p-5 text-start mb-6">
             {summary(booked.parts, booked.total, booked.date)}
           </div>
 
@@ -454,54 +445,34 @@ export function Booking() {
   }
 
   return (
-    <section id="booking" className="relative py-20 lg:py-28 bg-cream-100/50">
+    <section id="booking" className="relative py-20 lg:py-28 bg-pearl-100">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
-          <p className="eyebrow eyebrow-center justify-center mx-auto mb-4">{t('booking.kicker')}</p>
           <h2 className="font-display font-semibold text-rose-900 text-[clamp(2rem,4vw,3rem)]">{t('booking.title')}</h2>
         </div>
 
-        {/* Step indicator */}
-        <div className="flex items-center justify-center mb-10">
-          {steps.map((s, i) => {
-            const isActive = i === step;
-            const isDone = i < step;
-            return (
-              <div key={i} className="flex items-center">
-                <div className="flex flex-col items-center gap-1.5">
-                  <div
-                    className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300 ease-silk ${
-                      isDone
-                        ? 'bg-rose-800 border-rose-800 text-cream-50'
-                        : isActive
-                        ? 'bg-white border-gold-400 text-rose-800 ring-2 ring-gold-200'
-                        : 'bg-cream-100 border-cream-300 text-cream-500'
-                    }`}
-                  >
-                    {isDone ? <Check className="w-5 h-5" strokeWidth={2} /> : <s.icon className="w-5 h-5" strokeWidth={1.8} />}
-                  </div>
-                  <span className={`text-xs font-medium hidden sm:block ${isActive ? 'text-rose-700' : isDone ? 'text-rose-600' : 'text-cream-500'}`}>
-                    {s.label}
-                  </span>
-                </div>
-                {i < steps.length - 1 && (
-                  <div className={`w-12 sm:w-20 h-0.5 mx-2 rounded-full transition-colors duration-300 ${isDone ? 'bg-gold-400' : 'bg-cream-300'}`} />
-                )}
-              </div>
-            );
-          })}
+        {/* Step indicator: a quiet line and words, not icon circles */}
+        <div className="max-w-md mx-auto mb-10">
+          <div className="flex gap-1.5" aria-hidden="true">
+            {steps.map((label, i) => (
+              <span key={label} className={`h-0.5 flex-1 transition-colors duration-300 ${i <= step ? 'bg-rose-900' : 'bg-rose-900/15'}`} />
+            ))}
+          </div>
+          <p className="mt-3 text-center text-sm text-rose-900/70">
+            {`${t('booking.stepOf').replace('{n}', formatNumber(step + 1, lang)).replace('{total}', formatNumber(steps.length, lang))} — ${steps[step]}`}
+          </p>
         </div>
 
         {dataLoading ? (
-          <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-10 min-h-[400px] flex items-center justify-center">
+          <div className="bg-pearl-50 rounded-[2px] border border-rose-900/10 p-10 min-h-[400px] flex items-center justify-center">
             <div className="w-8 h-8 rounded-full border-2 border-rose-300 border-t-rose-700 animate-spin" />
           </div>
         ) : dataError ? (
-          <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-10 min-h-[400px] flex items-center justify-center">
+          <div className="bg-pearl-50 rounded-[2px] border border-rose-900/10 p-10 min-h-[400px] flex items-center justify-center">
             <DataError onRetry={retryData} />
           </div>
         ) : (
-        <div className="bg-white rounded-3xl shadow-card border border-cream-200 p-6 sm:p-8 lg:p-10 min-h-[400px] flex flex-col">
+        <div className="bg-pearl-50 rounded-[2px] border border-rose-900/10 p-6 sm:p-8 lg:p-10 min-h-[400px] flex flex-col">
           {dropped && notice(t('booking.visit.dropped'))}
           {/* Step 0 — Service */}
           {step === 0 && (
@@ -512,11 +483,10 @@ export function Booking() {
                 {serviceGroups.map((group) => (
                   <div key={group.category}>
                     {serviceGroups.length > 1 && (
-                      <h4 className="text-sm font-semibold text-rose-700 uppercase tracking-wide mb-3">{t(`category.${group.category}`)}</h4>
+                      <h4 className="font-display italic text-lg text-gold-700 mb-3">{t(`category.${group.category}`)}</h4>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {group.items.map((service) => {
-                  const Icon = serviceIcon(service.icon);
                   const isSelected = selectedIds.includes(service.id);
                   const blocked = !isSelected && atMax;
                   return (
@@ -526,31 +496,28 @@ export function Booking() {
                       aria-pressed={isSelected}
                       aria-disabled={blocked || undefined}
                       onClick={() => toggleService(service)}
-                      className={`flex items-start gap-4 p-4 rounded-2xl border text-start transition-all duration-200 ease-silk ${
+                      className={`flex gap-4 p-4 rounded-[2px] border text-start transition-all duration-200 ease-silk ${
                         isSelected
-                          ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
+                          ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
                           : blocked
-                          ? 'border-cream-200 bg-cream-50 opacity-50 cursor-not-allowed'
-                          : 'border-cream-200 bg-cream-50 hover:border-gold-200 hover:bg-rose-50/50'
+                          ? 'border-rose-900/10 bg-transparent opacity-50 cursor-not-allowed'
+                          : 'border-rose-900/10 bg-transparent hover:border-rose-900/40 '
                       }`}
                     >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center">
-                        <Icon className="w-6 h-6 text-rose-600" strokeWidth={1.8} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <h5 className="font-medium text-rose-800 text-sm">{service.name[lang]}</h5>
-                          {isSelected && <Check className="w-4 h-4 text-gold-600 flex-shrink-0" strokeWidth={2.5} />}
-                        </div>
-                        <p className="text-xs text-rose-600 mt-0.5 line-clamp-2">{service.description[lang]}</p>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-sm font-semibold text-rose-700">{formatPrice(service.price, lang)}</span>
-                          <span className="flex items-center gap-1 text-xs text-rose-600">
-                            <Clock className="w-3.5 h-3.5" strokeWidth={1.8} />
-                            {formatDuration(service.duration, lang)}
-                          </span>
-                        </div>
-                      </div>
+                      {service.image && (
+                        <img src={service.image} alt="" loading="lazy" className="w-20 aspect-[3/4] object-cover shrink-0 self-start" />
+                      )}
+                      <span className="flex flex-1 min-w-0 flex-col">
+                        <span className="flex items-baseline justify-between gap-3">
+                          <h5 className="font-display text-lg leading-tight text-rose-900">{service.name[lang]}</h5>
+                          {isSelected && <Check className="w-4 h-4 text-rose-900 flex-shrink-0 self-center" strokeWidth={2} aria-hidden="true" />}
+                        </span>
+                        <span className="mt-1 text-sm leading-relaxed text-rose-900/75 line-clamp-2">{service.description[lang]}</span>
+                        <span className="mt-2 flex items-baseline justify-between gap-3">
+                          <span className="font-display text-lg text-rose-900 tabular-nums whitespace-nowrap">{formatPrice(service.price, lang)}</span>
+                          <span className="text-sm text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
+                        </span>
+                      </span>
                     </button>
                   );
                 })}
@@ -572,14 +539,14 @@ export function Booking() {
                     type="button"
                     aria-pressed={selectedStylist === null}
                     onClick={() => chooseStylist(single.id, null)}
-                    className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
+                    className={`flex flex-col items-center gap-3 p-4 rounded-[2px] border transition-all duration-200 ease-silk ${
                       selectedStylist === null
-                        ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
-                        : 'border-cream-200 bg-cream-50 hover:border-gold-200'
+                        ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
+                        : 'border-rose-900/10 bg-transparent hover:border-rose-900/40'
                     }`}
                   >
-                    <div className="w-16 h-16 rounded-full bg-cream-200 flex items-center justify-center">
-                      <User className="w-7 h-7 text-cream-500" strokeWidth={1.5} />
+                    <div className="w-16 h-16 rounded-full bg-pearl-200 flex items-center justify-center">
+                      <User className="w-7 h-7 text-rose-900/40" strokeWidth={1.5} />
                     </div>
                     <span className="text-xs font-medium text-rose-600 text-center">{t('booking.noPreference')}</span>
                   </button>
@@ -592,10 +559,10 @@ export function Booking() {
                         type="button"
                         aria-pressed={isSelected}
                         onClick={() => chooseStylist(single.id, stylist.id)}
-                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-200 ease-silk ${
+                        className={`flex flex-col items-center gap-3 p-4 rounded-[2px] border transition-all duration-200 ease-silk ${
                           isSelected
-                            ? 'border-gold-400 bg-gold-50 shadow-glow ring-1 ring-gold-300'
-                            : 'border-cream-200 bg-cream-50 hover:border-gold-200'
+                            ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
+                            : 'border-rose-900/10 bg-transparent hover:border-rose-900/40'
                         }`}
                       >
                         <div className="relative">
@@ -617,8 +584,8 @@ export function Booking() {
                             </div>
                           )}
                           {isSelected && (
-                            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center border-2 border-white">
-                              <Check className="w-3.5 h-3.5 text-cream-50" strokeWidth={3} />
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-rose-900 flex items-center justify-center border-2 border-white">
+                              <Check className="w-3.5 h-3.5 text-pearl-50" strokeWidth={3} />
                             </div>
                           )}
                         </div>
@@ -650,13 +617,13 @@ export function Booking() {
                       <button
                         key={i}
                         onClick={() => { setSelectedDate(day); clearTime(); }}
-                        className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-2xl border transition-all duration-200 ease-silk ${
+                        className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-[2px] border transition-all duration-200 ease-silk ${
                           isSelected
-                            ? 'border-rose-800 bg-rose-800 text-cream-50 shadow-soft'
-                            : 'border-cream-200 bg-cream-50 text-rose-600 hover:border-gold-200'
+                            ? 'border-rose-800 bg-rose-800 text-pearl-50'
+                            : 'border-rose-900/10 bg-transparent text-rose-600 hover:border-rose-900/40'
                         }`}
                       >
-                        <span className="text-[10px] uppercase tracking-wide opacity-70">
+                        <span className="text-[11px] opacity-70">
                           {formatLongDate(day, lang).split(' ')[0]}
                         </span>
                         <span className="text-xl font-display font-semibold mt-0.5">{day.getDate()}</span>
@@ -682,7 +649,7 @@ export function Booking() {
                   {slotsQuery.isLoading ? (
                     <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2.5">
                       {Array.from({ length: 12 }, (_, i) => (
-                        <div key={i} className="img-placeholder h-11 rounded-xl" />
+                        <div key={i} className="img-placeholder h-11 rounded-[2px]" />
                       ))}
                     </div>
                   ) : slotsQuery.isError ? (
@@ -741,7 +708,7 @@ export function Booking() {
                     </div>
                   )}
                   {visit.length > 1 && selectedTime && (
-                    <section ref={(el) => { revealRef.current = el; }} aria-labelledby="booking-plan" className="mt-6 rounded-2xl bg-cream-50 border border-cream-200 p-4">
+                    <section ref={(el) => { revealRef.current = el; }} aria-labelledby="booking-plan" className="mt-6 rounded-[2px] bg-transparent border border-rose-900/10 p-4">
                       <h4 id="booking-plan" className="text-sm font-semibold text-rose-700 mb-3">{t('booking.visit.plan')}</h4>
                       <VisitParts parts={plannedParts} />
                     </section>
@@ -756,7 +723,7 @@ export function Booking() {
             <div className="animate-fadeIn space-y-6">
               <h3 className="font-display text-xl font-semibold text-rose-800 mb-2">{t('booking.summary')}</h3>
 
-              <div className="rounded-2xl bg-cream-50 border border-cream-200 p-5">
+              <div className="rounded-[2px] bg-transparent border border-rose-900/10 p-5">
                 {summary(plannedParts, totals.price, selectedDate, totals.duration)}
               </div>
 
@@ -796,7 +763,7 @@ export function Booking() {
               )}
 
               {submitError && (
-                <div role="alert" className="rounded-2xl border border-rust-200 bg-rust-50 p-4 text-sm text-rust-700">
+                <div role="alert" className="rounded-[2px] border border-rust-200 bg-rust-50 p-4 text-sm text-rust-700">
                   <p className="flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={1.8} />
                     {errorMessages[submitError]}
@@ -817,14 +784,8 @@ export function Booking() {
             </div>
           )}
 
-          {/* Navigation (on the service step it sticks to the bottom of the screen with the running total) */}
-          <div
-            className={
-              step === 0
-                ? 'sticky bottom-0 z-10 mt-auto -mx-6 sm:-mx-8 lg:-mx-10 px-6 sm:px-8 lg:px-10 pt-4 pb-2 bg-white border-t border-cream-200'
-                : 'mt-auto pt-6'
-            }
-          >
+          {/* Navigation (on the service step, with the running total above it) */}
+          <div className="mt-auto pt-6">
             {step === 0 && (
               <div aria-live="polite" className="text-center text-sm mb-3 empty:mb-0">
                 {visit.length > 0 && (
@@ -835,24 +796,29 @@ export function Booking() {
                 {atMax && <p className="text-rose-600 mt-0.5">{t('booking.visit.max')}</p>}
               </div>
             )}
-          <div className="flex items-center justify-between">
-            <button onClick={handleBack} disabled={step === 0} className="btn-ghost">
-              <ChevronLeft className="w-4 h-4" strokeWidth={1.8} />
-              {t('booking.back')}
-            </button>
+          {/* Phones: the main action full width on top, Retour under it. Larger screens: side by side. */}
+          <div className="flex flex-col-reverse items-center gap-3 sm:flex-row sm:justify-between">
+            {step > 0 ? (
+              <button onClick={handleBack} className="btn-ghost">
+                <ChevronLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
+                {t('booking.back')}
+              </button>
+            ) : (
+              <span className="hidden sm:block" />
+            )}
             {step < 3 ? (
-              <button onClick={handleNext} disabled={!canProceed()} className="btn-primary">
+              <button onClick={handleNext} disabled={!canProceed()} className="btn-primary w-full sm:w-auto">
                 {t('booking.next')}
-                <ChevronRight className="w-4 h-4" strokeWidth={1.8} />
+                <ChevronRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               </button>
             ) : (
               <button
                 onClick={handleSubmit(handleConfirm)}
                 disabled={createVisitMutation.isPending}
-                className="btn-primary"
+                className="btn-primary w-full sm:w-auto"
               >
                 {createVisitMutation.isPending ? (
-                  <span className="w-4 h-4 rounded-full border-2 border-cream-200 border-t-cream-50 animate-spin" />
+                  <span className="w-4 h-4 rounded-full border-2 border-pearl-50/30 border-t-pearl-50 animate-spin" />
                 ) : (
                   <Check className="w-4 h-4" strokeWidth={2} />
                 )}

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Phone, MapPin, Clock, Instagram, Facebook } from 'lucide-react';
+import { Instagram, Facebook } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import { useSalon } from '../data/salon';
 import { useSalonHours, useSalonInfo } from '../data/salonSettings';
@@ -12,8 +12,10 @@ import type { Weekday } from '../data/types';
 /** A date falling on the given ISO weekday (1 January 2024 was a Monday). */
 const dayName = (wd: Weekday, lang: 'fr' | 'ar') => formatDayName(new Date(2024, 0, wd), lang);
 
-const socialLink =
-  'flex items-center justify-center w-9 h-9 rounded-lg bg-rose-800/60 text-cream-200 hover:bg-rose-700 hover:text-cream-50 transition-all duration-200 ease-silk';
+/** Section headings: small display italic, sentence case. */
+const heading = 'font-display italic text-xl text-gold-200 mb-4';
+const textLink =
+  'inline-flex items-center gap-2 min-h-[44px] text-[15px] text-pearl-50/80 underline decoration-pearl-50/25 underline-offset-[6px] hover:text-pearl-50 hover:decoration-gold-200 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4';
 
 export function Footer() {
   const { t, lang } = useLang();
@@ -22,23 +24,18 @@ export function Footer() {
   const hours = useSalonHours().data;
 
   return (
-    <footer id="contact" className="relative mt-24 bg-rose-900 text-cream-100">
-      <div className="absolute top-0 inset-x-0 hairline opacity-60" />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-          <div className="lg:col-span-1">
-            <h3 className="font-display italic text-2xl font-semibold text-cream-50 mb-1">{salon.name[lang]}</h3>
-            <p className="text-[0.7rem] uppercase tracking-[0.28em] text-gold-400 font-semibold mb-4">{info?.city[lang]}</p>
-            <p className="text-sm text-cream-200/80 leading-relaxed max-w-xs">{salonSubtitle(t, lang, info?.city[lang])}</p>
+    <footer id="contact" className="bg-rose-900 text-pearl-50">
+      <div className="max-w-6xl mx-auto px-6 sm:px-10 pt-20 pb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+          <div>
+            <h3 className="font-display text-[2rem] leading-none">{salon.name[lang]}</h3>
+            <p className="mt-2 text-[15px] text-gold-200">{info?.city[lang]}</p>
+            <p className="mt-5 text-[15px] text-pearl-50/65 leading-relaxed max-w-xs">{salonSubtitle(t, lang, info?.city[lang])}</p>
           </div>
 
           <div>
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-cream-100 mb-4 uppercase tracking-wider">
-              <MapPin className="w-4 h-4 text-gold-400" strokeWidth={1.8} />
-              {t('contact.address')}
-            </h4>
-            <p className="text-sm text-cream-200/70 leading-relaxed">
+            <h4 className={heading}>{t('contact.address')}</h4>
+            <p className="text-[15px] text-pearl-50/70 leading-relaxed">
               {info?.address[lang].split('\n').map((line, i) => (
                 <span key={i} className="block">{line}</span>
               ))}
@@ -46,14 +43,11 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-cream-100 mb-4 uppercase tracking-wider">
-              <Clock className="w-4 h-4 text-gold-400" strokeWidth={1.8} />
-              {t('contact.hours')}
-            </h4>
-            <ul className="space-y-2 text-sm text-cream-200/70">
+            <h4 className={heading}>{t('contact.hours')}</h4>
+            <ul className="space-y-2 text-[15px] text-pearl-50/70">
               {hours &&
                 groupHours(hours).map((g) => (
-                  <li key={g.from} className={`flex justify-between gap-4 ${g.hours ? '' : 'text-cream-400'}`}>
+                  <li key={g.from} className={`flex justify-between gap-4 ${g.hours ? '' : 'text-pearl-50/60'}`}>
                     <span>
                       {g.from === g.to
                         ? dayName(g.from, lang)
@@ -68,44 +62,34 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-cream-100 mb-4 uppercase tracking-wider">
-              <Phone className="w-4 h-4 text-gold-400" strokeWidth={1.8} />
-              {t('contact.phone')}
-            </h4>
+            <h4 className={heading}>{t('contact.phone')}</h4>
             {info?.whatsapp && (
-              <a
-                href={`tel:+${toWaNumber(info.whatsapp)}`}
-                className="text-sm text-cream-200/80 hover:text-cream-50 transition-colors"
-                dir="ltr"
-              >
+              <a href={`tel:+${toWaNumber(info.whatsapp)}`} className={textLink} dir="ltr">
                 {formatPhone(info.whatsapp)}
               </a>
             )}
-            <div className="mt-4">
-              <p className="text-xs text-cream-300/60 mb-2 uppercase tracking-wider">{t('contact.follow')}</p>
-              <div className="flex gap-3">
+            {(info?.instagramUrl || info?.facebookUrl) && (
+              <div className="mt-6 flex flex-col items-start gap-1">
                 {info?.instagramUrl && (
-                  <a href={info.instagramUrl} className={socialLink} aria-label="Instagram" target="_blank" rel="noopener noreferrer">
-                    <Instagram className="w-4 h-4" strokeWidth={1.8} />
+                  <a href={info.instagramUrl} className={textLink} target="_blank" rel="noopener noreferrer">
+                    <Instagram className="w-4 h-4" strokeWidth={1.6} aria-hidden="true" />
+                    Instagram
                   </a>
                 )}
                 {info?.facebookUrl && (
-                  <a href={info.facebookUrl} className={socialLink} aria-label="Facebook" target="_blank" rel="noopener noreferrer">
-                    <Facebook className="w-4 h-4" strokeWidth={1.8} />
+                  <a href={info.facebookUrl} className={textLink} target="_blank" rel="noopener noreferrer">
+                    <Facebook className="w-4 h-4" strokeWidth={1.6} aria-hidden="true" />
+                    Facebook
                   </a>
                 )}
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        <div className="mt-12 pt-6 border-t border-rose-800/50 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-          <p className="text-xs text-cream-300/70">© {new Date().getFullYear()} {salon.name[lang]}. {t('footer.rights')}</p>
-          <span className="hidden sm:inline text-cream-300/40" aria-hidden>·</span>
-          <Link
-            to="/admin"
-            className="text-xs text-cream-300/70 hover:text-gold-300 transition-colors link-gilt"
-          >
+        <div className="mt-16 pt-6 border-t border-pearl-50/15 flex flex-col sm:flex-row items-center justify-between gap-3 text-[13px] text-pearl-50/50">
+          <p>© {new Date().getFullYear()} {salon.name[lang]}. {t('footer.rights')}</p>
+          <Link to="/admin" className="inline-flex items-center min-h-[44px] hover:text-pearl-50 transition-colors">
             {t('admin.label')}
           </Link>
         </div>

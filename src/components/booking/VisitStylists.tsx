@@ -39,13 +39,13 @@ export function VisitStylists({ visit, stylists, value, onChange }: Props) {
                     type="button"
                     aria-pressed={selected}
                     onClick={() => onChange(service.id, o.id)}
-                    className={`tap inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 ease-silk ${
+                    className={`tap inline-flex items-center gap-1.5 rounded-[2px] border px-4 py-2 text-sm font-medium transition-all duration-200 ease-silk ${
                       selected
-                        ? 'border-gold-400 bg-gold-50 text-rose-800 ring-1 ring-gold-300'
-                        : 'border-cream-200 bg-cream-50 text-rose-700 hover:border-gold-200'
+                        ? 'border-rose-900 bg-pearl-50 text-rose-900 ring-1 ring-rose-900'
+                        : 'border-rose-900/10 bg-transparent text-rose-700 hover:border-rose-900/40'
                     }`}
                   >
-                    {selected && <Check aria-hidden="true" className="w-3.5 h-3.5 text-gold-600" strokeWidth={2.5} />}
+                    {selected && <Check aria-hidden="true" className="w-3.5 h-3.5 text-rose-900" strokeWidth={2.5} />}
                     {o.label}
                   </button>
                 );

@@ -1,45 +1,36 @@
 import { useLang } from '../context/LanguageContext';
 import { useSalon } from '../data/salon';
+import { useSalonInfo } from '../data/salonSettings';
+import { claimsSentence } from '../data/formatters';
 
+/** "La maison": the salon's story as a quote, its founder, and its claims in one plain sentence. */
 export function Philosophy() {
   const { t, lang } = useLang();
   const salon = useSalon();
+  const city = useSalonInfo().data?.city[lang];
 
   if (!salon.story) return null;
+  const claims = claimsSentence(t, lang, salon.yearsOpen, salon.clientCount, city);
 
   return (
-    <section className="relative py-24 lg:py-32 bg-rose-900 text-cream-100 overflow-hidden">
-      {/* gilt hairline crowning the band */}
-      <div className="absolute top-0 inset-x-0 hairline opacity-50" />
-
-      {/* the arch, echoed once — a faint gilt keyline framing the words */}
-      <div
-        aria-hidden
-        className="absolute left-1/2 top-10 -translate-x-1/2 w-[min(92%,42rem)] h-[78%] arch border border-gold-400/20"
-      />
-
-      <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <p className="eyebrow eyebrow-center justify-center mx-auto mb-8 !text-gold-300">
-          {t('philosophy.kicker')}
-        </p>
-
-        <blockquote className="font-display italic font-medium text-cream-50 text-[clamp(1.75rem,4vw,3rem)] leading-[1.15] text-balance">
+    <section className="bg-rose-900 text-pearl-50 py-24 sm:py-32">
+      <div className="max-w-3xl mx-auto px-6 sm:px-10">
+        <blockquote className="font-display italic text-[clamp(1.75rem,4.5vw,3rem)] leading-[1.2] text-balance">
           {salon.story[lang]}
         </blockquote>
 
         {salon.storyIntro && (
-          <p className="mt-8 text-cream-200/70 text-lg leading-relaxed text-pretty max-w-2xl mx-auto">
-            {salon.storyIntro[lang]}
-          </p>
+          <p className="mt-8 text-[17px] leading-relaxed text-pearl-50/70 max-w-2xl text-pretty">{salon.storyIntro[lang]}</p>
         )}
 
         {salon.founderName && (
-          <div className="mt-10 flex items-center justify-center gap-3 text-sm">
-            <span className="w-10 hairline" />
-            <span className="font-display italic font-semibold text-cream-50">{salon.founderName[lang]}</span>
-            {salon.founderRole && <span className="text-cream-300/70">· {salon.founderRole[lang]}</span>}
-          </div>
+          <p className="mt-10 text-[15px] text-pearl-50/70">
+            <span className="font-display italic text-xl text-pearl-50">{salon.founderName[lang]}</span>
+            {salon.founderRole && <>{lang === 'ar' ? '، ' : ', '}{salon.founderRole[lang]}</>}
+          </p>
         )}
+
+        {claims && <p className="mt-12 pt-8 border-t border-pearl-50/15 text-[15px] text-gold-200">{claims}</p>}
       </div>
     </section>
   );

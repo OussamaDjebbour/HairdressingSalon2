@@ -1,118 +1,64 @@
-import { useState, useEffect } from 'react';
-import { Menu, X, Scissors, CalendarPlus, Globe } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useLang } from '../context/LanguageContext';
 import { useSalon } from '../data/salon';
-import { useSalonInfo } from '../data/salonSettings';
 
+/** Past this share of the screen height the bar leaves the hero photo and turns pearl. */
+const HERO_SHARE = 0.6;
+
+/**
+ * A quiet bar: the salon name (only once the hero's large name has scrolled away), the other
+ * language as a word, and one action. Light on the hero photo, pearl afterwards.
+ */
 export function Navbar() {
   const { lang, toggleLang, t } = useLang();
   const salon = useSalon();
-  const city = useSalonInfo().data?.city[lang];
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [pastHero, setPastHero] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
+    const onScroll = () => setPastHero(window.scrollY > window.innerHeight * HERO_SHARE);
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const navLinks = [
-    { key: 'nav.home', href: '#home' },
-    { key: 'nav.services', href: '#services' },
-    { key: 'nav.contact', href: '#contact' },
-  ];
-
   return (
     <header
-      className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ease-silk ${
-        scrolled
-          ? 'bg-cream-50/90 backdrop-blur-md shadow-soft border-b border-cream-200'
-          : 'bg-transparent'
+      className={`fixed top-0 inset-x-0 z-50 transition-colors duration-500 ${
+        pastHero ? 'bg-pearl-50/95 backdrop-blur text-rose-900 border-b border-rose-900/10' : 'bg-transparent text-pearl-50'
       }`}
     >
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 lg:h-20">
-          <a href="#home" className="flex items-center gap-3 group">
-            <span className="relative flex items-center justify-center w-10 h-10 rounded-full bg-rose-900 text-cream-50 shadow-soft ring-1 ring-gold-400/40 transition-transform duration-300 ease-silk group-hover:scale-105">
-              <Scissors className="w-5 h-5" strokeWidth={1.6} />
-            </span>
-            <span className="flex flex-col leading-none">
-              <span className="font-display italic text-xl font-semibold text-rose-900 tracking-tight">
-                {salon.name[lang]}
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.28em] text-gold-700 font-semibold mt-0.5">
-                {city}
-              </span>
-            </span>
-          </a>
-
-          <div className="hidden lg:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <a
-                key={link.key}
-                href={link.href}
-                className="link-gilt py-1 text-sm font-medium text-rose-700 transition-colors duration-200 hover:text-rose-900"
-              >
-                {t(link.key)}
-              </a>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={toggleLang}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-rose-700 bg-cream-100 border border-cream-200 transition-all duration-200 ease-silk hover:bg-cream-200 hover:border-rose-200"
-              aria-label="Toggle language"
-            >
-              <Globe className="w-4 h-4" strokeWidth={1.8} />
-              <span className={lang === 'fr' ? 'font-semibold text-rose-800' : ''}>FR</span>
-              <span className="text-cream-400">|</span>
-              <span className={lang === 'ar' ? 'font-semibold text-rose-800' : ''}>AR</span>
-            </button>
-
-            <a href="#booking" className="hidden sm:inline-flex btn-primary btn-sm">
-              <CalendarPlus className="w-4 h-4" strokeWidth={1.8} />
-              {t('nav.booking')}
-            </a>
-
-            <button
-              onClick={() => setMobileOpen((v) => !v)}
-              className="lg:hidden p-2 rounded-lg text-rose-700 hover:bg-rose-50 transition-colors"
-              aria-label="Menu"
-            >
-              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      <div
-        className={`lg:hidden overflow-hidden transition-all duration-300 ease-silk ${
-          mobileOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
-        <div className="px-4 pb-4 pt-2 space-y-1 bg-cream-50/95 backdrop-blur-md border-b border-cream-200">
-          {navLinks.map((link) => (
-            <a
-              key={link.key}
-              href={link.href}
-              onClick={() => setMobileOpen(false)}
-              className="block px-4 py-3 rounded-xl text-sm font-medium text-rose-700 hover:bg-rose-50 transition-colors"
-            >
-              {t(link.key)}
-            </a>
-          ))}
+      <nav className="max-w-6xl mx-auto px-6 sm:px-10 h-16 sm:h-20 flex items-center justify-between gap-4">
+        <a
+          href="#home"
+          tabIndex={pastHero ? undefined : -1}
+          aria-hidden={pastHero ? undefined : true}
+          className={`font-display text-[1.6rem] leading-none truncate transition-opacity duration-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 ${
+            pastHero ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          {salon.name[lang]}
+        </a>
+        <div className="flex items-center gap-4 sm:gap-6 text-[15px] shrink-0">
+          <button
+            type="button"
+            onClick={toggleLang}
+            aria-label={t('nav.switchLangLabel')}
+            className="min-h-[44px] px-1 opacity-80 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+          >
+            {t('nav.switchLang')}
+          </button>
           <a
             href="#booking"
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center justify-center gap-2 btn-primary mt-2"
+            className={`inline-flex min-h-[44px] items-center px-5 rounded-[2px] border transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 ${
+              pastHero
+                ? 'border-rose-900/30 hover:bg-rose-900 hover:text-pearl-50'
+                : 'border-pearl-50/40 hover:bg-pearl-50 hover:text-rose-900'
+            }`}
           >
-            <CalendarPlus className="w-4 h-4" strokeWidth={1.8} />
-            {t('nav.booking')}
+            {t('services.book')}
           </a>
         </div>
-      </div>
+      </nav>
     </header>
   );
 }

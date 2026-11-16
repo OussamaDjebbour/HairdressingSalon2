@@ -54,3 +54,11 @@ describe('palette', () => {
     expect(() => generatePalette('#12345')).toThrow()
   })
 })
+
+describe('the client page (pearl text on brand 900)', () => {
+  it('pearl text is readable on brand 900 for light and dark brands', () => {
+    for (const base of ['#F4B6C2', '#5B2333', '#1F3A5F']) {
+      expect(contrastRatio('#FBF9F8', generatePalette(base).palette['900'])).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})
