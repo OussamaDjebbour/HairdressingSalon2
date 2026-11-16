@@ -971,3 +971,12 @@ describe('Booking unavailable parts', () => {
     expect(screen.getByRole('button', { name: /Continuer/ })).toBeEnabled();
   });
 });
+
+describe('Booking service step on the client page', () => {
+  it('fades the list under the sticky bar instead of drawing a line across a service', () => {
+    renderWizard();
+    const bar = screen.getByRole('button', { name: /Continuer/ }).closest('.sticky') as HTMLElement;
+    expect(bar).not.toHaveClass('border-t');
+    expect(bar.querySelector('[data-fade]')).toHaveAttribute('aria-hidden', 'true');
+  });
+});

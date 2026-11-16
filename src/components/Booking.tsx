@@ -820,10 +820,14 @@ export function Booking() {
           <div
             className={
               step === 0
-                ? 'sticky bottom-0 z-10 mt-auto -mx-6 sm:-mx-8 lg:-mx-10 px-6 sm:px-8 lg:px-10 pt-4 pb-2 bg-pearl-50 border-t border-rose-900/10'
+                ? 'sticky bottom-0 z-10 mt-auto -mx-6 sm:-mx-8 lg:-mx-10 px-6 sm:px-8 lg:px-10 pt-4 pb-2 bg-pearl-50'
                 : 'mt-auto pt-6'
             }
           >
+            {/* The list passes softly under the bar: a hard line here cut across the service behind it. */}
+            {step === 0 && (
+              <div data-fade aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-full h-10 bg-gradient-to-b from-pearl-50/0 to-pearl-50" />
+            )}
             {step === 0 && (
               <div aria-live="polite" className="text-center text-sm mb-3 empty:mb-0">
                 {visit.length > 0 && (
