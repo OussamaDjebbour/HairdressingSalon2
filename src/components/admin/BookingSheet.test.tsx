@@ -35,6 +35,7 @@ const create = vi.fn();
 const update = vi.fn();
 const setStatus = vi.fn();
 const removePart = vi.fn();
+const moveVisit = vi.fn();
 let pending = false;
 let visitParts: import('../../data/admin').AdminBooking[] | undefined;
 let role: 'owner' | 'demo' | null = 'owner';
@@ -44,6 +45,7 @@ vi.mock('../../data/admin', async (importOriginal) => ({
   useUpdateStaffBooking: () => ({ mutate: update, isPending: pending }),
   useSetBookingStatus: () => ({ mutate: setStatus, isPending: pending }),
   useRemoveVisitPart: () => ({ mutate: removePart, isPending: pending }),
+  useMoveVisit: () => ({ mutate: moveVisit, isPending: pending }),
   useMyRole: () => role,
   useVisitParts: () => ({ data: visitParts }),
 }));
@@ -762,6 +764,42 @@ describe('BookingSheet — visit', () => {
       renderSheet({ mode: 'edit', booking: c1 }, vi.fn(), visitOf(c1, [c1, cancelledSecond]));
       expect(within(screen.getByRole('list', { name: 'Toute la visite' })).getAllByRole('listitem')).toHaveLength(2);
       expect(screen.queryByRole('button', { name: /^Retirer/ })).toBeNull();
+    });
+  });
+
+  describe('Déplacer', () => {
+    const move = () => screen.queryByRole('button', { name: 'Déplacer la visite' });
+
+    it('shows only for a movable visit', () => {
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      expect(move()).toBeInTheDocument();
+    });
+
+    it('is hidden for a visit of one, a cancelled visit, and a visit over two days', () => {
+      const cases = [
+        { b: adminBooking(), v: undefined },
+        { b: first, v: visitOf(first, [first, { ...second, status: 'cancelled' as const }]) },
+        { b: first, v: visitOf(first, [first, { ...second, startsAt: new Date('2030-01-09T10:00:00Z'), endsAt: new Date('2030-01-09T11:00:00Z') }]) },
+      ];
+      for (const c of cases) {
+        const { unmount: un } = render(
+          <LanguageProvider><FeedbackProvider><BookingSheet state={{ mode: 'edit', booking: c.b }} onClose={vi.fn()} visit={c.v} /></FeedbackProvider></LanguageProvider>
+        );
+        expect(move()).toBeNull();
+        un();
+      }
+    });
+
+    it('after a move: toast and the moved message with all services and the new start', async () => {
+      moveVisit.mockImplementation((_i, opts) => opts.onSuccess());
+      renderSheet({ mode: 'edit', booking: first }, vi.fn(), visit);
+      fireEvent.click(move()!);
+      pickOption('Heure', '14:00');
+      fireEvent.click(screen.getByRole('button', { name: 'Déplacer' }));
+      expect(await screen.findByText('Visite déplacée')).toBeInTheDocument();
+      const text = whatsappText();
+      expect(text).toContain('Coupe & Brushing + Coloration');
+      expect(text).toContain('14:00');
     });
   });
 

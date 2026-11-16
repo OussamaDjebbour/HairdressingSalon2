@@ -1,4 +1,4 @@
-import { Check, MessageCircle, Phone, X } from 'lucide-react';
+import { CalendarClock, Check, MessageCircle, Phone, X } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { canManageVisit, formatAlgiersTime, liveParts, useMyRole, type AdminBooking, type AdminVisit } from '../../data/admin';
 import { formatAgo, formatLongDate, formatPhone, formatPrice } from '../../data/formatters';
@@ -16,13 +16,14 @@ interface BookingSummaryProps {
   onMessage(): void;
   onCancel(): void;
   onEdit(): void;
+  onMove(): void;
   onRemovePart(part: AdminBooking): void;
   busy: boolean;
   error: string | null;
 }
 
 /** An existing booking at a glance, with the one action the owner most likely wants first. */
-export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessage, onCancel, onEdit, onRemovePart, busy, error }: BookingSummaryProps) {
+export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessage, onCancel, onEdit, onMove, onRemovePart, busy, error }: BookingSummaryProps) {
   const { lang, t } = useLang();
   const demo = useMyRole() === 'demo';
   const salonWhatsapp = useSalonInfo().data?.whatsapp ?? null;
@@ -33,7 +34,7 @@ export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessa
   const live = liveParts(visit);
   const listed = live.length > 0 ? live : visit.parts;
   const total = listed.reduce((sum, p) => sum + p.price, 0);
-  const canRemove = canManageVisit(visit).remove;
+  const { remove: canRemove, move: canMove } = canManageVisit(visit);
 
   return (
     <div className="space-y-4">
@@ -140,6 +141,13 @@ export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessa
           </>
         )}
       </div>
+
+      {canMove && (
+        <button type="button" disabled={busy} onClick={onMove} className="btn-secondary tap w-full">
+          <CalendarClock className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
+          {t('admin.summary.moveVisit')}
+        </button>
+      )}
 
       <button type="button" onClick={onEdit} className="tap flex items-center mx-auto px-3 text-sm text-rose-700 underline underline-offset-4 hover:text-rose-900">
         {t('admin.summary.edit')}

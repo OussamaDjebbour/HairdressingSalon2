@@ -20,6 +20,7 @@ import { SelectField } from '../form/SelectField';
 import { DateField } from '../form/DateField';
 import { FormSummary } from '../form/FormSummary';
 import { applyServerError } from '../form/serverErrors';
+import { MoveVisitForm } from './MoveVisitForm';
 import { BookingSummary } from './BookingSummary';
 import { MessageReady } from './MessageReady';
 import { useBookingActions, type Notice } from './useBookingActions';
@@ -119,8 +120,9 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
   });
   const form = watch();
   const [error, setFormError] = useState<string | null>(null);
-  const [view, setView] = useState<'summary' | 'form'>(state.mode === 'edit' ? 'summary' : 'form');
+  const [view, setView] = useState<'summary' | 'form' | 'move'>(state.mode === 'edit' ? 'summary' : 'form');
   // A move (from the form) or "Message WhatsApp" sets this; confirm/refuse set actions.notice.
+  const [moveDirty, setMoveDirty] = useState(false);
   const [ownNotice, setNotice] = useState<Notice | null>(null);
   const notice = ownNotice ?? actions.notice;
 
@@ -169,6 +171,7 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
 
   /** Backdrop, Escape and ✕ go through here: a half-typed booking or unsaved edit isn't thrown away silently. */
   const requestClose = async () => {
+    if (!notice && view === 'move' && moveDirty && !(await askDiscard('admin.sheet.discardChanges'))) return;
     if (!notice && view === 'form' && dirty && !(await askDiscard(state.mode === 'add' ? 'admin.sheet.discardNew' : 'admin.sheet.discardChanges'))) {
       return;
     }
@@ -183,6 +186,14 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
     if (dirty && !(await askDiscard('admin.sheet.discardChanges'))) return;
     reset(initialForm(state, lang));
     setFormError(null);
+    setView('summary');
+  };
+
+  const backFromMove = async () => {
+    if (moveDirty && !(await askDiscard('admin.sheet.discardChanges'))) return;
+    setRemoveError(null);
+    actions.clearError();
+    setMoveDirty(false);
     setView('summary');
   };
 
@@ -283,10 +294,29 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
           onRefuse={() => { setRemoveError(null); actions.refuse(visit, editing); }}
           onCancel={() => { setRemoveError(null); actions.refuse(visit, editing); }}
           onMessage={() => setNotice({ kind: 'confirmed', booking: { ...visit.first, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang, serviceName: visit.serviceName } })}
-          onEdit={() => setView('form')}
+          onEdit={() => { setRemoveError(null); setView('form'); }}
+          onMove={() => { setRemoveError(null); actions.clearError(); setView('move'); }}
           onRemovePart={onRemovePart}
           busy={actions.pendingId === visit.id || removePart.isPending}
           error={removeError ?? actions.error}
+        />
+      ) : editing && visit && view === 'move' ? (
+        <MoveVisitForm
+          visit={visit}
+          onBack={backFromMove}
+          onDirtyChange={setMoveDirty}
+          onMoved={(newStart) => {
+            const live = liveParts(visit);
+            const names = (l: Lang) => live.map((p) => p.serviceName[l]).join(' + ');
+            toast(t('admin.toast.visitMoved'));
+            setNotice({
+              kind: 'moved',
+              booking: {
+                startsAt: newStart, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang,
+                serviceName: { fr: names('fr'), ar: names('ar') },
+              },
+            });
+          }}
         />
       ) : (
         <form className="space-y-3" noValidate onSubmit={handleSubmit(save)}>
