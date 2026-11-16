@@ -4,10 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { TextField } from './form/TextField';
 import { FormSummary } from './form/FormSummary';
 import { clientDetailsSchema, type ClientDetails } from '../data/schemas';
-import {
-  Clock, Check, ChevronLeft, ChevronRight, Calendar, User,
-  MessageCircle, Sparkle, AlertCircle,
-} from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, User, MessageCircle, AlertCircle } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import {
   useVisitSlots, useCreateVisit, toBookingError, failedItem, type BookingErrorCode, type VisitItem,
@@ -16,7 +13,7 @@ import type { Service } from '../data/types';
 import { useServices, useStylists } from '../data/queries';
 import { DataError } from './DataError';
 import { formatAlgiersTime } from '../data/algiersTime';
-import { countText, formatPrice, formatDuration, formatLongDate } from '../data/formatters';
+import { countText, formatPrice, formatDuration, formatLongDate, formatNumber } from '../data/formatters';
 import {
   MAX_VISIT_SERVICES, joinNames, missingAllDay, planVisit, slotState, visitOrder, visitTotals,
 } from '../data/visit';
@@ -29,7 +26,6 @@ import { useClosedDates, useSalonHours, useSalonInfo } from '../data/salonSettin
 import { toWaNumber, waLink } from '../data/whatsapp';
 import { SmartImage } from './SmartImage';
 import { groupByCategory } from '../data/categories';
-import { serviceIcon } from './serviceIcons';
 import { useBookingIntent } from '../context/BookingIntentContext';
 
 /** Up to two initials, e.g. "Lina Benali" → "LB" (Array.from keeps accented and Arabic letters whole). */
@@ -161,12 +157,7 @@ export function Booking() {
   const stylistLabel = (id: string | null | undefined, none: string) =>
     id ? stylists.find((s) => s.id === id)?.name ?? '' : none;
 
-  const steps = [
-    { label: t('booking.step.service'), icon: Sparkle },
-    { label: t('booking.step.stylist'), icon: User },
-    { label: t('booking.step.datetime'), icon: Calendar },
-    { label: t('booking.step.confirm'), icon: Check },
-  ];
+  const steps = [t('booking.step.service'), t('booking.step.stylist'), t('booking.step.datetime'), t('booking.step.confirm')];
 
   const canProceed = () => {
     if (step === 0) return visit.length > 0;
@@ -460,35 +451,16 @@ export function Booking() {
           <h2 className="font-display font-semibold text-rose-900 text-[clamp(2rem,4vw,3rem)]">{t('booking.title')}</h2>
         </div>
 
-        {/* Step indicator */}
-        <div className="flex items-center justify-center mb-10">
-          {steps.map((s, i) => {
-            const isActive = i === step;
-            const isDone = i < step;
-            return (
-              <div key={i} className="flex items-center">
-                <div className="flex flex-col items-center gap-1.5">
-                  <div
-                    className={`flex items-center justify-center w-10 h-10 rounded-full border transition-all duration-300 ease-silk ${
-                      isDone
-                        ? 'bg-rose-800 border-rose-800 text-pearl-50'
-                        : isActive
-                        ? 'bg-pearl-50 border-rose-900 text-rose-900'
-                        : 'bg-transparent border-rose-900/20 text-rose-900/40'
-                    }`}
-                  >
-                    {isDone ? <Check className="w-5 h-5" strokeWidth={2} /> : <s.icon className="w-5 h-5" strokeWidth={1.8} />}
-                  </div>
-                  <span className={`text-xs font-medium hidden sm:block ${isActive ? 'text-rose-700' : isDone ? 'text-rose-600' : 'text-rose-900/40'}`}>
-                    {s.label}
-                  </span>
-                </div>
-                {i < steps.length - 1 && (
-                  <div className={`w-12 sm:w-20 h-0.5 mx-2 rounded-full transition-colors duration-300 ${isDone ? 'bg-rose-900' : 'bg-rose-900/15'}`} />
-                )}
-              </div>
-            );
-          })}
+        {/* Step indicator: a quiet line and words, not icon circles */}
+        <div className="max-w-md mx-auto mb-10">
+          <div className="flex gap-1.5" aria-hidden="true">
+            {steps.map((label, i) => (
+              <span key={label} className={`h-0.5 flex-1 transition-colors duration-300 ${i <= step ? 'bg-rose-900' : 'bg-rose-900/15'}`} />
+            ))}
+          </div>
+          <p className="mt-3 text-center text-sm text-rose-900/70">
+            {`${t('booking.stepOf').replace('{n}', formatNumber(step + 1, lang)).replace('{total}', formatNumber(steps.length, lang))} — ${steps[step]}`}
+          </p>
         </div>
 
         {dataLoading ? (
@@ -515,7 +487,6 @@ export function Booking() {
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {group.items.map((service) => {
-                  const Icon = serviceIcon(service.icon);
                   const isSelected = selectedIds.includes(service.id);
                   const blocked = !isSelected && atMax;
                   return (
@@ -525,7 +496,7 @@ export function Booking() {
                       aria-pressed={isSelected}
                       aria-disabled={blocked || undefined}
                       onClick={() => toggleService(service)}
-                      className={`flex items-start gap-4 p-4 rounded-[2px] border text-start transition-all duration-200 ease-silk ${
+                      className={`flex gap-4 p-4 rounded-[2px] border text-start transition-all duration-200 ease-silk ${
                         isSelected
                           ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
                           : blocked
@@ -533,23 +504,20 @@ export function Booking() {
                           : 'border-rose-900/10 bg-transparent hover:border-rose-900/40 '
                       }`}
                     >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-[2px] bg-rose-100 flex items-center justify-center">
-                        <Icon className="w-6 h-6 text-rose-600" strokeWidth={1.8} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <h5 className="font-medium text-rose-800 text-sm">{service.name[lang]}</h5>
-                          {isSelected && <Check className="w-4 h-4 text-rose-900 flex-shrink-0" strokeWidth={2.5} />}
-                        </div>
-                        <p className="text-xs text-rose-600 mt-0.5 line-clamp-2">{service.description[lang]}</p>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-sm font-semibold text-rose-700">{formatPrice(service.price, lang)}</span>
-                          <span className="flex items-center gap-1 text-xs text-rose-600">
-                            <Clock className="w-3.5 h-3.5" strokeWidth={1.8} />
-                            {formatDuration(service.duration, lang)}
-                          </span>
-                        </div>
-                      </div>
+                      {service.image && (
+                        <img src={service.image} alt="" loading="lazy" className="w-20 aspect-[3/4] object-cover shrink-0 self-start" />
+                      )}
+                      <span className="flex flex-1 min-w-0 flex-col">
+                        <span className="flex items-baseline justify-between gap-3">
+                          <h5 className="font-display text-lg leading-tight text-rose-900">{service.name[lang]}</h5>
+                          {isSelected && <Check className="w-4 h-4 text-rose-900 flex-shrink-0 self-center" strokeWidth={2} aria-hidden="true" />}
+                        </span>
+                        <span className="mt-1 text-sm leading-relaxed text-rose-900/75 line-clamp-2">{service.description[lang]}</span>
+                        <span className="mt-2 flex items-baseline justify-between gap-3">
+                          <span className="font-display text-lg text-rose-900 tabular-nums whitespace-nowrap">{formatPrice(service.price, lang)}</span>
+                          <span className="text-sm text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
+                        </span>
+                      </span>
                     </button>
                   );
                 })}
@@ -816,22 +784,8 @@ export function Booking() {
             </div>
           )}
 
-          {/* Room for the bar's fade (h-10) after the last service, so at the end of the list the fade
-              covers this space and never the last card. */}
-          {step === 0 && <div data-fade-room aria-hidden="true" className="h-10 shrink-0" />}
-
-          {/* Navigation (on the service step it sticks to the bottom of the screen with the running total) */}
-          <div
-            className={
-              step === 0
-                ? 'sticky bottom-0 z-10 mt-auto -mx-6 sm:-mx-8 lg:-mx-10 px-6 sm:px-8 lg:px-10 pt-4 pb-2 bg-pearl-50'
-                : 'mt-auto pt-6'
-            }
-          >
-            {/* The list passes softly under the bar: a hard line here cut across the service behind it. */}
-            {step === 0 && (
-              <div data-fade aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-full h-10 bg-gradient-to-b from-pearl-50/0 to-pearl-50" />
-            )}
+          {/* Navigation (on the service step, with the running total above it) */}
+          <div className="mt-auto pt-6">
             {step === 0 && (
               <div aria-live="polite" className="text-center text-sm mb-3 empty:mb-0">
                 {visit.length > 0 && (
@@ -842,21 +796,26 @@ export function Booking() {
                 {atMax && <p className="text-rose-600 mt-0.5">{t('booking.visit.max')}</p>}
               </div>
             )}
-          <div className="flex items-center justify-between">
-            <button onClick={handleBack} disabled={step === 0} className="btn-ghost">
-              <ChevronLeft className="w-4 h-4" strokeWidth={1.8} />
-              {t('booking.back')}
-            </button>
+          {/* Phones: the main action full width on top, Retour under it. Larger screens: side by side. */}
+          <div className="flex flex-col-reverse items-center gap-3 sm:flex-row sm:justify-between">
+            {step > 0 ? (
+              <button onClick={handleBack} className="btn-ghost">
+                <ChevronLeft className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
+                {t('booking.back')}
+              </button>
+            ) : (
+              <span className="hidden sm:block" />
+            )}
             {step < 3 ? (
-              <button onClick={handleNext} disabled={!canProceed()} className="btn-primary">
+              <button onClick={handleNext} disabled={!canProceed()} className="btn-primary w-full sm:w-auto">
                 {t('booking.next')}
-                <ChevronRight className="w-4 h-4" strokeWidth={1.8} />
+                <ChevronRight className="w-4 h-4 rtl:rotate-180" strokeWidth={1.8} />
               </button>
             ) : (
               <button
                 onClick={handleSubmit(handleConfirm)}
                 disabled={createVisitMutation.isPending}
-                className="btn-primary"
+                className="btn-primary w-full sm:w-auto"
               >
                 {createVisitMutation.isPending ? (
                   <span className="w-4 h-4 rounded-full border-2 border-pearl-50/30 border-t-pearl-50 animate-spin" />

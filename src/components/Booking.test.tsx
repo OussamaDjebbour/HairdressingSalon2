@@ -972,19 +972,41 @@ describe('Booking unavailable parts', () => {
   });
 });
 
-describe('Booking service step on the client page', () => {
-  it('fades the list under the sticky bar instead of drawing a line across a service', () => {
+describe('Booking on the client page (look and navigation)', () => {
+  it('the navigation is never sticky', () => {
     renderWizard();
-    const bar = screen.getByRole('button', { name: /Continuer/ }).closest('.sticky') as HTMLElement;
-    expect(bar).not.toHaveClass('border-t');
-    expect(bar.querySelector('[data-fade]')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByRole('button', { name: /Continuer/ }).closest('.sticky')).toBeNull();
+    expect(document.querySelector('[data-fade], [data-fade-room]')).toBeNull();
   });
 
-  it('leaves room after the last service so the fade never covers it at the end of the list', () => {
+  it('shows no Retour on the first step, and Retour from the second', () => {
     renderWizard();
-    const bar = screen.getByRole('button', { name: /Continuer/ }).closest('.sticky') as HTMLElement;
-    const room = bar.previousElementSibling as HTMLElement;
-    expect(room).toHaveAttribute('data-fade-room');
-    expect(room).toHaveClass('h-10');
+    expect(screen.queryByRole('button', { name: /Retour/ })).toBeNull();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    expect(screen.getByRole('button', { name: /Retour/ })).toBeInTheDocument();
+  });
+
+  it('says which step this is in words instead of icon circles', () => {
+    renderWizard();
+    expect(screen.getByText('Étape 1 sur 4 — Service')).toBeInTheDocument();
+    fireEvent.click(screen.getByText(service.name.fr));
+    next();
+    expect(screen.getByText('Étape 2 sur 4 — Coiffeuse')).toBeInTheDocument();
+  });
+
+  it('the primary action is full width on phones', () => {
+    renderWizard();
+    expect(screen.getByRole('button', { name: /Continuer/ })).toHaveClass('w-full', 'sm:w-auto');
+  });
+
+  it('service rows look like La carte: no icon tile, the photo when there is one', () => {
+    serviceList = [service, { ...service, id: 'soin', image: 'https://x.test/soin.jpg', name: { fr: 'Soin visage', ar: 'س' } }];
+    renderWizard();
+    const plain = screen.getByText(service.name.fr).closest('button')!;
+    expect(plain.querySelector('svg')).toBeNull();
+    expect(plain.querySelector('img')).toBeNull();
+    const withPhoto = screen.getByText('Soin visage').closest('button')!;
+    expect(withPhoto.querySelector('img')).toHaveAttribute('src', 'https://x.test/soin.jpg');
   });
 });
