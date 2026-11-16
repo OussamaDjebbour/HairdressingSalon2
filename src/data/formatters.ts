@@ -157,6 +157,11 @@ export function nameInText(name: string, lang: Lang): string {
   return lang === 'ar' ? `\u2068${name}\u2069` : name;
 }
 
+/** A list of names with the language's comma ("a, b" / "a، b"). */
+export function joinList(items: string[], lang: Lang): string {
+  return items.join(lang === 'ar' ? '، ' : ', ');
+}
+
 /** A plain number in the language's own digits and separators ("2 500", "4,9", "٢٤٠"). */
 export function formatNumber(n: number, lang: Lang = 'fr'): string {
   return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'fr-FR').replace(/\s/g, ' ');

@@ -6,7 +6,7 @@ import { useAllServices, useAllStylists } from '../data/queries';
 import { useClosedDates, useSalonHours } from '../data/salonSettings';
 import { algiersToday, useMyRole, useResetDemo } from '../data/admin';
 import { toYmd } from '../data/bookings';
-import { formatDayMonth } from '../data/formatters';
+import { formatDayMonth, joinList } from '../data/formatters';
 import { groupHours } from '../data/hours';
 import { minutesToTime } from '../data/week';
 import type { ClosedDates, SalonHours, Weekday } from '../data/types';
@@ -25,8 +25,7 @@ function hoursSummary(hours: SalonHours, t: (k: string) => string, lang: Lang): 
   const range = `${minutesToTime(open.hours.opens)}–${minutesToTime(open.hours.closes)}`;
   const closedDays = CLOSED_DAY_ORDER.filter((wd) => !hours[wd]).map((wd) => t(`settings.dayShort.${wd}`));
   if (closedDays.length === 0) return range;
-  const sep = lang === 'ar' ? '، ' : ', ';
-  return `${range} · ${t('settings.hoursClosed').replace('{days}', closedDays.join(sep))}`;
+  return `${range} · ${t('settings.hoursClosed').replace('{days}', joinList(closedDays, lang))}`;
 }
 
 function nextClosedSummary(closed: ClosedDates[], t: (k: string) => string, lang: Lang): string {
