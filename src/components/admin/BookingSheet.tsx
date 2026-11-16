@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { ArrowLeft, Check } from 'lucide-react';
 import { useLang, type Lang } from '../../context/LanguageContext';
 import {
-  formatAlgiersTime, toAdminError, useMyRole, useVisitParts, useCreateStaffBooking, useUpdateStaffBooking,
+  formatAlgiersTime, toAdminError, liveParts, useMyRole, useRemoveVisitPart, useVisitParts, useCreateStaffBooking, useUpdateStaffBooking,
   visitOf, type AdminBooking, type AdminVisit, type StaffBookingInput,
 } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
@@ -96,6 +96,8 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
   const demo = useMyRole() === 'demo';
   const create = useCreateStaffBooking();
   const update = useUpdateStaffBooking();
+  const removePart = useRemoveVisitPart();
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const actions = useBookingActions();
   const ask = useConfirm();
   const toast = useToast();
@@ -184,6 +186,35 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
     setView('summary');
   };
 
+  /** Cancels one part of the visit on the server (after asking); the other parts keep their time. */
+  const onRemovePart = async (part: AdminBooking) => {
+    if (!editing || !visit) return;
+    setRemoveError(null);
+    const ok = await ask({
+      title: t('admin.removePart.title'),
+      text: t('admin.removePart.text').replace('{service}', part.serviceName[lang]).replace('{name}', editing.clientName),
+      confirmLabel: t('admin.removePart.confirm'),
+      cancelLabel: t('admin.removePart.keep'),
+      danger: true,
+    });
+    if (!ok) return;
+    removePart.mutate(part.id, {
+      onSuccess: () => {
+        const rest = liveParts(visit).filter((p) => p.id !== part.id);
+        const names = (l: Lang) => rest.map((p) => p.serviceName[l]).join(' + ');
+        toast(t('admin.toast.partRemoved'));
+        setNotice({
+          kind: 'changed',
+          booking: {
+            startsAt: rest[0].startsAt, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang,
+            serviceName: { fr: names('fr'), ar: names('ar') },
+          },
+        });
+      },
+      onError: (err) => setRemoveError(t(`admin.error.${toAdminError(err)}`)),
+    });
+  };
+
   const save = (values: StaffBookingInput) => {
     if (!service) return;
     setFormError(null);
@@ -253,8 +284,9 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
           onCancel={() => actions.refuse(visit, editing)}
           onMessage={() => setNotice({ kind: 'confirmed', booking: { ...visit.first, clientName: editing.clientName, clientPhone: editing.clientPhone, lang: editing.lang, serviceName: visit.serviceName } })}
           onEdit={() => setView('form')}
-          busy={actions.pendingId === visit.id}
-          error={actions.error}
+          onRemovePart={onRemovePart}
+          busy={actions.pendingId === visit.id || removePart.isPending}
+          error={removeError ?? actions.error}
         />
       ) : (
         <form className="space-y-3" noValidate onSubmit={handleSubmit(save)}>

@@ -1,6 +1,6 @@
 import { Check, MessageCircle, Phone, X } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
-import { formatAlgiersTime, useMyRole, type AdminBooking, type AdminVisit } from '../../data/admin';
+import { canManageVisit, formatAlgiersTime, liveParts, useMyRole, type AdminBooking, type AdminVisit } from '../../data/admin';
 import { formatAgo, formatLongDate, formatPhone, formatPrice } from '../../data/formatters';
 import { useSalonInfo } from '../../data/salonSettings';
 import { salonDate } from '../../data/week';
@@ -16,17 +16,24 @@ interface BookingSummaryProps {
   onMessage(): void;
   onCancel(): void;
   onEdit(): void;
+  onRemovePart(part: AdminBooking): void;
   busy: boolean;
   error: string | null;
 }
 
 /** An existing booking at a glance, with the one action the owner most likely wants first. */
-export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessage, onCancel, onEdit, busy, error }: BookingSummaryProps) {
+export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessage, onCancel, onEdit, onRemovePart, busy, error }: BookingSummaryProps) {
   const { lang, t } = useLang();
   const demo = useMyRole() === 'demo';
   const salonWhatsapp = useSalonInfo().data?.whatsapp ?? null;
   // The demo account sees masked numbers: no call shortcut, and WhatsApp opens the salon's own chat.
   const chatNumber = demo ? (salonWhatsapp ? toWaNumber(salonWhatsapp) : null) : toWaNumber(b.clientPhone);
+
+  // A cancelled visit has no live part: list them all so the sheet isn't empty.
+  const live = liveParts(visit);
+  const listed = live.length > 0 ? live : visit.parts;
+  const total = listed.reduce((sum, p) => sum + p.price, 0);
+  const canRemove = canManageVisit(visit).remove;
 
   return (
     <div className="space-y-4">
@@ -65,23 +72,34 @@ export function BookingSummary({ booking: b, visit, onConfirm, onRefuse, onMessa
         </div>
       </div>
 
-      {visit.parts.length > 1 ? (
+      {listed.length > 1 ? (
         <div>
           <p id="visit-parts" className="text-sm font-semibold text-rose-900">{t('admin.summary.visit')}</p>
           <ul aria-labelledby="visit-parts" className="mt-1 text-sm">
-            {visit.parts.map((p) => (
+            {listed.map((p) => (
               <li
                 key={p.id}
                 aria-current={p.id === b.id ? 'true' : undefined}
-                className={`flex gap-2 py-2 border-b border-cream-200 ${p.id === b.id ? 'font-semibold text-rose-900' : 'text-rose-700'}`}
+                className={`flex items-center gap-2 py-2 border-b border-cream-200 ${p.id === b.id ? 'font-semibold text-rose-900' : 'text-rose-700'}`}
               >
                 <span dir="ltr">{formatAlgiersTime(p.startsAt)}</span>{' '}
-                <span dir="auto" className="text-start">{p.serviceName[lang]} · {p.stylistName}</span>
+                <span dir="auto" className="flex-1 text-start">{p.serviceName[lang]} · {p.stylistName}</span>
+                {canRemove && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onRemovePart(p)}
+                    aria-label={t('admin.summary.removePartLabel').replace('{service}', p.serviceName[lang])}
+                    className="btn-ghost btn-sm text-rust-700 hover:bg-rust-50"
+                  >
+                    {t('admin.summary.removePart')}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
           <dl className="text-sm">
-            <Row label={t('admin.summary.total')} value={formatPrice(visit.price, lang)} />
+            <Row label={t('admin.summary.total')} value={formatPrice(total, lang)} />
           </dl>
         </div>
       ) : (
