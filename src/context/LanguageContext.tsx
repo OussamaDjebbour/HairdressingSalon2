@@ -19,10 +19,6 @@ interface LanguageContextValue {
 
 export const translations: Record<Lang, Record<string, string>> = {
   fr: {
-    'nav.home': 'Accueil',
-    'nav.services': 'Services',
-    'nav.contact': 'Contact',
-    'nav.booking': 'Prendre rendez-vous',
     'nav.schedule': 'Planning du jour',
     'admin.label': 'Espace salon',
     'admin.backToSite': 'Voir le site',
@@ -188,7 +184,6 @@ export const translations: Record<Lang, Record<string, string>> = {
     'services.title': 'La carte',
     'services.subtitle': 'Choisissez un soin pour réserver. Prix en dinars, durée indicative.',
     'services.book': 'Réserver',
-    'services.duration': 'min',
     'booking.title': 'Prendre rendez-vous',
     'booking.step.service': 'Service',
     'booking.step.stylist': 'Coiffeuse',
@@ -398,7 +393,6 @@ export const translations: Record<Lang, Record<string, string>> = {
     'contact.address': 'Adresse',
     'contact.hours': 'Horaires d\u2019ouverture',
     'contact.phone': 'Téléphone',
-    'contact.follow': 'Suivez-nous',
     'common.with': 'avec',
     'common.at': 'à',
     'common.minutes': 'min',
@@ -419,10 +413,6 @@ export const translations: Record<Lang, Record<string, string>> = {
     'salon.loadError.body': 'Le site n’a pas pu se charger. Vérifiez votre connexion internet puis réessayez.',
   },
   ar: {
-    'nav.home': 'الرئيسية',
-    'nav.services': 'الخدمات',
-    'nav.contact': 'اتصلي بنا',
-    'nav.booking': 'حجز موعد',
     'nav.schedule': 'برنامج اليوم',
     'admin.label': 'مساحة الصالون',
     'admin.backToSite': 'زيارة الموقع',
@@ -598,7 +588,6 @@ export const translations: Record<Lang, Record<string, string>> = {
     'services.title': 'قائمة الخدمات',
     'services.subtitle': 'اختاري خدمة لحجز موعدك. الأسعار بالدينار الجزائري.',
     'services.book': 'احجزي',
-    'services.duration': 'دقيقة',
     'booking.title': 'حجز موعد',
     'booking.step.service': 'الخدمة',
     'booking.step.stylist': 'الخبيرة',
@@ -814,7 +803,6 @@ export const translations: Record<Lang, Record<string, string>> = {
     'contact.address': 'العنوان',
     'contact.hours': 'ساعات العمل',
     'contact.phone': 'الهاتف',
-    'contact.follow': 'تابعينا',
     'common.with': 'مع',
     'common.at': 'في',
     'common.minutes': 'دقيقة',

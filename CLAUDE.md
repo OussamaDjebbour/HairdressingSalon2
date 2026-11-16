@@ -31,7 +31,7 @@ supabase db lint --level warning            # security/schema lint
 
 ## Architecture
 
-`src/App.tsx` wraps everything in `LanguageProvider` + React Query's `QueryClientProvider` and these routes: `/` → `HomePage` (a vertical stack of sections: `Navbar → Hero → TrustBadges → Services → Philosophy → Booking → Footer`, linked by anchor `id`s like `#booking` — in-page scrolling), `/admin` → `AdminPage` (staff login + schedule), and `/admin/settings` + `/admin/settings/:section` → the owner's **Réglages** (see "Owner settings" below).
+`src/App.tsx` wraps everything in `LanguageProvider` + React Query's `QueryClientProvider` and these routes: `/` → `HomePage` (a vertical stack of sections: `Navbar → Hero → Services ("La carte") → Philosophy ("La maison") → Booking → Footer`, linked by anchor `id`s like `#booking` — in-page scrolling), `/admin` → `AdminPage` (staff login + schedule), and `/admin/settings` + `/admin/settings/:section` → the owner's **Réglages** (see "Owner settings" below).
 
 ### Salons (one shared database, strict separation)
 
@@ -67,7 +67,9 @@ Conventions that must be respected when touching UI or copy:
 
 Component styling is centralized as `@layer components` classes in `src/index.css` — `btn-primary` / `btn-secondary` / `btn-ghost` / `btn-whatsapp` / `btn-danger` (+ `btn-sm`/`btn-lg`), `card` / `card-hover` / `card-selected`, `input`, `label`, `img-placeholder`, `no-scrollbar`. Prefer these classes over rebuilding styles inline. `src/components/Button.tsx` is just a typed wrapper mapping variant/size props onto those CSS classes.
 
-`tailwind.config.js` defines the visual language and **must be the palette source**: custom color scales `cream / rose / gold / sage / amber / rust` (rose is the primary brand color; e.g. `rose-800` for headings, `cream-50` backgrounds), fonts `font-display` (Fraunces), `font-sans` (Inter), `font-arabic` (Cairo), custom shadows (`shadow-soft/card/lift/glow`), and the signature `ease-silk` easing + `animate-fadeIn`/`animate-shimmer`. Do not introduce raw hex colors or arbitrary values when a token exists.
+**The client page has its own look, scoped by `html.site`.** `useSiteScope()` (`src/lib/useSiteScope.ts`) puts the `site` class on `<html>` while `HomePage` or `SalonNotFound` is mounted (on `<html>` so portals are covered). Under it, `src/index.css` gives the client page Bodoni Moda (`.font-display`, always regular weight, Latin keeps Bodoni in RTL, Arabic falls through to Amiri), Jost text (Cairo in RTL), `pearl-*` grounds, and near-square, shadowless versions of `btn-*`, `card*`, `input`, `label`, `chip-*` (selected = brand fill; `.eyebrow` hidden). The admin never has `.site`, so it keeps Fraunces/Inter/cream and rounded components — **style shared classes for the client page only under `html.site`**. Client-page rules: an image-led hero (salon `heroImage` full height, brand colour rising from the bottom, one load animation `hero-settle/hero-name/hero-sub`, off under reduced motion), services as a price list with a slim thumbnail per photo and a strip of the first three service photos, thin `rose-900/10` rules instead of cards and shadows, no tracked all-caps labels, ≥ 44 px targets. Since 2026-11-16 (`docs/superpowers/specs/2026-11-16-luxe-site-design.md`).
+
+`tailwind.config.js` defines the visual language and **must be the palette source**: custom color scales `cream / pearl / rose / gold / sage / amber / rust` (pearl is the client page's ground; rose is the primary brand color; e.g. `rose-800` for headings, `cream-50` backgrounds), fonts `font-display` (Fraunces), `font-sans` (Inter), `font-arabic` (Cairo), custom shadows (`shadow-soft/card/lift/glow`), and the signature `ease-silk` easing + `animate-fadeIn`/`animate-shimmer`. Do not introduce raw hex colors or arbitrary values when a token exists.
 
 ### Booking flow (the core interaction) — `src/components/Booking.tsx`
 
