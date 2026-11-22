@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import type { Service } from '../data/types';
-import { useServices } from '../data/queries';
+import { useServices, useCategories } from '../data/queries';
 import { formatDuration } from '../data/formatters';
 import { DataError } from './DataError';
-import { groupByCategory, largestGroup, type Category } from '../data/categories';
+import { groupServices, largestGroup, type CategoryKey } from '../data/categories';
 import { CategoryTabs, categoryPanelId, categoryTabId } from './CategoryTabs';
 import { useBookingIntent } from '../context/BookingIntentContext';
 import { effectivePrice } from '../data/pricing';
@@ -62,10 +62,11 @@ function Row({ service }: { service: Service }) {
 export function Services() {
   const { t } = useLang();
   const { data: services, isLoading, isError, refetch } = useServices();
-  const groups = groupByCategory(services ?? []);
+  const { data: custom = [] } = useCategories();
+  const groups = groupServices(services ?? [], custom);
   // One category at a time (salons list many services); the largest one until the client picks another.
-  const [tab, setTab] = useState<Category | null>(null);
-  const shown = groups.find((g) => g.category === tab) ?? largestGroup(groups);
+  const [tab, setTab] = useState<CategoryKey | null>(null);
+  const shown = groups.find((g) => g.key === tab) ?? largestGroup(groups);
 
   return (
     <section id="services" className="bg-pearl-50 text-rose-900 scroll-mt-16">
@@ -93,8 +94,9 @@ export function Services() {
             {shown && groups.length > 1 && (
               <CategoryTabs
                 idBase="carte"
-                categories={groups.map((g) => g.category)}
-                value={shown.category}
+                custom={custom}
+                categories={groups.map((g) => g.key)}
+                value={shown.key}
                 onChange={setTab}
               />
             )}
@@ -103,7 +105,7 @@ export function Services() {
                 {...(groups.length > 1 && {
                   role: 'tabpanel',
                   id: categoryPanelId('carte'),
-                  'aria-labelledby': categoryTabId('carte', shown.category),
+                  'aria-labelledby': categoryTabId('carte', shown.key),
                 })}
               >
                 {/* With tabs, their rule is the list's top line. */}

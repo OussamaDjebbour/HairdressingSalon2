@@ -25,6 +25,7 @@ const sara = stylist('sara', 'Sara', ['manucure']);
 let serviceList: Record<string, unknown>[] = [service];
 const refetchServices = vi.fn();
 vi.mock('../data/queries', () => ({
+  useCategories: () => ({ data: [], isLoading: false, isError: false }),
   useServices: () => ({ data: serviceList, isLoading: false, isError: false, refetch: refetchServices }),
   useCatalogue: () => ({ data: serviceList }),
   useStylists: () => ({ data: [amina, sara], isLoading: false, isError: false, refetch: vi.fn() }),
@@ -270,13 +271,13 @@ describe('Booking step 0 grouping', () => {
   it('shows one category at a time under tabs, the first one chosen', () => {
     serviceList = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles')];
     render(<LanguageProvider><Booking /></LanguageProvider>);
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa & hammam']);
     const panel = screen.getByRole('tabpanel', { name: 'Coiffure' });
     // Service names sit one level under the step heading.
     expect(within(panel).getByRole('heading', { level: 4, name: 'Coupe' })).toBeInTheDocument();
     expect(screen.queryByText('Hammam')).toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: 'Spa' }));
-    expect(within(screen.getByRole('tabpanel', { name: 'Spa' })).getByText('Hammam')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Spa & hammam' }));
+    expect(within(screen.getByRole('tabpanel', { name: 'Spa & hammam' })).getByText('Hammam')).toBeInTheDocument();
     expect(screen.queryByText('Coupe')).toBeNull();
   });
 
@@ -285,10 +286,10 @@ describe('Booking step 0 grouping', () => {
     render(<LanguageProvider><Booking /></LanguageProvider>);
     fireEvent.click(serviceButton('Coupe'));
     fireEvent.click(serviceButton('Brushing'));
-    fireEvent.click(screen.getByRole('tab', { name: 'Spa' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Spa & hammam' }));
     fireEvent.click(serviceButton('Hammam'));
     expect(screen.getByRole('tab', { name: 'Coiffure (2 choisies)' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Spa (1 choisie)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Spa & hammam (1 choisie)' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Beauté' })).toBeInTheDocument();
     expect(screen.getByText(/^3 prestations · /)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /Coiffure/ }));

@@ -10,7 +10,7 @@ import {
   useVisitSlots, useCreateVisit, toBookingError, failedItem, serverTotal, normalizePhone, type BookingErrorCode, type VisitItem,
 } from '../data/bookings';
 import type { Service } from '../data/types';
-import { useServices, useStylists } from '../data/queries';
+import { useServices, useStylists, useCategories } from '../data/queries';
 import { DataError } from './DataError';
 import { formatAlgiersTime } from '../data/algiersTime';
 import { countText, formatPrice, formatDuration, formatLongDate, formatNumber } from '../data/formatters';
@@ -32,7 +32,7 @@ import { SmartImage } from './SmartImage';
 import { PriceTag } from './PriceTag';
 import { PackIncludes } from './PackIncludes';
 import { effectivePrice } from '../data/pricing';
-import { categoryOf, groupByCategory, largestGroup, type Category } from '../data/categories';
+import { categoryKeyOf, groupServices, largestGroup, type CategoryKey } from '../data/categories';
 import { CategoryTabs, categoryPanelId, categoryTabId } from './CategoryTabs';
 import { useBookingIntent } from '../context/BookingIntentContext';
 
@@ -90,9 +90,10 @@ export function Booking() {
   const services = servicesQuery.data ?? [];
   // One category at a time when the salon offers several (salons list many services): tabs, with how many
   // services are ticked in each. The largest category until the client (or a tile on the page) picks another.
-  const serviceGroups = groupByCategory(services);
-  const [serviceCategory, setServiceCategory] = useState<Category | null>(null);
-  const serviceTab = serviceGroups.find((g) => g.category === serviceCategory) ?? largestGroup(serviceGroups);
+  const { data: custom = [] } = useCategories();
+  const serviceGroups = groupServices(services, custom);
+  const [serviceCategory, setServiceCategory] = useState<CategoryKey | null>(null);
+  const serviceTab = serviceGroups.find((g) => g.key === serviceCategory) ?? largestGroup(serviceGroups);
   const stylists = stylistsQuery.data ?? [];
   const queries = [servicesQuery, stylistsQuery, hoursQuery, closedQuery];
   const dataLoading = queries.some((q) => q.isLoading);
@@ -159,8 +160,8 @@ export function Booking() {
     [visit, stylistFor]
   );
   const totals = visitTotals(visit);
-  const chosenPerCategory: Partial<Record<Category, number>> = {};
-  for (const s of visit) chosenPerCategory[categoryOf(s)] = (chosenPerCategory[categoryOf(s)] ?? 0) + 1;
+  const chosenPerCategory: Partial<Record<CategoryKey, number>> = {};
+  for (const s of visit) chosenPerCategory[categoryKeyOf(s, custom)] = (chosenPerCategory[categoryKeyOf(s, custom)] ?? 0) + 1;
   // The server's total from price_changed (its day decides a promotion, e.g. when this device's date is off),
   // for that exact visit only: any change of services, staff, date or time drops it.
   const visitKey = JSON.stringify([items, selectedDate?.toDateString() ?? null, selectedTime]);
@@ -512,7 +513,7 @@ export function Booking() {
     restart(true);
     setSelectedIds([service.id]);
     // "Changer" from the next step shows the services of the tile's category.
-    setServiceCategory(categoryOf(service));
+    setServiceCategory(categoryKeyOf(service, custom));
     clearErrors();
     goTo(service.category === 'pack' ? 2 : 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is recreated each render; applied once per seq
@@ -686,8 +687,9 @@ export function Booking() {
               {serviceTab && serviceGroups.length > 1 && (
                 <CategoryTabs
                   idBase="booking-services"
-                  categories={serviceGroups.map((g) => g.category)}
-                  value={serviceTab.category}
+                  custom={custom}
+                  categories={serviceGroups.map((g) => g.key)}
+                  value={serviceTab.key}
                   onChange={setServiceCategory}
                   chosen={chosenPerCategory}
                   className="mb-4"
@@ -699,7 +701,7 @@ export function Booking() {
                   {...(serviceGroups.length > 1 && {
                     role: 'tabpanel',
                     id: categoryPanelId('booking-services'),
-                    'aria-labelledby': categoryTabId('booking-services', serviceTab.category),
+                    'aria-labelledby': categoryTabId('booking-services', serviceTab.key),
                   })}
                 >
                   {serviceTab.items.map((service) => {

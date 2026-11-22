@@ -30,7 +30,7 @@ vi.mock('../../data/admin', async (importOriginal) => ({
 
 const svc = (id: string, fr: string, active: boolean, sortOrder: number): Service => ({
   id, category: 'coiffure', name: { fr, ar: `${fr}-ar` }, description: { fr: 'd', ar: 'د' },
-  price: 3000, duration: 45, image: '', icon: '', active, sortOrder, includes: [], packStylistId: null, promo: null,
+  price: 3000, duration: 45, image: '', icon: '', active, sortOrder, customCategoryId: null, includes: [], packStylistId: null, promo: null,
 });
 let services: Service[] = [];
 let servicesQuery: { data?: Service[]; isLoading: boolean; isError: boolean; refetch?: () => void } | null = null;
@@ -103,7 +103,7 @@ describe('ServicesSettings', () => {
   it('saves a service moved to the Spa category', async () => {
     renderIt();
     fireEvent.click(screen.getByText('Brushing'));
-    pickOption('Catégorie', 'Spa');
+    pickOption('Catégorie', 'Spa & hammam');
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() =>
       expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.objectContaining({ p_id: 'a1', p_category: 'spa' }))
@@ -203,7 +203,9 @@ describe('ServicesSettings', () => {
   it('the service form doesn\'t offer the pack category', () => {
     renderIt();
     fireEvent.click(screen.getByText('Brushing'));
-    expect(optionNames('Catégorie')).toEqual(['Coiffure', 'Beauté', 'Spa']);
+    expect(optionNames('Catégorie')).toEqual([
+      'Coiffure', 'Soins capillaires', 'Visage', 'Regard (cils & sourcils)', 'Ongles', 'Épilation', 'Maquillage', 'Beauté', 'Spa & hammam', 'Massage',
+    ]);
   });
 
   it('keeps an existing promotion when the service is saved', async () => {

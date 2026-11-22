@@ -11,6 +11,7 @@ let state = { isLoading: false, isError: false };
 const refetch = vi.fn();
 vi.mock('../data/queries', () => ({
   useCatalogue: () => ({ data: catalogue }),
+  useCategories: () => ({ data: [], isLoading: false, isError: false }),
   useServices: () => ({ data: state.isLoading || state.isError ? undefined : list, ...state, refetch }),
 }));
 
@@ -64,7 +65,7 @@ describe('Services (La carte)', () => {
     list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles')];
     renderCarte();
     const tabs = within(screen.getByRole('tablist', { name: 'Catégories' })).getAllByRole('tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa & hammam']);
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
     const panel = screen.getByRole('tabpanel', { name: 'Coiffure' });
     expect(within(panel).getByText('Coupe')).toBeInTheDocument();
@@ -72,8 +73,8 @@ describe('Services (La carte)', () => {
     expect(screen.queryByText('Ongles')).toBeNull();
 
     fireEvent.click(tabs[2]);
-    expect(screen.getByRole('tab', { name: 'Spa' })).toHaveAttribute('aria-selected', 'true');
-    expect(within(screen.getByRole('tabpanel', { name: 'Spa' })).getByText('Hammam')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Spa & hammam' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(screen.getByRole('tabpanel', { name: 'Spa & hammam' })).getByText('Hammam')).toBeInTheDocument();
     expect(screen.queryByText('Coupe')).toBeNull();
   });
 
@@ -88,12 +89,12 @@ describe('Services (La carte)', () => {
     expect(tab('Beauté')).toHaveFocus();
     expect(screen.getByText('Ongles')).toBeInTheDocument();
     fireEvent.keyDown(tab('Beauté'), { key: 'End' });
-    expect(tab('Spa')).toHaveFocus();
-    fireEvent.keyDown(tab('Spa'), { key: 'ArrowRight' });
+    expect(tab('Spa & hammam')).toHaveFocus();
+    fireEvent.keyDown(tab('Spa & hammam'), { key: 'ArrowRight' });
     expect(tab('Coiffure')).toHaveFocus();
     fireEvent.keyDown(tab('Coiffure'), { key: 'ArrowLeft' });
-    expect(tab('Spa')).toHaveFocus();
-    fireEvent.keyDown(tab('Spa'), { key: 'Home' });
+    expect(tab('Spa & hammam')).toHaveFocus();
+    fireEvent.keyDown(tab('Spa & hammam'), { key: 'Home' });
     expect(tab('Coiffure')).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -115,7 +116,7 @@ describe('Services (La carte)', () => {
   it('opens on the category with the most services, the Packs tab staying first', () => {
     list = [mk('p1', 'pack', 'Pack Mariée'), mk('s1', 'spa', 'Hammam'), mk('b1', 'beaute', 'Ongles'), mk('b2', 'beaute', 'Sourcils')];
     renderCarte();
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Packs', 'Beauté', 'Spa']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Packs', 'Beauté', 'Spa & hammam']);
     expect(screen.getByRole('tab', { name: 'Beauté' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Sourcils')).toBeInTheDocument();
     expect(screen.queryByText('Pack Mariée')).toBeNull();

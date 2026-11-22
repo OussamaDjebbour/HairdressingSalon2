@@ -1,9 +1,9 @@
 import { useLayoutEffect, useRef, type KeyboardEvent } from 'react';
 import { useLang } from '../context/LanguageContext';
-import type { Category } from '../data/categories';
+import { categoryLabel, type CategoryKey, type CustomCategory } from '../data/categories';
 import { countText } from '../data/formatters';
 
-export const categoryTabId = (idBase: string, category: Category) => `${idBase}-tab-${category}`;
+export const categoryTabId = (idBase: string, category: CategoryKey) => `${idBase}-tab-${category}`;
 export const categoryPanelId = (idBase: string) => `${idBase}-panel`;
 
 /**
@@ -16,20 +16,23 @@ export const categoryPanelId = (idBase: string) => `${idBase}-panel`;
 export function CategoryTabs({
   idBase,
   categories,
+  custom = [],
   value,
   onChange,
   chosen,
   className = '',
 }: {
   idBase: string;
-  categories: Category[];
-  value: Category;
-  onChange: (category: Category) => void;
-  chosen?: Partial<Record<Category, number>>;
+  categories: CategoryKey[];
+  /** The salon's own categories, to name their tabs. */
+  custom?: CustomCategory[];
+  value: CategoryKey;
+  onChange: (category: CategoryKey) => void;
+  chosen?: Partial<Record<CategoryKey, number>>;
   className?: string;
 }) {
   const { t, lang, dir } = useLang();
-  const tabs = useRef<Partial<Record<Category, HTMLButtonElement | null>>>({});
+  const tabs = useRef<Partial<Record<CategoryKey, HTMLButtonElement | null>>>({});
 
   // On a narrow phone the row scrolls sideways: keep the chosen tab fully in view, scrolling only the row
   // (never the page, so a tab chosen off-screen, e.g. by a tile on the page, doesn't move the page).
@@ -68,7 +71,7 @@ export function CategoryTabs({
       {categories.map((category) => {
         const selected = category === value;
         const n = chosen?.[category] ?? 0;
-        const label = t(`category.${category}`);
+        const label = categoryLabel(category, custom, t, lang);
         return (
           <button
             key={category}
