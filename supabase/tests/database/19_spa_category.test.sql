@@ -47,7 +47,7 @@ create function pg_temp.spa_salon(p_cat text) returns jsonb language sql as $$ s
     'name', jsonb_build_object('fr', 'Hammam', 'ar', 'حمام'), 'price', 3000, 'duration', 60))) $$;
 set local role service_role;
 select public.provision_salon(pg_temp.spa_salon('spa'));
-select throws_ok($$ select public.provision_salon(pg_temp.spa_salon('massage')) $$, 'P0001', 'invalid_service', 'provision rejects an unknown category');
+select throws_ok($$ select public.provision_salon(pg_temp.spa_salon('nails')) $$, 'P0001', 'invalid_service', 'provision rejects an unknown category');
 reset role;
 select is((select category || ' ' || icon from public.services where id = 'spa-test-hammam'), 'spa flower', 'provisioned spa service gets the flower icon');
 
