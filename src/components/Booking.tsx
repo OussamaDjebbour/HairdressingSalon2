@@ -33,7 +33,7 @@ import { PriceTag } from './PriceTag';
 import { PackIncludes } from './PackIncludes';
 import { effectivePrice } from '../data/pricing';
 import { categoryKeyOf, categoryLabel, groupServices, largestGroup, type CategoryKey } from '../data/categories';
-import { CategoryTabs, categoryPanelId, categoryTabId } from './CategoryTabs';
+import { ServicePicker } from './booking/ServicePicker';
 import { useBookingIntent } from '../context/BookingIntentContext';
 
 /** Up to two initials, e.g. "Lina Benali" → "LB" (Array.from keeps accented and Arabic letters whole). */
@@ -88,14 +88,15 @@ export function Booking() {
   const whatsapp = salonInfo?.whatsapp;
   const waNumber = whatsapp ? toWaNumber(whatsapp) : null;
   const services = servicesQuery.data ?? [];
-  // One category at a time when the salon offers several (salons list many services): tabs, with how many
-  // services are ticked in each. The largest category until the client (or a tile on the page) picks another.
-  const { data: custom = [] } = useCategories();
+  // Several categories: an accordion of sections, several may be open. Only the largest is open until the
+  // client (or a tile on the page) opens another.
+  const categoriesQuery = useCategories();
+  const custom = categoriesQuery.data ?? [];
   const serviceGroups = groupServices(services, custom);
-  const [serviceCategory, setServiceCategory] = useState<CategoryKey | null>(null);
-  const serviceTab = serviceGroups.find((g) => g.key === serviceCategory) ?? largestGroup(serviceGroups);
+  const [openCats, setOpenCats] = useState<CategoryKey[] | null>(null);
+  const openSections = openCats ?? (serviceGroups.length > 0 ? [largestGroup(serviceGroups)!.key] : []);
   const stylists = stylistsQuery.data ?? [];
-  const queries = [servicesQuery, stylistsQuery, hoursQuery, closedQuery];
+  const queries = [servicesQuery, stylistsQuery, hoursQuery, closedQuery, categoriesQuery];
   const dataLoading = queries.some((q) => q.isLoading);
   const dataError = queries.some((q) => q.isError);
   const retryData = () => {
@@ -160,8 +161,6 @@ export function Booking() {
     [visit, stylistFor]
   );
   const totals = visitTotals(visit);
-  const chosenPerCategory: Partial<Record<CategoryKey, number>> = {};
-  for (const s of visit) chosenPerCategory[categoryKeyOf(s, custom)] = (chosenPerCategory[categoryKeyOf(s, custom)] ?? 0) + 1;
   // The server's total from price_changed (its day decides a promotion, e.g. when this device's date is off),
   // for that exact visit only: any change of services, staff, date or time drops it.
   const visitKey = JSON.stringify([items, selectedDate?.toDateString() ?? null, selectedTime]);
@@ -512,8 +511,8 @@ export function Booking() {
     appliedSeq.current = request.seq;
     restart(true);
     setSelectedIds([service.id]);
-    // "Changer" from the next step shows the services of the tile's category.
-    setServiceCategory(categoryKeyOf(service, custom));
+    // "Changer" from the next step opens the tile's category.
+    setOpenCats([categoryKeyOf(service, custom)]);
     clearErrors();
     goTo(service.category === 'pack' ? 2 : 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is recreated each render; applied once per seq
@@ -684,63 +683,15 @@ export function Booking() {
             <div className="animate-fadeIn">
               <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-1 focus:outline-none">{t('booking.selectService')}</h3>
               {services.length > 1 && <p className="text-sm text-rose-600 mb-5">{t('booking.selectServiceHint')}</p>}
-              {serviceTab && serviceGroups.length > 1 && (
-                <CategoryTabs
-                  idBase="booking-services"
-                  items={serviceGroups.map((g) => ({ key: g.key, label: categoryLabel(g.key, custom, t, lang) }))}
-                  value={serviceTab.key}
-                  onChange={setServiceCategory}
-                  chosen={chosenPerCategory}
-                  className="mb-4"
-                />
-              )}
-              {serviceTab && (
-                <div
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-                  {...(serviceGroups.length > 1 && {
-                    role: 'tabpanel',
-                    id: categoryPanelId('booking-services'),
-                    'aria-labelledby': categoryTabId('booking-services', serviceTab.key),
-                  })}
-                >
-                  {serviceTab.items.map((service) => {
-                    const isSelected = selectedIds.includes(service.id);
-                    const blocked = !isSelected && atMax;
-                    return (
-                      <button
-                        key={service.id}
-                        type="button"
-                        aria-pressed={isSelected}
-                        aria-disabled={blocked || undefined}
-                        onClick={() => toggleService(service)}
-                        className={`flex gap-4 p-4 rounded-[2px] border text-start transition-all duration-200 ease-silk ${
-                          isSelected
-                            ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
-                            : blocked
-                            ? 'border-rose-900/10 bg-transparent opacity-50 cursor-not-allowed'
-                            : 'border-rose-900/10 bg-transparent hover:border-rose-900/40 '
-                        }`}
-                      >
-                        {service.image && (
-                          <img src={service.image} alt="" loading="lazy" className="w-20 aspect-[3/4] object-cover shrink-0 self-start" />
-                        )}
-                        <span className="flex flex-1 min-w-0 flex-col">
-                          <span className="flex items-baseline justify-between gap-3">
-                            <h4 className="font-display text-lg leading-tight text-rose-900">{service.name[lang]}</h4>
-                            {isSelected && <Check className="w-4 h-4 text-rose-900 flex-shrink-0 self-center" strokeWidth={2} aria-hidden="true" />}
-                          </span>
-                          <span className="mt-1 text-sm leading-relaxed text-rose-900/75 line-clamp-2">{service.description[lang]}</span>
-                          {service.category === 'pack' && <PackIncludes service={service} className="mt-1 text-sm leading-relaxed text-rose-900/75" />}
-                          <span className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3">
-                            <span className="font-display text-lg text-rose-900 tabular-nums"><PriceTag {...effectivePrice(service)} align="start" /></span>
-                            <span className="text-sm text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <ServicePicker
+                groups={serviceGroups}
+                labels={Object.fromEntries(serviceGroups.map((g) => [g.key, categoryLabel(g.key, custom, t, lang)]))}
+                selectedIds={selectedIds}
+                atMax={atMax}
+                onToggle={toggleService}
+                open={openSections}
+                onOpenChange={setOpenCats}
+              />
             </div>
           )}
 
