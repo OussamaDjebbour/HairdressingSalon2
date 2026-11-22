@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(89);
+select plan(93);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -294,6 +294,16 @@ select throws_ok($$ select public.admin_remove_visit_part('c1000000-0000-0000-00
 select throws_ok($$ select public.admin_move_visit('c1000000-0000-0000-0000-000000000002', '2031-03-05', '10:00', '{}') $$, 'P0001', 'not_movable', 'move_visit: another salon''s row with the same visit id is not a part');
 reset role;
 select is((select status from private.bookings where id = 'c1000000-0000-0000-0000-000000000001'), 'pending', 'a shared visit id never reaches another salon');
+
+-- categories: another salon's category behaves like a missing one
+insert into public.salon_categories (id, salon_id, name, sort_order) values ('rival-cat2', 'rival', '{"fr":"R2","ar":"R2"}', 5);
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select throws_ok($$ select public.admin_save_category('rival-cat2', '{"fr":"Hack","ar":""}') $$, 'P0001', 'not_found', 'save_category: other salon''s category is not_found');
+select throws_ok($$ select public.admin_delete_category('rival-cat2') $$, 'P0001', 'not_found', 'delete_category: other salon''s category is not_found');
+select throws_ok($$ select public.admin_reorder_categories(array['rival-cat2']) $$, 'P0001', 'invalid_category', 'reorder_categories: other salon''s id is invalid');
+reset role;
+select is((select name ->> 'fr' || '/' || sort_order from public.salon_categories where id = 'rival-cat2'), 'R2/5', 'rival category untouched');
 
 select * from finish();
 rollback;

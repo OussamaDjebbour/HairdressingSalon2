@@ -148,3 +148,92 @@ revoke execute on function public.admin_save_service(text, jsonb, jsonb, text, i
   from public, anon, authenticated;
 grant execute on function public.admin_save_service(text, jsonb, jsonb, text, integer, integer, integer, text[], text, integer, date, date, text)
   to authenticated;
+
+-- Owner's own categories: add/rename, reorder, delete. All scoped by my_salon(); another salon's id behaves
+-- like a missing one. Names: French 2..60 chars, an empty Arabic one falls back to the French one.
+create function public.admin_save_category(p_id text, p_name jsonb)
+returns text
+language plpgsql volatile security definer set search_path = ''
+as $$
+declare
+  v_salon   text := private.my_salon();
+  v_id      text := p_id;
+  v_name_fr text := btrim(coalesce(p_name ->> 'fr', ''));
+  v_name    jsonb := jsonb_build_object('fr', v_name_fr,
+                       'ar', coalesce(nullif(btrim(coalesce(p_name ->> 'ar', '')), ''), v_name_fr));
+begin
+  if v_salon is null then
+    raise exception 'not_authorized' using errcode = 'P0001';
+  end if;
+  if length(v_name_fr) not between 2 and 60 then
+    raise exception 'invalid_name' using errcode = 'P0001';
+  end if;
+  if p_id is null then
+    v_id := gen_random_uuid()::text;
+    insert into public.salon_categories (id, salon_id, name, sort_order)
+    values (v_id, v_salon, v_name,
+            (select coalesce(max(c.sort_order), 0) + 1 from public.salon_categories c where c.salon_id = v_salon));
+  else
+    update public.salon_categories c set name = v_name where c.id = p_id and c.salon_id = v_salon;
+    if not found then
+      raise exception 'not_found' using errcode = 'P0001';
+    end if;
+  end if;
+  return v_id;
+end;
+$$;
+
+create function public.admin_reorder_categories(p_ids text[])
+returns void
+language plpgsql volatile security definer set search_path = ''
+as $$
+declare
+  v_salon text := private.my_salon();
+begin
+  if v_salon is null then
+    raise exception 'not_authorized' using errcode = 'P0001';
+  end if;
+  -- Exactly the set of her categories: no duplicate, none missing, none foreign.
+  if p_ids is null
+     or exists (select 1 from unnest(p_ids) i where i is null)
+     or (select count(distinct i) from unnest(p_ids) i) <> coalesce(array_length(p_ids, 1), 0)
+     or coalesce(array_length(p_ids, 1), 0) <> (select count(*) from public.salon_categories c where c.salon_id = v_salon)
+     or exists (select 1 from unnest(p_ids) i
+                where not exists (select 1 from public.salon_categories c where c.id = i and c.salon_id = v_salon)) then
+    raise exception 'invalid_category' using errcode = 'P0001';
+  end if;
+  update public.salon_categories c set sort_order = u.n
+  from unnest(p_ids) with ordinality u(id, n)
+  where c.id = u.id and c.salon_id = v_salon;
+end;
+$$;
+
+create function public.admin_delete_category(p_id text)
+returns void
+language plpgsql volatile security definer set search_path = ''
+as $$
+declare
+  v_salon text := private.my_salon();
+  v_uses  integer;
+begin
+  if v_salon is null then
+    raise exception 'not_authorized' using errcode = 'P0001';
+  end if;
+  if not exists (select 1 from public.salon_categories c where c.id = p_id and c.salon_id = v_salon) then
+    raise exception 'not_found' using errcode = 'P0001';
+  end if;
+  -- Hidden services count: they come back when the owner shows them again.
+  select count(*) into v_uses from public.services s where s.salon_id = v_salon and s.custom_category_id = p_id;
+  if v_uses > 0 then
+    raise exception 'category_in_use' using errcode = 'P0001', detail = v_uses::text;
+  end if;
+  delete from public.salon_categories c where c.id = p_id and c.salon_id = v_salon;
+end;
+$$;
+
+revoke execute on function public.admin_save_category(text, jsonb) from public, anon, authenticated;
+revoke execute on function public.admin_reorder_categories(text[]) from public, anon, authenticated;
+revoke execute on function public.admin_delete_category(text) from public, anon, authenticated;
+grant execute on function public.admin_save_category(text, jsonb) to authenticated;
+grant execute on function public.admin_reorder_categories(text[]) to authenticated;
+grant execute on function public.admin_delete_category(text) to authenticated;
