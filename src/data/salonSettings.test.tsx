@@ -7,6 +7,7 @@ vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } })
 
 import { supabase } from '../lib/supabase';
 import {
+  categoryInUseCount,
   toSettingsError,
   useAffectedBookings,
   useClosedDates,
@@ -241,5 +242,15 @@ describe('settings writes', () => {
       })
     );
     expect(client.getQueryData(['salon', 'info'])).toBe('new');
+  });
+});
+
+describe('category errors', () => {
+  it('knows invalid_category and category_in_use with its count', () => {
+    expect(toSettingsError({ message: 'invalid_category' })).toBe('invalid_category');
+    expect(toSettingsError({ message: 'category_in_use', details: '3' })).toBe('category_in_use');
+    expect(categoryInUseCount({ message: 'category_in_use', details: '3' })).toBe(3);
+    expect(categoryInUseCount({ message: 'category_in_use' })).toBe(0);
+    expect(categoryInUseCount({ message: 'boom', details: '3' })).toBe(0);
   });
 });

@@ -308,6 +308,13 @@ const saveSalonInfo = (i: SaveSalonInfoInput) =>
     p_facebook_url: i.facebookUrl,
   });
 
+const saveCategory = (i: { id: string | null; name: Record<Lang, string> }) =>
+  rpc<string>('admin_save_category', { p_id: i.id, p_name: i.name });
+
+const reorderCategories = (ids: string[]) => rpc('admin_reorder_categories', { p_ids: ids });
+
+const deleteCategory = (id: string) => rpc('admin_delete_category', { p_id: id });
+
 const CATALOG_KEYS = [['services'], ['stylists'], ['admin'], ['slots']];
 const SALON_KEYS = [['salon'], ['admin'], ['slots']];
 
@@ -337,6 +344,10 @@ export const useDeleteStylistDaysOff = () => useSettingsWrite(deleteStylistDaysO
 export const useSetHours = () => useSettingsWrite(setHours, SALON_KEYS);
 export const useAddClosedDates = () => useSettingsWrite(addClosedDates, SALON_KEYS);
 export const useDeleteClosedDates = () => useSettingsWrite(deleteClosedDates, SALON_KEYS);
+const CATEGORY_KEYS = [['categories'], ['services'], ['admin']];
+export const useSaveCategory = () => useSettingsWrite(saveCategory, CATEGORY_KEYS);
+export const useReorderCategories = () => useSettingsWrite(reorderCategories, CATEGORY_KEYS);
+export const useDeleteCategory = () => useSettingsWrite(deleteCategory, CATEGORY_KEYS);
 export const useSaveSalonInfo = () => useSettingsWrite(saveSalonInfo, SALON_KEYS);
 
 // ---- errors ----
@@ -358,16 +369,27 @@ export type SettingsErrorCode =
   | 'invalid_pack'
   | 'demo_disabled'
   | 'upload_failed'
+  | 'invalid_category'
+  | 'category_in_use'
   | 'unknown';
 
 const SETTINGS_ERROR_CODES: readonly SettingsErrorCode[] = [
   'not_authorized', 'not_found', 'unknown_service', 'invalid_name', 'invalid_price', 'invalid_duration',
   'invalid_hours', 'invalid_dates', 'invalid_url', 'invalid_weekday', 'invalid_phone',
   'invalid_photo', 'invalid_promo', 'invalid_pack', 'demo_disabled', 'upload_failed',
+  'invalid_category', 'category_in_use',
 ];
 
 export function toSettingsError(err: unknown): SettingsErrorCode {
   if (err instanceof ServiceSaveError) return err.code;
   const message = typeof err === 'object' && err !== null ? (err as { message?: unknown }).message : undefined;
   return SETTINGS_ERROR_CODES.find((code) => code === message) ?? 'unknown';
+}
+
+/** Services still using the category, from a `category_in_use` error's detail (0 if absent). */
+export function categoryInUseCount(err: unknown): number {
+  if (toSettingsError(err) !== 'category_in_use') return 0;
+  const details = (err as { details?: unknown }).details;
+  const n = Number(details);
+  return Number.isFinite(n) ? n : 0;
 }

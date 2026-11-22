@@ -31,6 +31,7 @@ let mySalon: { data?: string; isLoading: boolean; isError: boolean; error: unkno
 vi.mock('../data/queries', () => ({
   useAllServices: () => ({ data: Array.from({ length: 12 }, (_, i) => ({ id: `s${i}` })) }),
   useAllStylists: () => ({ data: Array.from({ length: 4 }, (_, i) => ({ id: `y${i}` })) }),
+  useCategories: () => ({ data: [{ id: 'a' }, { id: 'b' }] }),
 }));
 vi.mock('../data/salonSettings', () => ({
   useSalonHours: () => ({ data: hours }),
@@ -75,7 +76,7 @@ beforeEach(() => {
 });
 
 describe('SettingsPage', () => {
-  it('lists the six sections in order with summaries, each linking to its route', () => {
+  it('lists the seven sections in order with summaries, each linking to its route', () => {
     closed = [
       { id: 'a', from: '2000-01-01', to: '2000-01-05', label: null },
       { id: 'b', from: '2099-03-16', to: '2099-03-20', label: null },
@@ -83,6 +84,7 @@ describe('SettingsPage', () => {
     renderPage();
     const rows: [string, string | null, string][] = [
       ['Prestations & prix', '12 prestations', '/admin/settings/services'],
+      ['Catégories', '2 catégories', '/admin/settings/categories'],
       ['Packs', null, '/admin/settings/packs'],
       ['Coiffeuses', '4 coiffeuses', '/admin/settings/stylists'],
       ['Horaires', '09:00–18:00 · fermé dim., lun.', '/admin/settings/hours'],
@@ -90,7 +92,7 @@ describe('SettingsPage', () => {
       ['Infos du salon', 'Adresse · WhatsApp', '/admin/settings/info'],
     ];
     const links = screen.getAllByRole('link').filter((l) => l.getAttribute('href')?.startsWith('/admin/settings/'));
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
     rows.forEach(([label, summary, href], i) => {
       expect(links[i]).toHaveAttribute('href', href);
       expect(within(links[i]).getByText(label)).toBeInTheDocument();
