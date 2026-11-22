@@ -11,7 +11,7 @@ vi.mock('../lib/supabase', () => ({
 import { saveServiceWithPhoto, ServiceSaveError, toSettingsError, type SaveServiceInput } from './salonSettings';
 
 const input = (id: string | null): SaveServiceInput => ({
-  id, name: { fr: 'Coupe', ar: 'قص' }, description: null, category: 'coiffure', price: 3000, duration: 45, sortOrder: null, includes: [], packStylistId: null, promo: null,
+  id, name: { fr: 'Coupe', ar: 'قص' }, description: null, category: 'coiffure', customCategoryId: null, price: 3000, duration: 45, sortOrder: null, includes: [], packStylistId: null, promo: null,
 });
 const blob = new Blob(['x'], { type: 'image/jpeg' });
 

@@ -17,6 +17,7 @@ let daysOff: StylistDayOff[] = [];
 vi.mock('../../data/queries', () => ({
   useAllServices: () => ({ data: services }),
   useAllStylists: () => ({ data: stylists }),
+  useCategories: () => ({ data: [{ id: 'c1', name: { fr: 'Soins mariée', ar: 'عروس' }, sortOrder: 1 }] }),
 }));
 vi.mock('../../data/salonSettings', async (orig) => ({
   ...(await orig<typeof import('../../data/salonSettings')>()),
@@ -59,6 +60,18 @@ beforeEach(() => {
 });
 
 describe('StylistsSettings', () => {
+  it('groups the service checklist under category headings', () => {
+    services = [
+      { ...svc('s1', 'Brushing', true), category: 'custom', customCategoryId: 'c1' },
+      { ...svc('s2', 'Vernis', true), category: 'ongles' },
+      svc('s3', 'Coupe', true),
+    ];
+    renderIt();
+    fireEvent.click(screen.getAllByTestId('stylist-name')[0]);
+    const legend = screen.getByText('Prestations proposées en ligne').closest('fieldset')!;
+    expect(Array.from(legend.querySelectorAll('h3')).map((h) => h.textContent)).toEqual(['Coiffure', 'Ongles', 'Soins mariée']);
+  });
+
   it('shows with a chevron that a stylist opens for editing', () => {
     renderIt();
     const row = screen.getAllByTestId('stylist-name')[0].closest('li')!;

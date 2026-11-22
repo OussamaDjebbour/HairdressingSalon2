@@ -165,7 +165,7 @@ describe('mutations', () => {
         id: null,
         name: { fr: 'Coupe', ar: 'قص' },
         description: null,
-        category: 'coiffure',
+        category: 'coiffure', customCategoryId: null,
         price: 2500,
         duration: 60,
         sortOrder: 3,
@@ -180,6 +180,7 @@ describe('mutations', () => {
       p_name: { fr: 'Coupe', ar: 'قص' },
       p_description: null,
       p_category: 'coiffure',
+      p_custom_category_id: null,
       p_price: 2500,
       p_duration: 60,
       p_sort_order: 3,
@@ -199,7 +200,7 @@ describe('mutations', () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          id: null, name: { fr: 'x', ar: '' }, description: null, category: 'coiffure', price: -1, duration: 60, sortOrder: null, includes: [], packStylistId: null, promo: null,
+          id: null, name: { fr: 'x', ar: '' }, description: null, category: 'coiffure', customCategoryId: null, price: -1, duration: 60, sortOrder: null, includes: [], packStylistId: null, promo: null,
         })
       ).rejects.toMatchObject({ message: 'invalid_price' });
     });

@@ -34,8 +34,10 @@ const svc = (id: string, fr: string, active: boolean, sortOrder: number): Servic
 });
 let services: Service[] = [];
 let servicesQuery: { data?: Service[]; isLoading: boolean; isError: boolean; refetch?: () => void } | null = null;
+let cats: import('../../data/categories').CustomCategory[] = [];
 vi.mock('../../data/queries', () => ({
   useAllServices: () => servicesQuery ?? { data: services, isLoading: false, isError: false },
+  useCategories: () => ({ data: cats, isLoading: false, isError: false }),
 }));
 
 import { LanguageProvider } from '../../context/LanguageContext';
@@ -61,6 +63,7 @@ beforeEach(() => {
   rpc.mockImplementation(async (fn: string) => (fn === 'admin_affected_bookings' ? { data: [], error: null } : { data: null, error: null }));
   services = [svc('h1', 'Hidden cut', false, 1), svc('a1', 'Brushing', true, 2), svc('a2', 'Coloration', true, 3)];
   servicesQuery = null;
+  cats = [];
   role = 'owner';
   upload.mockReset();
   upload.mockResolvedValue({ error: null });
@@ -159,6 +162,7 @@ describe('ServicesSettings', () => {
         p_name: { fr: 'Brushing', ar: 'Brushing-ar' },
         p_description: { fr: 'd', ar: 'د' },
         p_category: 'coiffure',
+        p_custom_category_id: null,
         p_price: 3500,
         p_duration: 60,
         p_sort_order: 7,
@@ -206,6 +210,48 @@ describe('ServicesSettings', () => {
     expect(optionNames('Catégorie')).toEqual([
       'Coiffure', 'Soins capillaires', 'Visage', 'Regard (cils & sourcils)', 'Ongles', 'Épilation', 'Maquillage', 'Beauté', 'Spa & hammam', 'Massage',
     ]);
+  });
+
+  it('offers her categories after the ready-made ones and saves one as custom', async () => {
+    cats = [{ id: 'c1', name: { fr: 'Soins mariée', ar: 'عروس' }, sortOrder: 1 }];
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    expect(optionNames('Catégorie').slice(-2)).toEqual(['Massage', 'Soins mariée']);
+    pickOption('Catégorie', 'Soins mariée');
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.objectContaining({ p_category: 'custom', p_custom_category_id: 'c1' }))
+    );
+  });
+
+  it('preselects her category when editing a custom service', () => {
+    cats = [{ id: 'c1', name: { fr: 'Soins mariée', ar: 'عروس' }, sortOrder: 1 }];
+    services = [{ ...svc('a1', 'Forfait', true, 1), category: 'custom', customCategoryId: 'c1' }];
+    renderIt();
+    fireEvent.click(screen.getByText('Forfait'));
+    expect(screen.getByRole('combobox', { name: 'Catégorie' })).toHaveTextContent('Soins mariée');
+  });
+
+  it('saving a ready-made category sends no custom id', async () => {
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    pickOption('Catégorie', 'Ongles');
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.objectContaining({ p_category: 'ongles', p_custom_category_id: null }))
+    );
+  });
+
+  it('groups the list under category headings in order', () => {
+    cats = [{ id: 'c1', name: { fr: 'Soins mariée', ar: 'عروس' }, sortOrder: 1 }];
+    services = [
+      { ...svc('a1', 'Forfait', true, 1), category: 'custom', customCategoryId: 'c1' },
+      { ...svc('a2', 'Vernis', true, 2), category: 'ongles' },
+      svc('a3', 'Brushing', true, 3),
+    ];
+    renderIt();
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Coiffure', 'Ongles', 'Soins mariée']);
+    expect(screen.getAllByTestId('service-name').map((n) => n.textContent)).toEqual(['Brushing', 'Vernis', 'Forfait']);
   });
 
   it('keeps an existing promotion when the service is saved', async () => {

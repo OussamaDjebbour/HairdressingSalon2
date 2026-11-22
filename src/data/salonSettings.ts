@@ -5,7 +5,7 @@ import { algiersToday } from './algiersTime';
 import { toYmd } from './bookings';
 import { minutesToTime } from './week';
 import { currentSalonId } from './salon';
-import type { Category } from './categories';
+import type { StoredCategory } from './categories';
 import { PHOTO_BUCKET } from './photoUrl';
 import type {
   AffectedBooking,
@@ -173,7 +173,9 @@ export interface SaveServiceInput {
   id: string | null;
   name: Record<Lang, string>;
   description: Record<Lang, string> | null;
-  category: Category;
+  category: StoredCategory;
+  /** Only with `category: 'custom'`: the id of one of her categories. */
+  customCategoryId: string | null;
   price: number;
   duration: number;
   sortOrder: number | null;
@@ -201,6 +203,7 @@ const saveService = (i: SaveServiceInput) =>
     p_name: i.name,
     p_description: i.description,
     p_category: i.category,
+    p_custom_category_id: i.customCategoryId,
     p_price: i.price,
     p_duration: i.duration,
     p_sort_order: i.sortOrder,

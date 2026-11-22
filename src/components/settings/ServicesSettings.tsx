@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Plus } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { formatDuration, formatPrice } from '../../data/formatters';
-import { useAllServices } from '../../data/queries';
+import { useAllServices, useCategories } from '../../data/queries';
 import {
   toSettingsError,
   ServiceSaveError,
@@ -27,7 +27,7 @@ import { useToast } from '../admin/feedback';
 import { useMyRole } from '../../data/admin';
 import { CatalogRow, PromoFields, emptyPromo, promoToInput, promoToValues, type PromoValues } from './catalogShared';
 import { ServicePhotoField } from './ServicePhotoField';
-import { SERVICE_FORM_CATEGORIES, isServiceFormCategory } from '../../data/categories';
+import { SERVICE_FORM_CATEGORIES, categoryLabel, groupServices, isServiceFormCategory, type CustomCategory, type StoredCategory } from '../../data/categories';
 
 const DURATIONS = Array.from({ length: 40 }, (_, i) => (i + 1) * 15); // 15 … 600
 const ERROR_KEYS = ['invalid_name', 'invalid_price', 'invalid_duration', 'not_found', 'not_authorized', 'demo_disabled', 'invalid_photo', 'invalid_promo', 'upload_failed'];
@@ -39,7 +39,8 @@ const serviceSchema = z.object({
   nameAr: z.string(),
   descFr: z.string(),
   descAr: z.string(),
-  category: z.enum(SERVICE_FORM_CATEGORIES),
+  /** A ready-made key, or `custom:<id>` for one of her categories. */
+  category: z.string(),
   price: z.string().superRefine((v, ctx) => {
     const n = v.trim();
     if (!/^\d+$/.test(n) || parseInt(n, 10) > 1_000_000) ctx.addIssue({ code: 'custom', message: 'form.error.price' });
@@ -57,13 +58,16 @@ const emptyValues: ServiceForm = {
   nameFr: '', nameAr: '', descFr: '', descAr: '', category: 'coiffure', price: '', duration: '30', sortOrder: '', ...emptyPromo,
 };
 
-function toValues(s: Service): ServiceForm {
+function toValues(s: Service, custom: CustomCategory[]): ServiceForm {
   return {
     nameFr: s.name.fr,
     nameAr: s.name.ar,
     descFr: s.description.fr,
     descAr: s.description.ar,
-    category: isServiceFormCategory(s.category) ? s.category : 'coiffure',
+    category:
+      s.category === 'custom' && s.customCategoryId && custom.some((c) => c.id === s.customCategoryId)
+        ? `custom:${s.customCategoryId}`
+        : isServiceFormCategory(s.category) ? s.category : 'coiffure',
     price: String(s.price),
     duration: String(s.duration),
     sortOrder: String(s.sortOrder),
@@ -72,12 +76,14 @@ function toValues(s: Service): ServiceForm {
 }
 
 function toInput(id: string | null, d: ServiceForm): SaveServiceInput {
+  const customId = d.category.startsWith('custom:') ? d.category.slice('custom:'.length) : null;
   const desc = { fr: d.descFr.trim(), ar: d.descAr.trim() };
   return {
     id,
     name: { fr: d.nameFr.trim(), ar: d.nameAr.trim() },
     description: desc.fr || desc.ar ? desc : null,
-    category: d.category,
+    category: customId ? 'custom' : (d.category as StoredCategory),
+    customCategoryId: customId,
     price: parseInt(d.price.trim(), 10),
     duration: parseInt(d.duration, 10),
     sortOrder: d.sortOrder.trim() === '' ? null : parseInt(d.sortOrder.trim(), 10),
@@ -93,7 +99,7 @@ interface Draft {
   image: string;
 }
 
-function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved(): void; onCancel(): void }) {
+function ServiceFormCard({ draft, custom, onSaved, onCancel }: { draft: Draft; custom: CustomCategory[]; onSaved(): void; onCancel(): void }) {
   const { t, lang } = useLang();
   const save = useSaveServiceWithPhoto();
   const queryClient = useQueryClient();
@@ -132,7 +138,7 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
       <ServicePhotoField
         id="svc-photo"
         currentUrl={draft.image}
-        category={watch('category')}
+        category={watch('category').startsWith('custom:') ? 'custom' : (watch('category') as StoredCategory)}
         value={photo}
         onChange={setPhoto}
         onBusyChange={setPreparing}
@@ -154,7 +160,10 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
             onValueChange={field.onChange}
             onBlur={field.onBlur}
             ref={field.ref}
-            options={SERVICE_FORM_CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}`) }))}
+            options={[
+              ...SERVICE_FORM_CATEGORIES.map((c) => ({ value: c as string, label: t(`category.${c}`) })),
+              ...[...custom].sort((a, b) => a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : 1)).map((c) => ({ value: `custom:${c.id}`, label: c.name[lang] || c.name.fr })),
+            ]}
           />
         )}
       />
@@ -200,6 +209,8 @@ function ServiceFormCard({ draft, onSaved, onCancel }: { draft: Draft; onSaved()
 export function ServicesSettings() {
   const { t, lang } = useLang();
   const servicesQuery = useAllServices();
+  const categoriesQuery = useCategories();
+  const custom = categoriesQuery.data ?? [];
   const services = (servicesQuery.data ?? []).filter((s) => s.category !== 'pack');
   const setActive = useSetServiceActive();
   const toast = useToast();
@@ -207,7 +218,7 @@ export function ServicesSettings() {
   const [error, setError] = useState<string | null>(null);
   const [showAffected, setShowAffected] = useState(false);
 
-  if (!queriesReady([servicesQuery])) return <QueryFallback queries={[servicesQuery]} />;
+  if (!queriesReady([servicesQuery, categoriesQuery])) return <QueryFallback queries={[servicesQuery, categoriesQuery]} />;
 
   const fail = (err: unknown) => {
     const code = toSettingsError(err);
@@ -234,6 +245,7 @@ export function ServicesSettings() {
     return (
       <ServiceFormCard
         draft={draft}
+        custom={custom}
         onSaved={() => {
           toast(t(draft.id ? 'settings.toast.serviceSaved' : 'settings.toast.serviceAdded'));
           setDraft(null);
@@ -251,17 +263,22 @@ export function ServicesSettings() {
       <button type="button" className="btn-primary w-full mb-4" onClick={() => { setError(null); setDraft({ id: null, values: emptyValues, image: '' }); }}>
         <Plus className="w-4 h-4" strokeWidth={2} aria-hidden /> {t('settings.services.add')}
       </button>
-      <ul className="space-y-2">
-        {ordered.map((s) => (
-          <CatalogRow
-            key={s.id}
-            s={s}
-            toggling={setActive.isPending}
-            onToggle={() => toggle(s)}
-            onOpen={() => { setError(null); setDraft({ id: s.id, values: toValues(s), image: s.image }); }}
-          />
-        ))}
-      </ul>
+      {groupServices(ordered, custom).map((g) => (
+        <section key={g.key} className="mb-4">
+          <h3 className="text-sm font-semibold text-rose-700 mb-2">{categoryLabel(g.key, custom, t, lang)}</h3>
+          <ul className="space-y-2">
+            {g.items.map((s) => (
+              <CatalogRow
+                key={s.id}
+                s={s}
+                toggling={setActive.isPending}
+                onToggle={() => toggle(s)}
+                onOpen={() => { setError(null); setDraft({ id: s.id, values: toValues(s, custom), image: s.image }); }}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }

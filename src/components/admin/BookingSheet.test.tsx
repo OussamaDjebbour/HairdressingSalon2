@@ -16,6 +16,7 @@ vi.mock('../../data/queries', async () => {
     useStylists: () => ({ data: allStylists().filter((s) => s.active), isLoading: false, isError: false }),
     useAllServices: () => ({ data: allServices(), isLoading: false, isError: false }),
     useAllStylists: () => ({ data: allStylists(), isLoading: false, isError: false }),
+    useCategories: () => ({ data: [{ id: 'c1', name: { fr: 'Soins mariée', ar: 'عروس' }, sortOrder: 1 }], isLoading: false, isError: false }),
   };
 });
 
@@ -107,6 +108,18 @@ beforeEach(() => {
   stylistsOverride = undefined;
   daysOff = [];
   salonWhatsapp = '0555 00 11 22';
+});
+
+describe('BookingSheet — categories', () => {
+  it('lists services in category group order', () => {
+    servicesOverride = [
+      { ...services[0], id: 'k1', category: 'custom', customCategoryId: 'c1', name: { fr: 'Forfait', ar: 'ف' } },
+      { ...services[0], id: 'k2', category: 'ongles', name: { fr: 'Vernis', ar: 'ط' } },
+      { ...services[0], id: 'k3', name: { fr: 'Coupe', ar: 'ق' } },
+    ];
+    renderSheet(addState);
+    expect(optionNames('Prestation')).toEqual(['Coupe', 'Vernis', 'Forfait']);
+  });
 });
 
 describe('BookingSheet — add', () => {

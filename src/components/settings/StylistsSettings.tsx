@@ -6,7 +6,7 @@ import { ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { toYmd } from '../../data/bookings';
 import { formatDayName, formatLongDate } from '../../data/formatters';
-import { useAllServices, useAllStylists } from '../../data/queries';
+import { useAllServices, useAllStylists, useCategories } from '../../data/queries';
 import {
   toSettingsError,
   useAddStylistDaysOff,
@@ -15,6 +15,7 @@ import {
   useSetStylistActive,
   useStylistDaysOff,
 } from '../../data/salonSettings';
+import { categoryLabel, groupServices } from '../../data/categories';
 import type { Service, Stylist, Weekday } from '../../data/types';
 import { salonDate } from '../../data/week';
 import { clientNameSchema, periodSchema } from '../../data/schemas';
@@ -81,6 +82,7 @@ interface FormProps {
 }
 
 function StylistFormCard({ draft, services, error, onFail, onStart, onSaved, onCancel }: FormProps) {
+  const custom = useCategories().data ?? [];
   const { t, lang } = useLang();
   const save = useSaveStylist();
   const {
@@ -126,18 +128,23 @@ function StylistFormCard({ draft, services, error, onFail, onStart, onSaved, onC
           return (
             <fieldset>
               <legend className="label">{t('settings.stylists.services')}</legend>
-              <ul className="space-y-1">
-                {offered.map((s) => (
-                  <li key={s.id}>
-                    <CheckboxField
-                      id={`sty-svc-${s.id}`}
-                      checked={linked.has(s.id)}
-                      onCheckedChange={() => field.onChange(toggleIn(field.value, s.id))}
-                      label={`${s.name[lang]}${s.active ? '' : ` (${t('settings.services.hidden')})`}`}
-                    />
-                  </li>
-                ))}
-              </ul>
+              {groupServices(offered, custom).map((g) => (
+                <div key={g.key} className="mb-2">
+                  <h3 className="text-xs font-semibold text-rose-700 mb-1">{categoryLabel(g.key, custom, t, lang)}</h3>
+                  <ul className="space-y-1">
+                    {g.items.map((s) => (
+                      <li key={s.id}>
+                        <CheckboxField
+                          id={`sty-svc-${s.id}`}
+                          checked={linked.has(s.id)}
+                          onCheckedChange={() => field.onChange(toggleIn(field.value, s.id))}
+                          label={`${s.name[lang]}${s.active ? '' : ` (${t('settings.services.hidden')})`}`}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </fieldset>
           );
         }}

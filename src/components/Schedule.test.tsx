@@ -17,6 +17,7 @@ vi.mock('../data/queries', async () => {
     useStylists: () => ({ data: allStylists().filter((s) => s.active), isLoading: false, isError: false }),
     useAllServices: () => ({ data: f.services, isLoading: false, isError: false }),
     useAllStylists: () => ({ data: allStylists(), isLoading: false, isError: false }),
+    useCategories: () => ({ data: [], isLoading: false, isError: false }),
   };
 });
 
