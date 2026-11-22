@@ -31,7 +31,7 @@ select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 
 select is((select category || ' ' || icon from public.services where id = (select v from pg_temp.ids where k = 'spa')), 'spa flower', 'new spa service gets the flower icon');
-select throws_ok($$ select public.admin_save_service(null, '{"fr":"Valide","ar":""}', '{}', 'massage', 1000, 30, 0) $$, 'P0001', 'invalid_name', 'unknown category still invalid');
+select throws_ok($$ select public.admin_save_service(null, '{"fr":"Valide","ar":""}', '{}', 'nails', 1000, 30, 0) $$, 'P0001', 'invalid_name', 'unknown category still invalid');
 
 select public.admin_save_service((select v from pg_temp.ids where k = 'hair'), '{"fr":"Coupe spa","ar":""}', '{}', 'spa', 2000, 30, 2);
 select public.admin_save_service((select v from pg_temp.ids where k = 'custom'), '{"fr":"Couleur","ar":""}', '{}', 'spa', 4000, 60, 3);

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(88);
+select plan(89);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -10,6 +10,7 @@ create function pg_temp.open_day(n int default 1) returns date language sql as $
   order by d offset n - 1 limit 1 $$;
 
 insert into public.salons (id, name) values ('rival', 'Rival');
+insert into public.salon_categories (id, salon_id, name) values ('rival-cat', 'rival', '{"fr":"R","ar":"R"}');
 insert into public.services (id, salon_id, category, name, description, price, duration, image, icon)
   values ('rival-cut', 'rival', 'coiffure', '{"fr":"Coupe R","ar":"قص"}', '{"fr":"x","ar":"x"}', 1000, 60, 'x', 'scissors');
 insert into public.stylists (id, salon_id, name, role, image)
@@ -195,6 +196,7 @@ set local role authenticated;
 select throws_ok($$ select public.admin_save_service('rival-cut', '{"fr":"Hack","ar":""}', '{}', 'beaute', 1, 30, 0) $$, 'P0001', 'not_found', 'save_service: other salon''s service is not_found');
 select throws_ok($$ select public.admin_save_service(null, '{"fr":"Pack R","ar":""}', '{}', 'pack', 1000, 60, 0, '{}', 'nadia') $$, 'P0001', 'invalid_pack', 'save_service: other salon''s stylist as a pack''s person responsible is invalid_pack');
 select throws_ok($$ select public.admin_save_service(null, '{"fr":"Pack R","ar":""}', '{}', 'pack', 1000, 60, 0, array['rival-cut'], 'amina') $$, 'P0001', 'invalid_pack', 'save_service: other salon''s service in a pack''s includes is invalid_pack');
+select throws_ok($$ select public.admin_save_service(null, '{"fr":"Cat R","ar":""}', '{}', 'custom', 1000, 60, 0, '{}', null, null, null, null, 'rival-cat') $$, 'P0001', 'invalid_category', 'save_service: other salon''s category is invalid_category');
 select throws_ok($$ select public.admin_set_service_active('rival-cut', false) $$, 'P0001', 'not_found', 'set_service_active: other salon''s service is not_found');
 select throws_ok($$ select public.admin_set_service_photo('rival-cut', null) $$, 'P0001', 'not_found', 'set_service_photo: other salon''s service is not_found');
 select throws_ok($$ select public.admin_set_service_photo('coupe-femme', 'rival/uploads/cccccccc-cccc-cccc-cccc-cccccccccccc.jpg') $$, 'P0001', 'invalid_photo', 'set_service_photo: other salon''s upload is invalid_photo');
