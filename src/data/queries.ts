@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Service, Stylist, Weekday } from './types';
+import type { CustomCategory } from './categories';
 import { currentSalonId } from './salon';
 import { photoUrl } from './photoUrl';
 
 interface ServiceRow {
   id: string;
   category: string;
+  custom_category_id: string | null;
   name: Service['name'];
   description: Service['description'];
   price: number;
@@ -39,7 +41,7 @@ const STALE_MS = 30_000; // settings changes reach the public site within about 
 export async function fetchServices(includeInactive = false): Promise<Service[]> {
   let query = supabase
     .from('services')
-    .select('id, category, name, description, price, duration, image, icon, sort_order, active, includes, pack_stylist_id, promo_price, promo_from, promo_to')
+    .select('id, category, custom_category_id, name, description, price, duration, image, icon, sort_order, active, includes, pack_stylist_id, promo_price, promo_from, promo_to')
     .eq('salon_id', currentSalonId());
   if (!includeInactive) query = query.eq('active', true);
   const { data, error } = await query.order('sort_order');
@@ -47,6 +49,7 @@ export async function fetchServices(includeInactive = false): Promise<Service[]>
   return (data as ServiceRow[]).map((r) => ({
     id: r.id,
     category: r.category,
+    customCategoryId: r.custom_category_id,
     name: r.name,
     description: r.description,
     price: r.price,
@@ -82,6 +85,26 @@ export async function fetchStylists(includeInactive = false): Promise<Stylist[]>
     active: r.active,
     workdays: (r.stylist_workdays ?? []).map((w) => w.weekday as Weekday).sort(),
   }));
+}
+
+export async function fetchCategories(): Promise<CustomCategory[]> {
+  const { data, error } = await supabase
+    .from('salon_categories')
+    .select('id, name, sort_order')
+    .eq('salon_id', currentSalonId())
+    .order('sort_order')
+    .order('id');
+  if (error) throw error;
+  return (data as { id: string; name: CustomCategory['name']; sort_order: number }[]).map((r) => ({
+    id: r.id,
+    name: r.name,
+    sortOrder: r.sort_order,
+  }));
+}
+
+/** Public: the categories the salon owner made (the ready-made ones are fixed). */
+export function useCategories() {
+  return useQuery({ queryKey: ['categories', currentSalonId()], queryFn: fetchCategories, staleTime: STALE_MS });
 }
 
 /** Public: active services only. */

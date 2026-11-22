@@ -4,13 +4,13 @@ import { useLang } from '../../context/LanguageContext';
 import type { PhotoChange } from '../../data/salonSettings';
 import { PhotoError, preparePhoto } from '../../lib/photo';
 import { SmartImage } from '../SmartImage';
-import type { Category } from '../../data/categories';
+import type { StoredCategory } from '../../data/categories';
 import { categoryIcon } from '../serviceIcons';
 
 interface Props {
   id: string;
   currentUrl: string;
-  category: Category;
+  category: StoredCategory;
   value: PhotoChange;
   onChange(v: PhotoChange): void;
   onBusyChange(busy: boolean): void;

@@ -8,9 +8,13 @@ const service = {
 let list: (typeof service & Record<string, unknown>)[] = [service];
 let catalogue: (typeof service)[] = [];
 let state = { isLoading: false, isError: false };
+let cats: { id: string; name: { fr: string; ar: string }; sortOrder: number }[] = [];
+let catState = { isLoading: false, isError: false };
 const refetch = vi.fn();
+const refetchCats = vi.fn();
 vi.mock('../data/queries', () => ({
   useCatalogue: () => ({ data: catalogue }),
+  useCategories: () => ({ data: catState.isLoading || catState.isError ? undefined : cats, ...catState, refetch: refetchCats }),
   useServices: () => ({ data: state.isLoading || state.isError ? undefined : list, ...state, refetch }),
 }));
 
@@ -23,6 +27,9 @@ beforeEach(() => {
   catalogue = [];
   state = { isLoading: false, isError: false };
   refetch.mockReset();
+  refetchCats.mockReset();
+  cats = [];
+  catState = { isLoading: false, isError: false };
 });
 
 const mk = (id: string, category: string, fr: string, image = '') => ({ ...service, id, category, image, name: { fr, ar: fr } });
@@ -60,22 +67,54 @@ describe('Services (La carte)', () => {
     fireEvent.click(link);
   });
 
-  it('groups under headings Coiffure, Beauté, Spa when several categories are present', () => {
-    list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles')];
+  const headers = () => screen.getAllByRole('button').filter((b) => b.hasAttribute('aria-expanded'));
+
+  it('lists the categories as accordion headers in order, only the largest open', () => {
+    list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles'), mk('s4', 'beaute', 'Sourcils')];
     renderCarte();
-    const headings = screen.getAllByRole('heading', { level: 3 }).filter((h) => ['Coiffure', 'Beauté', 'Spa'].includes(h.textContent ?? ''));
-    expect(headings.map((h) => h.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa']);
-    const group = (h: HTMLElement) => within(h.parentElement!);
-    expect(group(headings[0]).getByText('Coupe')).toBeInTheDocument();
-    expect(group(headings[0]).queryByText('Hammam')).toBeNull();
-    expect(group(headings[1]).getByText('Ongles')).toBeInTheDocument();
-    expect(group(headings[2]).getByText('Hammam')).toBeInTheDocument();
+    const hs = headers();
+    expect(hs.map((h) => h.textContent)).toEqual(['Coiffure1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
+    expect(hs.map((h) => h.getAttribute('aria-expanded'))).toEqual(['false', 'true', 'false']);
+    expect(hs[0].parentElement!.tagName).toBe('H3');
+    expect(screen.getByText('Sourcils')).toBeInTheDocument();
+    expect(screen.queryByText('Coupe')).toBeNull();
+    expect(screen.queryByText('Hammam')).toBeNull();
+    expect(hs[1].getAttribute('aria-controls')).not.toContain(':');
+    expect(document.getElementById(hs[1].getAttribute('aria-controls')!)).not.toBeNull();
   });
 
-  it('shows no heading when only one category is present', () => {
+  it('opening a second category keeps the first open; a header closes its own', () => {
+    list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles'), mk('s4', 'beaute', 'Sourcils')];
+    renderCarte();
+    fireEvent.click(headers()[2]);
+    expect(screen.getByText('Hammam')).toBeInTheDocument();
+    expect(screen.getByText('Sourcils')).toBeInTheDocument();
+    fireEvent.click(headers()[1]);
+    expect(screen.queryByText('Sourcils')).toBeNull();
+    expect(screen.getByText('Hammam')).toBeInTheDocument();
+  });
+
+  it('packs come first and the largest category opens', () => {
+    list = [mk('p1', 'pack', 'Pack Mariée'), mk('s1', 'spa', 'Hammam'), mk('b1', 'beaute', 'Ongles'), mk('b2', 'beaute', 'Sourcils')];
+    renderCarte();
+    expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
+    expect(screen.getByText('Sourcils')).toBeInTheDocument();
+    expect(screen.queryByText('Pack Mariée')).toBeNull();
+  });
+
+  it('the last row of an open category drops its rule (the section draws it)', () => {
+    list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'beaute', 'Ongles'), mk('s3', 'beaute', 'Sourcils')];
+    renderCarte();
+    const ul = screen.getByText('Sourcils').closest('ul')!;
+    expect(ul.className).toContain('[&>li:last-child>a]:border-b-0');
+  });
+
+  it('shows no header when only one category is present', () => {
     list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'coiffure', 'Brushing')];
     renderCarte();
-    for (const name of ['Coiffure', 'Beauté', 'Spa']) expect(screen.queryByRole('heading', { name })).toBeNull();
+    expect(document.querySelector('[aria-expanded]')).toBeNull();
+    expect(screen.getByText('Coupe')).toBeInTheDocument();
+    expect(screen.getByText('Brushing')).toBeInTheDocument();
   });
 
   it('a row with a photo shows it as a thumbnail; a row without stays text only', () => {
@@ -89,6 +128,26 @@ describe('Services (La carte)', () => {
   });
 
 
+
+  it('closed category headers show the first photographed service as a thumbnail when every category has one', () => {
+    list = [mk('s1', 'spa', 'Hammam', 'https://x.test/h.jpg'), mk('s2', 'coiffure', 'Coupe'), mk('s5', 'coiffure', 'Brushing', 'https://x.test/b.jpg'), mk('s3', 'beaute', 'Ongles', 'https://x.test/o.jpg'), mk('s4', 'beaute', 'Sourcils'), mk('s6', 'beaute', 'Cils')];
+    renderCarte();
+    const hs = headers();
+    const imgs = hs.map((h) => h.querySelector('img'));
+    expect(imgs[0]).toHaveAttribute('src', 'https://x.test/b.jpg');
+    expect(imgs[0]).toHaveAttribute('alt', '');
+    expect(imgs[0]).toHaveAttribute('loading', 'lazy');
+    expect(imgs[1]).toBeNull();
+    expect(imgs[2]).toHaveAttribute('src', 'https://x.test/h.jpg');
+    fireEvent.click(hs[1]);
+    expect(headers()[1].querySelector('img')).toHaveAttribute('src', 'https://x.test/o.jpg');
+  });
+
+  it('no header shows a thumbnail when one category has no photo', () => {
+    list = [mk('s1', 'spa', 'Hammam', 'https://x.test/h.jpg'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles', 'https://x.test/o.jpg'), mk('s4', 'beaute', 'Sourcils')];
+    renderCarte();
+    expect(headers().every((h) => h.querySelector('img') === null)).toBe(true);
+  });
 
   it('shows quiet placeholder rows while loading', () => {
     state = { isLoading: true, isError: false };
@@ -131,8 +190,8 @@ describe('Services (La carte)', () => {
     list = [coupe, pack];
     catalogue = [coupe, hidden];
     renderCarte();
-    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-    expect(headings).toEqual(['Packs', 'Coiffure']);
+    expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Coiffure1 prestation']);
+    expect(headers()[0]).toHaveAttribute('aria-expanded', 'true');
     const link = screen.getByRole('link', { name: /Pack Mariée/ });
     expect(link.textContent).toContain('Comprend : Coupe, Masque secret');
   });
@@ -161,5 +220,33 @@ describe('Services (La carte)', () => {
     expect(link.textContent).toMatch(/2\s?000/);
     expect(within(link).getByText(/au lieu de/)).toHaveClass('sr-only');
     expect(screen.getByRole('link', { name: /Brushing/ }).querySelector('.line-through')).toBeNull();
+  });
+
+  it('shows the salon\'s own category after the ready-made ones, in both languages', () => {
+    cats = [{ id: 'c1', name: { fr: 'Soins mariée', ar: 'عروس' }, sortOrder: 0 }];
+    list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'beaute', 'Ongles'), { ...mk('s3', 'custom', 'Henné'), customCategoryId: 'c1' }];
+    function ToArabic() {
+      const { toggleLang } = useLang();
+      return <button onClick={toggleLang}>to-ar</button>;
+    }
+    render(<LanguageProvider><ToArabic /><Services /></LanguageProvider>);
+    expect(headers().map((h) => h.textContent)).toEqual(['Coiffure1 prestation', 'Beauté1 prestation', 'Soins mariée1 prestation']);
+    fireEvent.click(headers()[2]);
+    expect(screen.getByText('Henné')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('to-ar'));
+    expect(headers().at(-1)!.textContent).toContain('عروس');
+  });
+
+  it('waits for the categories too, and retries the one that failed', () => {
+    catState = { isLoading: true, isError: false };
+    const { container, unmount } = renderCarte();
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(container.querySelectorAll('[data-placeholder]').length).toBeGreaterThan(0);
+    unmount();
+    catState = { isLoading: false, isError: true };
+    renderCarte();
+    fireEvent.click(screen.getByRole('button', { name: /réessayer/i }));
+    expect(refetchCats).toHaveBeenCalled();
+    expect(refetch).not.toHaveBeenCalled();
   });
 });

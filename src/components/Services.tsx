@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import type { Service } from '../data/types';
-import { useServices } from '../data/queries';
+import { useServices, useCategories } from '../data/queries';
 import { formatDuration } from '../data/formatters';
 import { DataError } from './DataError';
-import { groupByCategory } from '../data/categories';
+import { categoryLabel, groupServices, largestGroup, type CategoryKey } from '../data/categories';
+import { CategorySection } from './CategorySection';
 import { useBookingIntent } from '../context/BookingIntentContext';
 import { effectivePrice } from '../data/pricing';
 import { PriceTag } from './PriceTag';
@@ -58,9 +60,32 @@ function Row({ service }: { service: Service }) {
 }
 
 export function Services() {
-  const { t } = useLang();
-  const { data: services, isLoading, isError, refetch } = useServices();
-  const groups = groupByCategory(services ?? []);
+  const { t, lang } = useLang();
+  const servicesQ = useServices();
+  const categoriesQ = useCategories();
+  const services = servicesQ.data;
+  const custom = categoriesQ.data ?? [];
+  const isLoading = servicesQ.isLoading || categoriesQ.isLoading;
+  const isError = servicesQ.isError || categoriesQ.isError;
+  const refetch = () => {
+    if (servicesQ.isError) servicesQ.refetch();
+    if (categoriesQ.isError) categoriesQ.refetch();
+  };
+  const groups = groupServices(services ?? [], custom);
+  // The largest category is open until the client opens or closes others (several may be open).
+  const [openKeys, setOpenKeys] = useState<CategoryKey[] | null>(null);
+  // Thumbnails only when every category can show one, so the headers stay uniform.
+  const thumbOf = (items: Service[]) => items.find((s) => s.image)?.image;
+  const showThumbs = groups.length > 1 && groups.every((g) => thumbOf(g.items));
+  const open = openKeys ?? (groups.length ? [largestGroup(groups)!.key] : []);
+  // In an accordion the section's own rule closes the list, so the last row drops its rule.
+  const list = (items: Service[], sectioned = false) => (
+    <ul className={sectioned ? '[&>li:last-child>a]:border-b-0' : undefined}>
+      {items.map((service) => (
+        <Row key={service.id} service={service} />
+      ))}
+    </ul>
+  );
 
   return (
     <section id="services" className="bg-pearl-50 text-rose-900 scroll-mt-16">
@@ -81,22 +106,33 @@ export function Services() {
           </ul>
         ) : isError ? (
           <div className="mt-14">
-            <DataError onRetry={() => refetch()} />
+            <DataError onRetry={refetch} />
           </div>
         ) : (
-          <div className="mt-12 space-y-12">
-            {groups.map((group) => (
-              <div key={group.category}>
-                {groups.length > 1 && (
-                  <h3 className="font-display italic text-[1.35rem] text-gold-700 mb-2">{t(`category.${group.category}`)}</h3>
-                )}
-                <ul className="border-t border-rose-900/10">
-                  {group.items.map((service) => (
-                    <Row key={service.id} service={service} />
-                  ))}
-                </ul>
+          <div className="mt-12">
+            {groups.length === 1 ? (
+              <div className="border-t border-rose-900/10">{list(groups[0].items)}</div>
+            ) : (
+              <div className="border-t border-rose-900/10">
+                {groups.map(({ key, items }) => {
+                  const isOpen = open.includes(key);
+                  return (
+                    <CategorySection
+                      key={key}
+                      as="h3"
+                      id={`carte-${key}`}
+                      label={categoryLabel(key, custom, t, lang)}
+                      count={items.length}
+                      thumbnail={showThumbs ? thumbOf(items) : undefined}
+                      open={isOpen}
+                      onToggle={() => setOpenKeys(isOpen ? open.filter((k) => k !== key) : [...open, key])}
+                    >
+                      {list(items, true)}
+                    </CategorySection>
+                  );
+                })}
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>

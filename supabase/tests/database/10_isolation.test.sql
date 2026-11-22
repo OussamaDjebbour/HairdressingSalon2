@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(88);
+select plan(94);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -10,6 +10,7 @@ create function pg_temp.open_day(n int default 1) returns date language sql as $
   order by d offset n - 1 limit 1 $$;
 
 insert into public.salons (id, name) values ('rival', 'Rival');
+insert into public.salon_categories (id, salon_id, name) values ('rival-cat', 'rival', '{"fr":"R","ar":"R"}');
 insert into public.services (id, salon_id, category, name, description, price, duration, image, icon)
   values ('rival-cut', 'rival', 'coiffure', '{"fr":"Coupe R","ar":"قص"}', '{"fr":"x","ar":"x"}', 1000, 60, 'x', 'scissors');
 insert into public.stylists (id, salon_id, name, role, image)
@@ -195,6 +196,7 @@ set local role authenticated;
 select throws_ok($$ select public.admin_save_service('rival-cut', '{"fr":"Hack","ar":""}', '{}', 'beaute', 1, 30, 0) $$, 'P0001', 'not_found', 'save_service: other salon''s service is not_found');
 select throws_ok($$ select public.admin_save_service(null, '{"fr":"Pack R","ar":""}', '{}', 'pack', 1000, 60, 0, '{}', 'nadia') $$, 'P0001', 'invalid_pack', 'save_service: other salon''s stylist as a pack''s person responsible is invalid_pack');
 select throws_ok($$ select public.admin_save_service(null, '{"fr":"Pack R","ar":""}', '{}', 'pack', 1000, 60, 0, array['rival-cut'], 'amina') $$, 'P0001', 'invalid_pack', 'save_service: other salon''s service in a pack''s includes is invalid_pack');
+select throws_ok($$ select public.admin_save_service(null, '{"fr":"Cat R","ar":""}', '{}', 'custom', 1000, 60, 0, '{}', null, null, null, null, 'rival-cat') $$, 'P0001', 'invalid_category', 'save_service: other salon''s category is invalid_category');
 select throws_ok($$ select public.admin_set_service_active('rival-cut', false) $$, 'P0001', 'not_found', 'set_service_active: other salon''s service is not_found');
 select throws_ok($$ select public.admin_set_service_photo('rival-cut', null) $$, 'P0001', 'not_found', 'set_service_photo: other salon''s service is not_found');
 select throws_ok($$ select public.admin_set_service_photo('coupe-femme', 'rival/uploads/cccccccc-cccc-cccc-cccc-cccccccccccc.jpg') $$, 'P0001', 'invalid_photo', 'set_service_photo: other salon''s upload is invalid_photo');
@@ -292,6 +294,18 @@ select throws_ok($$ select public.admin_remove_visit_part('c1000000-0000-0000-00
 select throws_ok($$ select public.admin_move_visit('c1000000-0000-0000-0000-000000000002', '2031-03-05', '10:00', '{}') $$, 'P0001', 'not_movable', 'move_visit: another salon''s row with the same visit id is not a part');
 reset role;
 select is((select status from private.bookings where id = 'c1000000-0000-0000-0000-000000000001'), 'pending', 'a shared visit id never reaches another salon');
+
+-- categories: another salon's category behaves like a missing one
+insert into public.salon_categories (id, salon_id, name, sort_order) values ('rival-cat2', 'rival', '{"fr":"R2","ar":"R2"}', 5),
+  ('el-iso', 'elegance', '{"fr":"Iso","ar":"Iso"}', 7);
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select throws_ok($$ select public.admin_save_category('rival-cat2', '{"fr":"Hack","ar":""}') $$, 'P0001', 'not_found', 'save_category: other salon''s category is not_found');
+select throws_ok($$ select public.admin_delete_category('rival-cat2') $$, 'P0001', 'not_found', 'delete_category: other salon''s category is not_found');
+select throws_ok($$ select public.admin_reorder_categories(array['rival-cat2']) $$, 'P0001', 'invalid_category', 'reorder_categories: other salon''s id is invalid');
+reset role;
+select is((select name ->> 'fr' || '/' || sort_order from public.salon_categories where id = 'rival-cat2'), 'R2/5', 'rival category untouched');
+select is((select sort_order from public.salon_categories where id = 'el-iso'), 7, 'elegance category order unchanged after rejected foreign reorder');
 
 select * from finish();
 rollback;

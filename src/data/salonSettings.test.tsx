@@ -7,6 +7,7 @@ vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } })
 
 import { supabase } from '../lib/supabase';
 import {
+  categoryInUseCount,
   toSettingsError,
   useAffectedBookings,
   useClosedDates,
@@ -164,7 +165,7 @@ describe('mutations', () => {
         id: null,
         name: { fr: 'Coupe', ar: 'قص' },
         description: null,
-        category: 'coiffure',
+        category: 'coiffure', customCategoryId: null,
         price: 2500,
         duration: 60,
         sortOrder: 3,
@@ -179,6 +180,7 @@ describe('mutations', () => {
       p_name: { fr: 'Coupe', ar: 'قص' },
       p_description: null,
       p_category: 'coiffure',
+      p_custom_category_id: null,
       p_price: 2500,
       p_duration: 60,
       p_sort_order: 3,
@@ -198,7 +200,7 @@ describe('mutations', () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          id: null, name: { fr: 'x', ar: '' }, description: null, category: 'coiffure', price: -1, duration: 60, sortOrder: null, includes: [], packStylistId: null, promo: null,
+          id: null, name: { fr: 'x', ar: '' }, description: null, category: 'coiffure', customCategoryId: null, price: -1, duration: 60, sortOrder: null, includes: [], packStylistId: null, promo: null,
         })
       ).rejects.toMatchObject({ message: 'invalid_price' });
     });
@@ -241,5 +243,15 @@ describe('settings writes', () => {
       })
     );
     expect(client.getQueryData(['salon', 'info'])).toBe('new');
+  });
+});
+
+describe('category errors', () => {
+  it('knows invalid_category and category_in_use with its count', () => {
+    expect(toSettingsError({ message: 'invalid_category' })).toBe('invalid_category');
+    expect(toSettingsError({ message: 'category_in_use', details: '3' })).toBe('category_in_use');
+    expect(categoryInUseCount({ message: 'category_in_use', details: '3' })).toBe(3);
+    expect(categoryInUseCount({ message: 'category_in_use' })).toBe(0);
+    expect(categoryInUseCount({ message: 'boom', details: '3' })).toBe(0);
   });
 });

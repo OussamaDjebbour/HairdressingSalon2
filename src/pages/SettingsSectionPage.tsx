@@ -6,10 +6,12 @@ import { StylistsSettings } from '../components/settings/StylistsSettings';
 import { HoursSettings } from '../components/settings/HoursSettings';
 import { ClosedDatesSettings } from '../components/settings/ClosedDatesSettings';
 import { SalonInfoSettings } from '../components/settings/SalonInfoSettings';
+import { CategoriesSettings } from '../components/settings/CategoriesSettings';
 import { SettingsLayout } from '../components/settings/SettingsLayout';
 
 const SECTION_TITLES: Record<string, string> = {
   services: 'settings.services',
+  categories: 'settings.categories',
   packs: 'settings.section.packs',
   stylists: 'settings.stylists',
   hours: 'settings.hours',
@@ -23,5 +25,5 @@ export function SettingsSectionPage() {
   const { section = '' } = useParams();
   const titleKey = SECTION_TITLES[section];
   if (!titleKey) return <Navigate to="/admin/settings" replace />;
-  return <SettingsLayout title={t(titleKey)} backTo="/admin/settings">{section === 'services' ? <ServicesSettings /> : section === 'packs' ? <PacksSettings /> : section === 'stylists' ? <StylistsSettings /> : section === 'hours' ? <HoursSettings /> : section === 'closed-dates' ? <ClosedDatesSettings /> : <SalonInfoSettings />}</SettingsLayout>;
+  return <SettingsLayout title={t(titleKey)} backTo="/admin/settings">{section === 'services' ? <ServicesSettings /> : section === 'categories' ? <CategoriesSettings /> : section === 'packs' ? <PacksSettings /> : section === 'stylists' ? <StylistsSettings /> : section === 'hours' ? <HoursSettings /> : section === 'closed-dates' ? <ClosedDatesSettings /> : <SalonInfoSettings />}</SettingsLayout>;
 }

@@ -2,11 +2,11 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, LogOut, RotateCcw } from 'lucide-react';
 import { useLang, type Lang } from '../context/LanguageContext';
-import { useAllServices, useAllStylists } from '../data/queries';
+import { useAllServices, useAllStylists, useCategories } from '../data/queries';
 import { useClosedDates, useSalonHours } from '../data/salonSettings';
 import { algiersToday, useMyRole, useResetDemo } from '../data/admin';
 import { toYmd } from '../data/bookings';
-import { formatDayMonth, joinList } from '../data/formatters';
+import { countText, formatDayMonth, joinList } from '../data/formatters';
 import { groupHours } from '../data/hours';
 import { minutesToTime } from '../data/week';
 import type { ClosedDates, SalonHours, Weekday } from '../data/types';
@@ -77,6 +77,7 @@ function SettingsHome() {
   const { lang, t } = useLang();
   const services = useAllServices();
   const stylists = useAllStylists();
+  const categories = useCategories();
   const hours = useSalonHours();
   const closed = useClosedDates();
   const handleLogout = useLogout();
@@ -106,6 +107,11 @@ function SettingsHome() {
             to="/admin/settings/services"
             label={t('settings.services')}
             summary={services.data && t('settings.servicesSummary').replace('{n}', String(services.data.filter((x) => x.category !== 'pack').length))}
+          />
+          <Row
+            to="/admin/settings/categories"
+            label={t('settings.categories')}
+            summary={categories.data && countText(t, lang, 'settings.categoriesSummary', categories.data.length)}
           />
           <Row to="/admin/settings/packs" label={t('settings.section.packs')} />
           <Row

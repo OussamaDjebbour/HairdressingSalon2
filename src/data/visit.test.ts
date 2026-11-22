@@ -6,7 +6,7 @@ import { MAX_VISIT_SERVICES, joinNames, missingAllDay, planVisit, slotState, vis
 function svc(id: string, sortOrder: number, fr = id, price = 1000, duration = 60): Service {
   return {
     id, category: 'c', name: { fr, ar: fr }, description: { fr: '', ar: '' },
-    price, duration, image: '', icon: '', active: true, sortOrder, includes: [], packStylistId: null, promo: null,
+    price, duration, image: '', icon: '', active: true, sortOrder, customCategoryId: null, includes: [], packStylistId: null, promo: null,
   };
 }
 const sl = (slot: string, available: boolean, missing: number[]): VisitSlot => ({ slot, available, missing });

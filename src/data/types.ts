@@ -3,6 +3,8 @@ import { Lang } from '../context/LanguageContext';
 export interface Service {
   id: string;
   category: string;
+  /** Set when `category` is `custom`: the salon owner's own category. */
+  customCategoryId: string | null;
   name: Record<Lang, string>;
   description: Record<Lang, string>;
   price: number;

@@ -72,6 +72,7 @@ function toInput(id: string | null, sortOrder: number | null, d: PackForm): Save
     name: { fr: d.nameFr.trim(), ar: d.nameAr.trim() },
     description: desc.fr || desc.ar ? desc : null,
     category: 'pack',
+    customCategoryId: null,
     price: parseInt(d.price.trim(), 10),
     duration: parseInt(d.duration, 10),
     sortOrder,

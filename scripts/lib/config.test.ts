@@ -27,13 +27,43 @@ describe('parseSalonConfig', () => {
     expect(config.owner.email).toBe('owner@salon-exemple.example');
   });
 
-  it('accepts the spa category and names all three in the error', () => {
+  it('accepts every ready-made category except pack, and names them in the error', () => {
     const ok = example();
-    ok.services[0].category = 'spa';
-    expect(parseSalonConfig(ok).services[0].category).toBe('spa');
+    ok.services[0].category = 'ongles';
+    expect(parseSalonConfig(ok).services[0].category).toBe('ongles');
+    for (const bad of ['pack', 'nails']) {
+      const json = example();
+      json.services[0].category = bad;
+      const msg = errorOf(json);
+      expect(msg).toContain('services[0].category');
+      expect(msg).toContain('coiffure, capillaire, visage, regard, ongles, epilation, maquillage, beaute, spa, massage');
+    }
+  });
+
+  it('accepts a custom category declared in "categories"', () => {
+    const json = example();
+    json.categories = [{ id: 'sara-mariee', name: { fr: 'Soins mariée' } }];
+    json.services[0].category = 'custom:sara-mariee';
+    const config = parseSalonConfig(json);
+    expect(config.services[0].category).toBe('custom:sara-mariee');
+    expect(config.categories).toEqual([{ id: 'sara-mariee', name: { fr: 'Soins mariée' } }]);
+  });
+
+  it('rejects a custom category that is not declared, naming the path', () => {
+    const json = example();
+    json.services[0].category = 'custom:nope';
+    expect(errorOf(json)).toMatch(/services\[0\]\.category: .*custom:nope/);
+  });
+
+  it('rejects a duplicate or badly formed category id and a short name', () => {
+    const dup = example();
+    dup.categories = [{ id: 'sara-mariee', name: { fr: 'Mariée' } }, { id: 'sara-mariee', name: { fr: 'Autre' } }];
+    expect(errorOf(dup)).toContain('categories[1].id');
     const bad = example();
-    bad.services[0].category = 'massage';
-    expect(errorOf(bad)).toContain('"coiffure", "beaute" or "spa"');
+    bad.categories = [{ id: 'Bad Id', name: { fr: 'Mariée' } }, { id: 'ok-id', name: { fr: 'x' } }];
+    const msg = errorOf(bad);
+    expect(msg).toContain('categories[0].id');
+    expect(msg).toContain('categories[1].name.fr');
   });
 
   it('rejects a bad colour, naming the field', () => {

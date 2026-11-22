@@ -16,7 +16,7 @@ vi.mock('../../data/admin', async (importOriginal) => ({
 
 const svc = (id: string, fr: string, over: Partial<Service> = {}): Service => ({
   id, category: 'coiffure', name: { fr, ar: `${fr}-ar` }, description: { fr: 'd', ar: 'د' },
-  price: 3000, duration: 45, image: '', icon: '', active: true, sortOrder: 1, includes: [], packStylistId: null, promo: null, ...over,
+  price: 3000, duration: 45, image: '', icon: '', active: true, sortOrder: 1, customCategoryId: null, includes: [], packStylistId: null, promo: null, ...over,
 });
 const sty = (id: string, name: string, active = true): Stylist => ({
   id, name, role: { fr: 'r', ar: 'r' }, specialties: [], image: '', serviceIds: [], active, workdays: [1],

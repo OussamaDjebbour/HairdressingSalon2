@@ -11,7 +11,8 @@ import {
 import { toYmd } from '../../data/bookings';
 import { nameInText } from '../../data/formatters';
 import { clientNameSchema, mobilePhoneSchema } from '../../data/schemas';
-import { useAllServices, useAllStylists } from '../../data/queries';
+import { useAllServices, useAllStylists, useCategories } from '../../data/queries';
+import { groupServices } from '../../data/categories';
 import { salonDate, salonInstant, salonMinutes, staffTimeOptions } from '../../data/week';
 import { dayHours, stylistWorks } from '../../data/hours';
 import { useClosedDates, useSalonHours, useStylistDaysOff } from '../../data/salonSettings';
@@ -139,6 +140,7 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
   const notice = ownNotice ?? actions.notice;
 
   // Pickers offer active items, plus the booking's own service and stylist even if they were hidden since.
+  const custom = useCategories().data ?? [];
   const services = allServices.filter((s) => s.active || s.id === editing?.serviceId);
   const ownStylistId = state.mode === 'edit' ? state.booking.stylistId : state.stylistId;
   const stylists = allStylists.filter((s) => s.active || s.id === ownStylistId);
@@ -360,7 +362,7 @@ export function BookingSheet({ state, visit: visitProp, onClose }: BookingSheetP
                 id="sheet-service"
                 label={t('admin.sheet.service')}
                 value={serviceId}
-                options={services.map((s) => ({ value: s.id, label: s.name[lang] }))}
+                options={groupServices(services, custom).flatMap((g) => g.items).map((s) => ({ value: s.id, label: s.name[lang] }))}
                 onValueChange={field.onChange}
                 onBlur={field.onBlur}
               />
