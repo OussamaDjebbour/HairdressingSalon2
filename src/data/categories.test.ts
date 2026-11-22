@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CATEGORIES, SERVICE_FORM_CATEGORIES, groupByCategory, isCategory } from './categories';
+import { CATEGORIES, SERVICE_FORM_CATEGORIES, categoryOf, groupByCategory, isCategory, largestGroup } from './categories';
 
 describe('categories', () => {
   it('lists the categories in display order, packs first; the service form never offers pack', () => {
@@ -32,5 +32,29 @@ describe('categories', () => {
 
   it('puts an unknown category under coiffure', () => {
     expect(groupByCategory([{ id: 'x', category: 'hair' }])).toEqual([{ category: 'coiffure', items: [{ id: 'x', category: 'hair' }] }]);
+  });
+});
+
+describe('largestGroup', () => {
+  const g = (category: (typeof CATEGORIES)[number], n: number) => ({ category, items: Array.from({ length: n }, (_, i) => i) });
+
+  it('is the group with the most items', () => {
+    expect(largestGroup([g('pack', 1), g('coiffure', 2), g('beaute', 5), g('spa', 3)])?.category).toBe('beaute');
+  });
+
+  it('breaks ties in display order', () => {
+    expect(largestGroup([g('pack', 2), g('coiffure', 2), g('beaute', 1)])?.category).toBe('pack');
+    expect(largestGroup([g('pack', 1), g('coiffure', 3), g('spa', 3)])?.category).toBe('coiffure');
+  });
+
+  it('is undefined with no groups', () => {
+    expect(largestGroup([])).toBeUndefined();
+  });
+});
+
+describe('categoryOf', () => {
+  it('keeps a known category and counts an unknown one as coiffure', () => {
+    expect(categoryOf({ category: 'spa' })).toBe('spa');
+    expect(categoryOf({ category: 'hair' })).toBe('coiffure');
   });
 });

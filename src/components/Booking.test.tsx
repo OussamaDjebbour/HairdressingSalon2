@@ -267,23 +267,50 @@ describe('Booking client details validation', () => {
 describe('Booking step 0 grouping', () => {
   const mk = (id: string, category: string, fr: string) => ({ ...service, id, category, name: { fr, ar: fr } });
 
-  it('groups services under category headings when several categories are present', () => {
+  it('shows one category at a time under tabs, the first one chosen', () => {
     serviceList = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles')];
     render(<LanguageProvider><Booking /></LanguageProvider>);
-    const headings = screen.getAllByRole('heading', { level: 4 }).filter((h) => ['Coiffure', 'Beauté', 'Spa'].includes(h.textContent ?? ''));
-    expect(headings.map((h) => h.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa']);
-    const group = (i: number) => within(headings[i].parentElement!);
-    expect(group(0).getByText('Coupe')).toBeInTheDocument();
-    expect(group(0).queryByText('Hammam')).toBeNull();
-    expect(group(1).getByText('Ongles')).toBeInTheDocument();
-    expect(group(2).getByText('Hammam')).toBeInTheDocument();
-    // Service names sit one level under their group heading.
-    expect(group(2).getByRole('heading', { level: 5, name: 'Hammam' })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa']);
+    const panel = screen.getByRole('tabpanel', { name: 'Coiffure' });
+    // Service names sit one level under the step heading.
+    expect(within(panel).getByRole('heading', { level: 4, name: 'Coupe' })).toBeInTheDocument();
+    expect(screen.queryByText('Hammam')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Spa' }));
+    expect(within(screen.getByRole('tabpanel', { name: 'Spa' })).getByText('Hammam')).toBeInTheDocument();
+    expect(screen.queryByText('Coupe')).toBeNull();
   });
 
-  it('shows no heading with a single category', () => {
+  it('keeps ticks across tabs and shows how many are ticked in each', () => {
+    serviceList = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s4', 'coiffure', 'Brushing'), mk('s3', 'beaute', 'Ongles')];
+    render(<LanguageProvider><Booking /></LanguageProvider>);
+    fireEvent.click(serviceButton('Coupe'));
+    fireEvent.click(serviceButton('Brushing'));
+    fireEvent.click(screen.getByRole('tab', { name: 'Spa' }));
+    fireEvent.click(serviceButton('Hammam'));
+    expect(screen.getByRole('tab', { name: 'Coiffure (2 choisies)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Spa (1 choisie)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Beauté' })).toBeInTheDocument();
+    expect(screen.getByText(/^3 prestations · /)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Coiffure/ }));
+    expect(serviceButton('Coupe')).toHaveAttribute('aria-pressed', 'true');
+    // Unticking updates the count.
+    fireEvent.click(serviceButton('Coupe'));
+    expect(screen.getByRole('tab', { name: 'Coiffure (1 choisie)' })).toBeInTheDocument();
+  });
+
+  it('a service tile from another category opens on its tab when the client goes back', () => {
+    serviceList = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe')];
+    render(<LanguageProvider><BookingIntentProvider><Chooser id="s1" /><Booking /></BookingIntentProvider></LanguageProvider>);
+    fireEvent.click(screen.getByText('choose-s1'));
+    fireEvent.click(screen.getByRole('button', { name: /Retour/ }));
+    expect(screen.getByRole('tab', { name: /Spa/ })).toHaveAttribute('aria-selected', 'true');
+    expect(serviceButton('Hammam')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('shows no tabs with a single category', () => {
     serviceList = [mk('s1', 'coiffure', 'Coupe')];
     render(<LanguageProvider><Booking /></LanguageProvider>);
+    expect(screen.queryByRole('tablist')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Coiffure' })).toBeNull();
   });
 });
@@ -1250,15 +1277,20 @@ describe('Booking packs and promotions', () => {
     serviceList = [...threeServices.map(withDefaults), pack];
   });
 
-  it('shows packs first in step 0, with what they include', () => {
+  const packsTab = () => fireEvent.click(screen.getByRole('tab', { name: /Packs/ }));
+
+  it('shows the Packs tab first but opens on the larger category; a pack lists what it includes', () => {
     renderWizard();
-    const heads = screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent);
-    expect(heads[0]).toBe('Packs');
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Packs', 'Coiffure']);
+    expect(screen.getByRole('tab', { name: 'Coiffure' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('Pack Mariée')).toBeNull();
+    packsTab();
     expect(serviceButton('Pack Mariée').textContent).toContain('Comprend : Coupe & Brushing, Coloration & Balayage');
   });
 
   it('a pack alone skips the stylist step and Retour comes back to services', () => {
     renderWizard();
+    packsTab();
     fireEvent.click(serviceButton('Pack Mariée'));
     next();
     expect(screen.getByText('Choisissez une date')).toBeInTheDocument();
@@ -1268,7 +1300,9 @@ describe('Booking packs and promotions', () => {
 
   it('a pack with a service shows only the service in the stylist step', () => {
     renderWizard();
+    packsTab();
     fireEvent.click(serviceButton('Pack Mariée'));
+    fireEvent.click(screen.getByRole('tab', { name: /Coiffure/ }));
     fireEvent.click(serviceButton('Manucure & Vernis'));
     next();
     expect(screen.getByText('Choisissez votre coiffeuse')).toBeInTheDocument();

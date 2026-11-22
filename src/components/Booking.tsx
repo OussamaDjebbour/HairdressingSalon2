@@ -32,7 +32,8 @@ import { SmartImage } from './SmartImage';
 import { PriceTag } from './PriceTag';
 import { PackIncludes } from './PackIncludes';
 import { effectivePrice } from '../data/pricing';
-import { groupByCategory } from '../data/categories';
+import { categoryOf, groupByCategory, largestGroup, type Category } from '../data/categories';
+import { CategoryTabs, categoryPanelId, categoryTabId } from './CategoryTabs';
 import { useBookingIntent } from '../context/BookingIntentContext';
 
 /** Up to two initials, e.g. "Lina Benali" → "LB" (Array.from keeps accented and Arabic letters whole). */
@@ -87,8 +88,11 @@ export function Booking() {
   const whatsapp = salonInfo?.whatsapp;
   const waNumber = whatsapp ? toWaNumber(whatsapp) : null;
   const services = servicesQuery.data ?? [];
-  // Grouped under category headings when the salon offers more than one category (e.g. Coiffure and Spa).
+  // One category at a time when the salon offers several (salons list many services): tabs, with how many
+  // services are ticked in each. The largest category until the client (or a tile on the page) picks another.
   const serviceGroups = groupByCategory(services);
+  const [serviceCategory, setServiceCategory] = useState<Category | null>(null);
+  const serviceTab = serviceGroups.find((g) => g.category === serviceCategory) ?? largestGroup(serviceGroups);
   const stylists = stylistsQuery.data ?? [];
   const queries = [servicesQuery, stylistsQuery, hoursQuery, closedQuery];
   const dataLoading = queries.some((q) => q.isLoading);
@@ -155,6 +159,8 @@ export function Booking() {
     [visit, stylistFor]
   );
   const totals = visitTotals(visit);
+  const chosenPerCategory: Partial<Record<Category, number>> = {};
+  for (const s of visit) chosenPerCategory[categoryOf(s)] = (chosenPerCategory[categoryOf(s)] ?? 0) + 1;
   // The server's total from price_changed (its day decides a promotion, e.g. when this device's date is off),
   // for that exact visit only: any change of services, staff, date or time drops it.
   const visitKey = JSON.stringify([items, selectedDate?.toDateString() ?? null, selectedTime]);
@@ -505,6 +511,8 @@ export function Booking() {
     appliedSeq.current = request.seq;
     restart(true);
     setSelectedIds([service.id]);
+    // "Changer" from the next step shows the services of the tile's category.
+    setServiceCategory(categoryOf(service));
     clearErrors();
     goTo(service.category === 'pack' ? 2 : 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is recreated each render; applied once per seq
@@ -675,53 +683,63 @@ export function Booking() {
             <div className="animate-fadeIn">
               <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-1 focus:outline-none">{t('booking.selectService')}</h3>
               {services.length > 1 && <p className="text-sm text-rose-600 mb-5">{t('booking.selectServiceHint')}</p>}
-              <div className="space-y-6">
-                {serviceGroups.map((group) => (
-                  <div key={group.category}>
-                    {serviceGroups.length > 1 && (
-                      <h4 className="font-display italic text-lg text-gold-700 mb-3">{t(`category.${group.category}`)}</h4>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {group.items.map((service) => {
-                  const isSelected = selectedIds.includes(service.id);
-                  const blocked = !isSelected && atMax;
-                  return (
-                    <button
-                      key={service.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      aria-disabled={blocked || undefined}
-                      onClick={() => toggleService(service)}
-                      className={`flex gap-4 p-4 rounded-[2px] border text-start transition-all duration-200 ease-silk ${
-                        isSelected
-                          ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
-                          : blocked
-                          ? 'border-rose-900/10 bg-transparent opacity-50 cursor-not-allowed'
-                          : 'border-rose-900/10 bg-transparent hover:border-rose-900/40 '
-                      }`}
-                    >
-                      {service.image && (
-                        <img src={service.image} alt="" loading="lazy" className="w-20 aspect-[3/4] object-cover shrink-0 self-start" />
-                      )}
-                      <span className="flex flex-1 min-w-0 flex-col">
-                        <span className="flex items-baseline justify-between gap-3">
-                          <h5 className="font-display text-lg leading-tight text-rose-900">{service.name[lang]}</h5>
-                          {isSelected && <Check className="w-4 h-4 text-rose-900 flex-shrink-0 self-center" strokeWidth={2} aria-hidden="true" />}
+              {serviceTab && serviceGroups.length > 1 && (
+                <CategoryTabs
+                  idBase="booking-services"
+                  categories={serviceGroups.map((g) => g.category)}
+                  value={serviceTab.category}
+                  onChange={setServiceCategory}
+                  chosen={chosenPerCategory}
+                  className="mb-4"
+                />
+              )}
+              {serviceTab && (
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                  {...(serviceGroups.length > 1 && {
+                    role: 'tabpanel',
+                    id: categoryPanelId('booking-services'),
+                    'aria-labelledby': categoryTabId('booking-services', serviceTab.category),
+                  })}
+                >
+                  {serviceTab.items.map((service) => {
+                    const isSelected = selectedIds.includes(service.id);
+                    const blocked = !isSelected && atMax;
+                    return (
+                      <button
+                        key={service.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        aria-disabled={blocked || undefined}
+                        onClick={() => toggleService(service)}
+                        className={`flex gap-4 p-4 rounded-[2px] border text-start transition-all duration-200 ease-silk ${
+                          isSelected
+                            ? 'border-rose-900 bg-pearl-50 ring-1 ring-rose-900'
+                            : blocked
+                            ? 'border-rose-900/10 bg-transparent opacity-50 cursor-not-allowed'
+                            : 'border-rose-900/10 bg-transparent hover:border-rose-900/40 '
+                        }`}
+                      >
+                        {service.image && (
+                          <img src={service.image} alt="" loading="lazy" className="w-20 aspect-[3/4] object-cover shrink-0 self-start" />
+                        )}
+                        <span className="flex flex-1 min-w-0 flex-col">
+                          <span className="flex items-baseline justify-between gap-3">
+                            <h4 className="font-display text-lg leading-tight text-rose-900">{service.name[lang]}</h4>
+                            {isSelected && <Check className="w-4 h-4 text-rose-900 flex-shrink-0 self-center" strokeWidth={2} aria-hidden="true" />}
+                          </span>
+                          <span className="mt-1 text-sm leading-relaxed text-rose-900/75 line-clamp-2">{service.description[lang]}</span>
+                          {service.category === 'pack' && <PackIncludes service={service} className="mt-1 text-sm leading-relaxed text-rose-900/75" />}
+                          <span className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3">
+                            <span className="font-display text-lg text-rose-900 tabular-nums"><PriceTag {...effectivePrice(service)} align="start" /></span>
+                            <span className="text-sm text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
+                          </span>
                         </span>
-                        <span className="mt-1 text-sm leading-relaxed text-rose-900/75 line-clamp-2">{service.description[lang]}</span>
-                        {service.category === 'pack' && <PackIncludes service={service} className="mt-1 text-sm leading-relaxed text-rose-900/75" />}
-                        <span className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3">
-                          <span className="font-display text-lg text-rose-900 tabular-nums"><PriceTag {...effectivePrice(service)} align="start" /></span>
-                          <span className="text-sm text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

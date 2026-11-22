@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import type { Service } from '../data/types';
 import { useServices } from '../data/queries';
 import { formatDuration } from '../data/formatters';
 import { DataError } from './DataError';
-import { groupByCategory } from '../data/categories';
+import { groupByCategory, largestGroup, type Category } from '../data/categories';
+import { CategoryTabs, categoryPanelId, categoryTabId } from './CategoryTabs';
 import { useBookingIntent } from '../context/BookingIntentContext';
 import { effectivePrice } from '../data/pricing';
 import { PriceTag } from './PriceTag';
@@ -61,6 +63,9 @@ export function Services() {
   const { t } = useLang();
   const { data: services, isLoading, isError, refetch } = useServices();
   const groups = groupByCategory(services ?? []);
+  // One category at a time (salons list many services); the largest one until the client picks another.
+  const [tab, setTab] = useState<Category | null>(null);
+  const shown = groups.find((g) => g.category === tab) ?? largestGroup(groups);
 
   return (
     <section id="services" className="bg-pearl-50 text-rose-900 scroll-mt-16">
@@ -84,19 +89,31 @@ export function Services() {
             <DataError onRetry={() => refetch()} />
           </div>
         ) : (
-          <div className="mt-12 space-y-12">
-            {groups.map((group) => (
-              <div key={group.category}>
-                {groups.length > 1 && (
-                  <h3 className="font-display italic text-[1.35rem] text-gold-700 mb-2">{t(`category.${group.category}`)}</h3>
-                )}
-                <ul className="border-t border-rose-900/10">
-                  {group.items.map((service) => (
+          <div className="mt-12">
+            {shown && groups.length > 1 && (
+              <CategoryTabs
+                idBase="carte"
+                categories={groups.map((g) => g.category)}
+                value={shown.category}
+                onChange={setTab}
+              />
+            )}
+            {shown && (
+              <div
+                {...(groups.length > 1 && {
+                  role: 'tabpanel',
+                  id: categoryPanelId('carte'),
+                  'aria-labelledby': categoryTabId('carte', shown.category),
+                })}
+              >
+                {/* With tabs, their rule is the list's top line. */}
+                <ul className={groups.length > 1 ? undefined : 'border-t border-rose-900/10'}>
+                  {shown.items.map((service) => (
                     <Row key={service.id} service={service} />
                   ))}
                 </ul>
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
