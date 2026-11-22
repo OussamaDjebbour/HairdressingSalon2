@@ -5,7 +5,7 @@ import type { Service } from '../data/types';
 import { useServices, useCategories } from '../data/queries';
 import { formatDuration } from '../data/formatters';
 import { DataError } from './DataError';
-import { groupServices, largestGroup, type CategoryKey } from '../data/categories';
+import { categoryLabel, groupServices, largestGroup, type CategoryKey } from '../data/categories';
 import { CategoryTabs, categoryPanelId, categoryTabId } from './CategoryTabs';
 import { useBookingIntent } from '../context/BookingIntentContext';
 import { effectivePrice } from '../data/pricing';
@@ -60,9 +60,17 @@ function Row({ service }: { service: Service }) {
 }
 
 export function Services() {
-  const { t } = useLang();
-  const { data: services, isLoading, isError, refetch } = useServices();
-  const { data: custom = [] } = useCategories();
+  const { t, lang } = useLang();
+  const servicesQ = useServices();
+  const categoriesQ = useCategories();
+  const services = servicesQ.data;
+  const custom = categoriesQ.data ?? [];
+  const isLoading = servicesQ.isLoading || categoriesQ.isLoading;
+  const isError = servicesQ.isError || categoriesQ.isError;
+  const refetch = () => {
+    if (servicesQ.isError) servicesQ.refetch();
+    if (categoriesQ.isError) categoriesQ.refetch();
+  };
   const groups = groupServices(services ?? [], custom);
   // One category at a time (salons list many services); the largest one until the client picks another.
   const [tab, setTab] = useState<CategoryKey | null>(null);
@@ -87,15 +95,14 @@ export function Services() {
           </ul>
         ) : isError ? (
           <div className="mt-14">
-            <DataError onRetry={() => refetch()} />
+            <DataError onRetry={refetch} />
           </div>
         ) : (
           <div className="mt-12">
             {shown && groups.length > 1 && (
               <CategoryTabs
                 idBase="carte"
-                custom={custom}
-                categories={groups.map((g) => g.key)}
+                items={groups.map((g) => ({ key: g.key, label: categoryLabel(g.key, custom, t, lang) }))}
                 value={shown.key}
                 onChange={setTab}
               />

@@ -8,10 +8,13 @@ const service = {
 let list: (typeof service & Record<string, unknown>)[] = [service];
 let catalogue: (typeof service)[] = [];
 let state = { isLoading: false, isError: false };
+let cats: { id: string; name: { fr: string; ar: string }; sortOrder: number }[] = [];
+let catState = { isLoading: false, isError: false };
 const refetch = vi.fn();
+const refetchCats = vi.fn();
 vi.mock('../data/queries', () => ({
   useCatalogue: () => ({ data: catalogue }),
-  useCategories: () => ({ data: [], isLoading: false, isError: false }),
+  useCategories: () => ({ data: catState.isLoading || catState.isError ? undefined : cats, ...catState, refetch: refetchCats }),
   useServices: () => ({ data: state.isLoading || state.isError ? undefined : list, ...state, refetch }),
 }));
 
@@ -24,6 +27,9 @@ beforeEach(() => {
   catalogue = [];
   state = { isLoading: false, isError: false };
   refetch.mockReset();
+  refetchCats.mockReset();
+  cats = [];
+  catState = { isLoading: false, isError: false };
 });
 
 const mk = (id: string, category: string, fr: string, image = '') => ({ ...service, id, category, image, name: { fr, ar: fr } });
@@ -214,5 +220,44 @@ describe('Services (La carte)', () => {
     expect(link.textContent).toMatch(/2\s?000/);
     expect(within(link).getByText(/au lieu de/)).toHaveClass('sr-only');
     expect(screen.getByRole('link', { name: /Brushing/ }).querySelector('.line-through')).toBeNull();
+  });
+
+  it('shows the salon\'s own category as a tab after the ready-made ones, in both languages', () => {
+    cats = [{ id: 'c1', name: { fr: 'Soins mariée', ar: 'عروس' }, sortOrder: 0 }];
+    list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'beaute', 'Ongles'), { ...mk('s3', 'custom', 'Henné'), customCategoryId: 'c1' }];
+    function ToArabic() {
+      const { toggleLang } = useLang();
+      return <button onClick={toggleLang}>to-ar</button>;
+    }
+    render(<LanguageProvider><ToArabic /><Services /></LanguageProvider>);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Coiffure', 'Beauté', 'Soins mariée']);
+    fireEvent.click(screen.getByRole('tab', { name: 'Soins mariée' }));
+    expect(within(screen.getByRole('tabpanel')).getByText('Henné')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('to-ar'));
+    expect(screen.getAllByRole('tab').at(-1)!.textContent).toBe('عروس');
+  });
+
+  it('tabs wrap instead of scrolling sideways', () => {
+    cats = [1, 2, 3].map((n) => ({ id: `c${n}`, name: { fr: `Cat ${n}`, ar: `${n}` }, sortOrder: n }));
+    list = [mk('s1', 'coiffure', 'A'), mk('s2', 'beaute', 'B'), mk('s3', 'spa', 'C'), ...cats.map((c) => ({ ...mk(`x${c.id}`, 'custom', c.id), customCategoryId: c.id }))];
+    renderCarte();
+    const tablist = screen.getByRole('tablist');
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
+    expect(tablist.className).toContain('flex-wrap');
+    expect(tablist.className).not.toContain('overflow-x-auto');
+    for (const tab of screen.getAllByRole('tab')) expect(tab.id).not.toContain(':');
+  });
+
+  it('waits for the categories too, and retries the one that failed', () => {
+    catState = { isLoading: true, isError: false };
+    const { container, unmount } = renderCarte();
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(container.querySelectorAll('[data-placeholder]').length).toBeGreaterThan(0);
+    unmount();
+    catState = { isLoading: false, isError: true };
+    renderCarte();
+    fireEvent.click(screen.getByRole('button', { name: /réessayer/i }));
+    expect(refetchCats).toHaveBeenCalled();
+    expect(refetch).not.toHaveBeenCalled();
   });
 });

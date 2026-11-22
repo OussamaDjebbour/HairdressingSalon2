@@ -1,9 +1,9 @@
-import { useLayoutEffect, useRef, type KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent } from 'react';
 import { useLang } from '../context/LanguageContext';
-import { categoryLabel, type CategoryKey, type CustomCategory } from '../data/categories';
+import type { CategoryKey } from '../data/categories';
 import { countText } from '../data/formatters';
 
-export const categoryTabId = (idBase: string, category: CategoryKey) => `${idBase}-tab-${category}`;
+export const categoryTabId = (idBase: string, category: CategoryKey) => `${idBase}-tab-${category.replace(':', '-')}`;
 export const categoryPanelId = (idBase: string) => `${idBase}-panel`;
 
 /**
@@ -15,36 +15,23 @@ export const categoryPanelId = (idBase: string) => `${idBase}-panel`;
  */
 export function CategoryTabs({
   idBase,
-  categories,
-  custom = [],
+  items,
   value,
   onChange,
   chosen,
   className = '',
 }: {
   idBase: string;
-  categories: CategoryKey[];
-  /** The salon's own categories, to name their tabs. */
-  custom?: CustomCategory[];
+  items: { key: CategoryKey; label: string }[];
   value: CategoryKey;
   onChange: (category: CategoryKey) => void;
+  /** Still used by the booking's tabs until they become an accordion. */
   chosen?: Partial<Record<CategoryKey, number>>;
   className?: string;
 }) {
   const { t, lang, dir } = useLang();
+  const categories = items.map((i) => i.key);
   const tabs = useRef<Partial<Record<CategoryKey, HTMLButtonElement | null>>>({});
-
-  // On a narrow phone the row scrolls sideways: keep the chosen tab fully in view, scrolling only the row
-  // (never the page, so a tab chosen off-screen, e.g. by a tile on the page, doesn't move the page).
-  useLayoutEffect(() => {
-    const tab = tabs.current[value];
-    const row = tab?.parentElement;
-    if (!tab || !row) return;
-    const t = tab.getBoundingClientRect();
-    const r = row.getBoundingClientRect();
-    if (t.left < r.left) row.scrollLeft -= r.left - t.left;
-    else if (t.right > r.right) row.scrollLeft += t.right - r.right;
-  }, [value]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const i = categories.indexOf(value);
@@ -66,12 +53,11 @@ export function CategoryTabs({
       role="tablist"
       aria-label={t('services.categories')}
       onKeyDown={onKeyDown}
-      className={`flex gap-x-5 sm:gap-x-6 overflow-x-auto no-scrollbar border-b border-rose-900/10 ${className}`}
+      className={`flex flex-wrap gap-x-5 gap-y-1 sm:gap-x-6 border-b border-rose-900/10 ${className}`}
     >
-      {categories.map((category) => {
+      {items.map(({ key: category, label }) => {
         const selected = category === value;
         const n = chosen?.[category] ?? 0;
-        const label = categoryLabel(category, custom, t, lang);
         return (
           <button
             key={category}
@@ -86,7 +72,7 @@ export function CategoryTabs({
             tabIndex={selected ? 0 : -1}
             aria-label={n > 0 ? `${label} (${countText(t, lang, 'booking.tab.chosen', n)})` : undefined}
             onClick={() => onChange(category)}
-            className={`-mb-px flex min-h-[44px] shrink-0 items-center gap-1.5 border-b-2 text-[15px] whitespace-nowrap transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-900 ${
+            className={`-mb-px flex min-h-[44px] items-center gap-1.5 border-b-2 text-[15px] transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-900 ${
               selected ? 'border-rose-900 text-rose-900' : 'border-transparent text-rose-900/60 hover:text-rose-900'
             }`}
           >

@@ -32,7 +32,7 @@ import { SmartImage } from './SmartImage';
 import { PriceTag } from './PriceTag';
 import { PackIncludes } from './PackIncludes';
 import { effectivePrice } from '../data/pricing';
-import { categoryKeyOf, groupServices, largestGroup, type CategoryKey } from '../data/categories';
+import { categoryKeyOf, categoryLabel, groupServices, largestGroup, type CategoryKey } from '../data/categories';
 import { CategoryTabs, categoryPanelId, categoryTabId } from './CategoryTabs';
 import { useBookingIntent } from '../context/BookingIntentContext';
 
@@ -687,8 +687,7 @@ export function Booking() {
               {serviceTab && serviceGroups.length > 1 && (
                 <CategoryTabs
                   idBase="booking-services"
-                  custom={custom}
-                  categories={serviceGroups.map((g) => g.key)}
+                  items={serviceGroups.map((g) => ({ key: g.key, label: categoryLabel(g.key, custom, t, lang) }))}
                   value={serviceTab.key}
                   onChange={setServiceCategory}
                   chosen={chosenPerCategory}
