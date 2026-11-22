@@ -32,11 +32,11 @@ function Row({ service }: { service: Service }) {
           />
         )}
         <span className="flex flex-1 flex-col min-w-0">
-          <span className="flex items-baseline justify-between gap-4">
-            <span className="font-display text-[1.3rem] sm:text-[1.65rem] leading-tight text-rose-900 group-hover:italic">
+          <span className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="min-w-0 break-words font-display text-[1.3rem] sm:text-[1.65rem] leading-tight text-rose-900 group-hover:italic">
               {service.name[lang]}
             </span>
-            <span className="font-display text-[1.2rem] sm:text-[1.45rem] leading-tight text-rose-900 tabular-nums whitespace-nowrap">
+            <span className="font-display text-[1.2rem] sm:text-[1.45rem] leading-tight text-rose-900 tabular-nums text-end">
               <PriceTag price={price} regular={regular} />
             </span>
           </span>
