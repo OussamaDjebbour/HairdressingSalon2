@@ -30,8 +30,6 @@ import { currentSalon } from '../data/salon';
 import { salonInstant } from '../data/week';
 import { SmartImage } from './SmartImage';
 import { PriceTag } from './PriceTag';
-import { PackIncludes } from './PackIncludes';
-import { effectivePrice } from '../data/pricing';
 import { categoryKeyOf, categoryLabel, groupServices, largestGroup, type CategoryKey } from '../data/categories';
 import { ServicePicker } from './booking/ServicePicker';
 import { useBookingIntent } from '../context/BookingIntentContext';

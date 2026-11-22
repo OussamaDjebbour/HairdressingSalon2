@@ -30,7 +30,7 @@ import { ServicePhotoField } from './ServicePhotoField';
 import { SERVICE_FORM_CATEGORIES, categoryLabel, groupServices, isServiceFormCategory, type CustomCategory, type StoredCategory } from '../../data/categories';
 
 const DURATIONS = Array.from({ length: 40 }, (_, i) => (i + 1) * 15); // 15 … 600
-const ERROR_KEYS = ['invalid_name', 'invalid_price', 'invalid_duration', 'not_found', 'not_authorized', 'demo_disabled', 'invalid_photo', 'invalid_promo', 'upload_failed'];
+const ERROR_KEYS = ['invalid_name', 'invalid_price', 'invalid_duration', 'not_found', 'not_authorized', 'demo_disabled', 'invalid_photo', 'invalid_promo', 'invalid_category', 'upload_failed'];
 
 const SERVER_ERROR_FIELDS = { invalid_name: 'nameFr', invalid_price: 'price', invalid_duration: 'duration', invalid_promo: 'promoPrice' };
 
@@ -58,14 +58,14 @@ const emptyValues: ServiceForm = {
   nameFr: '', nameAr: '', descFr: '', descAr: '', category: 'coiffure', price: '', duration: '30', sortOrder: '', ...emptyPromo,
 };
 
-function toValues(s: Service, custom: CustomCategory[]): ServiceForm {
+function toValues(s: Service): ServiceForm {
   return {
     nameFr: s.name.fr,
     nameAr: s.name.ar,
     descFr: s.description.fr,
     descAr: s.description.ar,
     category:
-      s.category === 'custom' && s.customCategoryId && custom.some((c) => c.id === s.customCategoryId)
+      s.category === 'custom' && s.customCategoryId
         ? `custom:${s.customCategoryId}`
         : isServiceFormCategory(s.category) ? s.category : 'coiffure',
     price: String(s.price),
@@ -163,6 +163,10 @@ function ServiceFormCard({ draft, custom, onSaved, onCancel }: { draft: Draft; c
             options={[
               ...SERVICE_FORM_CATEGORIES.map((c) => ({ value: c as string, label: t(`category.${c}`) })),
               ...[...custom].sort((a, b) => a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : 1)).map((c) => ({ value: `custom:${c.id}`, label: c.name[lang] || c.name.fr })),
+              // A category missing from a stale list is kept, never silently replaced.
+              ...(field.value.startsWith('custom:') && !custom.some((c) => `custom:${c.id}` === field.value)
+                ? [{ value: field.value, label: t('settings.services.categoryCustom') }]
+                : []),
             ]}
           />
         )}
@@ -273,7 +277,7 @@ export function ServicesSettings() {
                 s={s}
                 toggling={setActive.isPending}
                 onToggle={() => toggle(s)}
-                onOpen={() => { setError(null); setDraft({ id: s.id, values: toValues(s, custom), image: s.image }); }}
+                onOpen={() => { setError(null); setDraft({ id: s.id, values: toValues(s), image: s.image }); }}
               />
             ))}
           </ul>

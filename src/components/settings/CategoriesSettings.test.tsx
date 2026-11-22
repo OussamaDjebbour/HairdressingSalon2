@@ -81,6 +81,14 @@ describe('CategoriesSettings', () => {
     expect(await screen.findByText(/Déplacez d'abord ses 3 prestations/)).toBeInTheDocument();
   });
 
+  it('category_in_use with one service is singular', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'category_in_use', details: '1' } });
+    renderIt();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Supprimer' })[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Supprimer la catégorie' }));
+    expect(await screen.findByText(/Déplacez d'abord sa prestation/)).toBeInTheDocument();
+  });
+
   it('rename prefills both names', () => {
     renderIt();
     fireEvent.click(screen.getAllByRole('button', { name: 'Modifier' })[0]);

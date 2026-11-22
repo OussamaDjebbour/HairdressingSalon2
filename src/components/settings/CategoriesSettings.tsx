@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Pencil, Trash2 } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
+import { countText } from '../../data/formatters';
 import { useAllServices, useCategories } from '../../data/queries';
 import {
   categoryInUseCount, toSettingsError, useDeleteCategory, useReorderCategories, useSaveCategory,
@@ -75,7 +76,7 @@ export function CategoriesSettings() {
       },
       onError: (err) => {
         if (toSettingsError(err) === 'category_in_use') {
-          setRowError({ id, text: t('settings.categories.inUse').replace('{n}', String(categoryInUseCount(err))) });
+          setRowError({ id, text: countText(t, lang, 'settings.categories.inUse', categoryInUseCount(err)) });
         } else fail(err);
       },
     });

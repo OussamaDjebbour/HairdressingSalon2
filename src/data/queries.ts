@@ -92,7 +92,8 @@ export async function fetchCategories(): Promise<CustomCategory[]> {
     .from('salon_categories')
     .select('id, name, sort_order')
     .eq('salon_id', currentSalonId())
-    .order('sort_order');
+    .order('sort_order')
+    .order('id');
   if (error) throw error;
   return (data as { id: string; name: CustomCategory['name']; sort_order: number }[]).map((r) => ({
     id: r.id,

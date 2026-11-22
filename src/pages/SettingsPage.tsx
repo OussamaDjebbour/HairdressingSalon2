@@ -6,7 +6,7 @@ import { useAllServices, useAllStylists, useCategories } from '../data/queries';
 import { useClosedDates, useSalonHours } from '../data/salonSettings';
 import { algiersToday, useMyRole, useResetDemo } from '../data/admin';
 import { toYmd } from '../data/bookings';
-import { formatDayMonth, joinList } from '../data/formatters';
+import { countText, formatDayMonth, joinList } from '../data/formatters';
 import { groupHours } from '../data/hours';
 import { minutesToTime } from '../data/week';
 import type { ClosedDates, SalonHours, Weekday } from '../data/types';
@@ -111,7 +111,7 @@ function SettingsHome() {
           <Row
             to="/admin/settings/categories"
             label={t('settings.categories')}
-            summary={categories.data && t('settings.categoriesSummary').replace('{n}', String(categories.data.length))}
+            summary={categories.data && countText(t, lang, 'settings.categoriesSummary', categories.data.length)}
           />
           <Row to="/admin/settings/packs" label={t('settings.section.packs')} />
           <Row

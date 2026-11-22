@@ -232,6 +232,27 @@ describe('ServicesSettings', () => {
     expect(screen.getByRole('combobox', { name: 'Catégorie' })).toHaveTextContent('Soins mariée');
   });
 
+  it('keeps a custom category missing from the loaded list (stale cache) when saving', async () => {
+    cats = [];
+    services = [{ ...svc('a1', 'Forfait', true, 1), category: 'custom', customCategoryId: 'c9' }];
+    renderIt();
+    fireEvent.click(screen.getByText('Forfait'));
+    expect(screen.getByRole('combobox', { name: 'Catégorie' })).toHaveTextContent('Catégorie personnalisée');
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith('admin_save_service', expect.objectContaining({ p_category: 'custom', p_custom_category_id: 'c9' }))
+    );
+  });
+
+  it('invalid_category shows its own message, not the generic one', async () => {
+    rpc.mockImplementation(async (fn: string) =>
+      fn === 'admin_save_service' ? { data: null, error: { message: 'invalid_category' } } : { data: [], error: null });
+    renderIt();
+    fireEvent.click(screen.getByText('Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    expect(await screen.findByText(/n'est plus à jour/)).toBeInTheDocument();
+  });
+
   it('saving a ready-made category sends no custom id', async () => {
     renderIt();
     fireEvent.click(screen.getByText('Brushing'));

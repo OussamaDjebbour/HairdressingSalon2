@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn() } }));
 
 import { supabase } from '../lib/supabase';
-import { useAllServices, useAllStylists, useServices, useStylists } from './queries';
+import { fetchCategories, useAllServices, useAllStylists, useServices, useStylists } from './queries';
 
 const SEEDED = [
   {
@@ -117,5 +117,25 @@ describe('useAllStylists', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data![0].active).toBe(false);
     expect(eq).not.toHaveBeenCalledWith('active', true);
+  });
+});
+
+describe('fetchCategories', () => {
+  it("reads only this salon's categories, ordered by sort_order then id", async () => {
+    const orders: unknown[][] = [];
+    const b: Record<string, unknown> = {
+      select: () => b,
+      eq: (...args: unknown[]) => (eq(...args), b),
+      order: (...args: unknown[]) => (orders.push(args), b),
+      then: (res: (v: unknown) => unknown) => res({ data: [{ id: 'c1', name: { fr: 'A', ar: 'أ' }, sort_order: 1 }], error: null }),
+    };
+    (supabase.from as ReturnType<typeof vi.fn>).mockReturnValue(b);
+
+    const cats = await fetchCategories();
+
+    expect(cats).toEqual([{ id: 'c1', name: { fr: 'A', ar: 'أ' }, sortOrder: 1 }]);
+    expect(supabase.from).toHaveBeenCalledWith('salon_categories');
+    expect(eq).toHaveBeenCalledWith('salon_id', 'elegance');
+    expect(orders).toEqual([['sort_order'], ['id']]);
   });
 });
