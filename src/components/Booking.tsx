@@ -710,8 +710,8 @@ export function Booking() {
                         </span>
                         <span className="mt-1 text-sm leading-relaxed text-rose-900/75 line-clamp-2">{service.description[lang]}</span>
                         {service.category === 'pack' && <PackIncludes service={service} className="mt-1 text-sm leading-relaxed text-rose-900/75" />}
-                        <span className="mt-2 flex items-baseline justify-between gap-3">
-                          <span className="font-display text-lg text-rose-900 tabular-nums whitespace-nowrap"><PriceTag {...effectivePrice(service)} /></span>
+                        <span className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3">
+                          <span className="font-display text-lg text-rose-900 tabular-nums"><PriceTag {...effectivePrice(service)} align="start" /></span>
                           <span className="text-sm text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
                         </span>
                       </span>
