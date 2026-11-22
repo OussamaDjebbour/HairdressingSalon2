@@ -75,8 +75,9 @@ export function Services() {
   // The largest category is open until the client opens or closes others (several may be open).
   const [openKeys, setOpenKeys] = useState<CategoryKey[] | null>(null);
   const open = openKeys ?? (groups.length ? [largestGroup(groups)!.key] : []);
-  const list = (items: Service[]) => (
-    <ul>
+  // In an accordion the section's own rule closes the list, so the last row drops its rule.
+  const list = (items: Service[], sectioned = false) => (
+    <ul className={sectioned ? '[&>li:last-child>a]:border-b-0' : undefined}>
       {items.map((service) => (
         <Row key={service.id} service={service} />
       ))}
@@ -122,7 +123,7 @@ export function Services() {
                       open={isOpen}
                       onToggle={() => setOpenKeys(isOpen ? open.filter((k) => k !== key) : [...open, key])}
                     >
-                      {list(items)}
+                      {list(items, true)}
                     </CategorySection>
                   );
                 })}

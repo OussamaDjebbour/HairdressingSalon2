@@ -67,7 +67,7 @@ describe('Services (La carte)', () => {
     fireEvent.click(link);
   });
 
-  const headers = () => screen.getAllByRole('button', { expanded: undefined }).filter((b) => b.hasAttribute('aria-expanded'));
+  const headers = () => screen.getAllByRole('button').filter((b) => b.hasAttribute('aria-expanded'));
 
   it('lists the categories as accordion headers in order, only the largest open', () => {
     list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles'), mk('s4', 'beaute', 'Sourcils')];
@@ -100,6 +100,13 @@ describe('Services (La carte)', () => {
     expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
     expect(screen.getByText('Sourcils')).toBeInTheDocument();
     expect(screen.queryByText('Pack Mariée')).toBeNull();
+  });
+
+  it('the last row of an open category drops its rule (the section draws it)', () => {
+    list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'beaute', 'Ongles'), mk('s3', 'beaute', 'Sourcils')];
+    renderCarte();
+    const ul = screen.getByText('Sourcils').closest('ul')!;
+    expect(ul.className).toContain('[&>li:last-child>a]:border-b-0');
   });
 
   it('shows no header when only one category is present', () => {
