@@ -1,13 +1,12 @@
-import { Check, ChevronDown } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import type { CategoryKey } from '../../data/categories';
-import { countText, formatDuration } from '../../data/formatters';
+import { formatDuration } from '../../data/formatters';
 import { effectivePrice } from '../../data/pricing';
 import type { Service } from '../../data/types';
+import { CategorySection } from '../CategorySection';
 import { PackIncludes } from '../PackIncludes';
 import { PriceTag } from '../PriceTag';
-
-const panelId = (key: CategoryKey) => `booking-services-${key.replace(':', '-')}`;
 
 /**
  * The booking's service step: the salon's categories as sections that open and close (several may be open),
@@ -30,7 +29,7 @@ export function ServicePicker({
   open: CategoryKey[];
   onOpenChange: (next: CategoryKey[]) => void;
 }) {
-  const { t, lang } = useLang();
+  const { lang } = useLang();
 
   const rows = (items: Service[]) => (
     <ul className="divide-y divide-rose-900/10">
@@ -74,38 +73,18 @@ export function ServicePicker({
     <div className="border-t border-rose-900/10">
       {groups.map(({ key, items }) => {
         const isOpen = open.includes(key);
-        const label = labels[key] ?? key;
-        const ticked = items.filter((s) => selectedIds.includes(s.id)).length;
-        const count = countText(t, lang, 'booking.visit.count', items.length);
         return (
-          <section key={key} className="border-b border-rose-900/10">
-            <h4>
-              <button
-                type="button"
-                aria-expanded={isOpen}
-                aria-controls={panelId(key)}
-                aria-label={`${label}, ${count}${ticked > 0 ? ` (${countText(t, lang, 'booking.tab.chosen', ticked)})` : ''}`}
-                onClick={() => onOpenChange(isOpen ? open.filter((k) => k !== key) : [...open, key])}
-                className="flex w-full min-h-[44px] items-center gap-3 py-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-900"
-              >
-                <span className="min-w-0 break-words font-display text-lg text-rose-900">{label}</span>
-                <span className="whitespace-nowrap text-sm text-rose-900/60">{count}</span>
-                {ticked > 0 && (
-                  <span
-                    aria-hidden="true"
-                    className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-900 px-1.5 text-xs leading-none text-pearl-50 tabular-nums"
-                  >
-                    {ticked}
-                  </span>
-                )}
-                <ChevronDown
-                  aria-hidden="true"
-                  className={`ms-auto w-4 h-4 shrink-0 text-rose-900/60 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
-            </h4>
-            {isOpen && <div id={panelId(key)}>{rows(items)}</div>}
-          </section>
+          <CategorySection
+            key={key}
+            id={`booking-services-${key}`}
+            label={labels[key] ?? key}
+            count={items.length}
+            chosen={items.filter((s) => selectedIds.includes(s.id)).length}
+            open={isOpen}
+            onToggle={() => onOpenChange(isOpen ? open.filter((k) => k !== key) : [...open, key])}
+          >
+            {rows(items)}
+          </CategorySection>
         );
       })}
     </div>

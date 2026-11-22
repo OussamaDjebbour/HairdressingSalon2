@@ -67,72 +67,45 @@ describe('Services (La carte)', () => {
     fireEvent.click(link);
   });
 
-  it('shows one category at a time under tabs Coiffure, Beauté, Spa (equal sizes: the first one opens)', () => {
-    list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles')];
-    renderCarte();
-    const tabs = within(screen.getByRole('tablist', { name: 'Catégories' })).getAllByRole('tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['Coiffure', 'Beauté', 'Spa & hammam']);
-    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
-    const panel = screen.getByRole('tabpanel', { name: 'Coiffure' });
-    expect(within(panel).getByText('Coupe')).toBeInTheDocument();
-    expect(screen.queryByText('Hammam')).toBeNull();
-    expect(screen.queryByText('Ongles')).toBeNull();
+  const headers = () => screen.getAllByRole('button', { expanded: undefined }).filter((b) => b.hasAttribute('aria-expanded'));
 
-    fireEvent.click(tabs[2]);
-    expect(screen.getByRole('tab', { name: 'Spa & hammam' })).toHaveAttribute('aria-selected', 'true');
-    expect(within(screen.getByRole('tabpanel', { name: 'Spa & hammam' })).getByText('Hammam')).toBeInTheDocument();
+  it('lists the categories as accordion headers in order, only the largest open', () => {
+    list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles'), mk('s4', 'beaute', 'Sourcils')];
+    renderCarte();
+    const hs = headers();
+    expect(hs.map((h) => h.textContent)).toEqual(['Coiffure1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
+    expect(hs.map((h) => h.getAttribute('aria-expanded'))).toEqual(['false', 'true', 'false']);
+    expect(hs[0].parentElement!.tagName).toBe('H3');
+    expect(screen.getByText('Sourcils')).toBeInTheDocument();
     expect(screen.queryByText('Coupe')).toBeNull();
+    expect(screen.queryByText('Hammam')).toBeNull();
+    expect(hs[1].getAttribute('aria-controls')).not.toContain(':');
+    expect(document.getElementById(hs[1].getAttribute('aria-controls')!)).not.toBeNull();
   });
 
-  it('tabs follow the arrow keys (wrapping), Home and End; only the chosen tab is in the tab order', () => {
-    list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles')];
+  it('opening a second category keeps the first open; a header closes its own', () => {
+    list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles'), mk('s4', 'beaute', 'Sourcils')];
     renderCarte();
-    const tab = (name: string) => screen.getByRole('tab', { name });
-    expect(tab('Coiffure')).toHaveAttribute('tabindex', '0');
-    expect(tab('Beauté')).toHaveAttribute('tabindex', '-1');
-    fireEvent.keyDown(tab('Coiffure'), { key: 'ArrowRight' });
-    expect(tab('Beauté')).toHaveAttribute('aria-selected', 'true');
-    expect(tab('Beauté')).toHaveFocus();
-    expect(screen.getByText('Ongles')).toBeInTheDocument();
-    fireEvent.keyDown(tab('Beauté'), { key: 'End' });
-    expect(tab('Spa & hammam')).toHaveFocus();
-    fireEvent.keyDown(tab('Spa & hammam'), { key: 'ArrowRight' });
-    expect(tab('Coiffure')).toHaveFocus();
-    fireEvent.keyDown(tab('Coiffure'), { key: 'ArrowLeft' });
-    expect(tab('Spa & hammam')).toHaveFocus();
-    fireEvent.keyDown(tab('Spa & hammam'), { key: 'Home' });
-    expect(tab('Coiffure')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(headers()[2]);
+    expect(screen.getByText('Hammam')).toBeInTheDocument();
+    expect(screen.getByText('Sourcils')).toBeInTheDocument();
+    fireEvent.click(headers()[1]);
+    expect(screen.queryByText('Sourcils')).toBeNull();
+    expect(screen.getByText('Hammam')).toBeInTheDocument();
   });
 
-  it('in Arabic the arrows follow the reading direction', () => {
-    list = [mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles')];
-    function ToArabic() {
-      const { toggleLang } = useLang();
-      return <button onClick={toggleLang}>to-ar</button>;
-    }
-    render(<LanguageProvider><ToArabic /><Services /></LanguageProvider>);
-    fireEvent.click(screen.getByText('to-ar'));
-    const [first, second] = screen.getAllByRole('tab');
-    fireEvent.keyDown(first, { key: 'ArrowLeft' });
-    expect(second).toHaveAttribute('aria-selected', 'true');
-    fireEvent.keyDown(second, { key: 'ArrowRight' });
-    expect(first).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('opens on the category with the most services, the Packs tab staying first', () => {
+  it('packs come first and the largest category opens', () => {
     list = [mk('p1', 'pack', 'Pack Mariée'), mk('s1', 'spa', 'Hammam'), mk('b1', 'beaute', 'Ongles'), mk('b2', 'beaute', 'Sourcils')];
     renderCarte();
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Packs', 'Beauté', 'Spa & hammam']);
-    expect(screen.getByRole('tab', { name: 'Beauté' })).toHaveAttribute('aria-selected', 'true');
+    expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
     expect(screen.getByText('Sourcils')).toBeInTheDocument();
     expect(screen.queryByText('Pack Mariée')).toBeNull();
   });
 
-  it('shows no tabs when only one category is present', () => {
+  it('shows no header when only one category is present', () => {
     list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'coiffure', 'Brushing')];
     renderCarte();
-    expect(screen.queryByRole('tablist')).toBeNull();
-    expect(screen.queryByRole('tabpanel')).toBeNull();
+    expect(document.querySelector('[aria-expanded]')).toBeNull();
     expect(screen.getByText('Coupe')).toBeInTheDocument();
     expect(screen.getByText('Brushing')).toBeInTheDocument();
   });
@@ -190,8 +163,8 @@ describe('Services (La carte)', () => {
     list = [coupe, pack];
     catalogue = [coupe, hidden];
     renderCarte();
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Packs', 'Coiffure']);
-    expect(screen.getByRole('tab', { name: 'Packs' })).toHaveAttribute('aria-selected', 'true');
+    expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Coiffure1 prestation']);
+    expect(headers()[0]).toHaveAttribute('aria-expanded', 'true');
     const link = screen.getByRole('link', { name: /Pack Mariée/ });
     expect(link.textContent).toContain('Comprend : Coupe, Masque secret');
   });
@@ -222,7 +195,7 @@ describe('Services (La carte)', () => {
     expect(screen.getByRole('link', { name: /Brushing/ }).querySelector('.line-through')).toBeNull();
   });
 
-  it('shows the salon\'s own category as a tab after the ready-made ones, in both languages', () => {
+  it('shows the salon\'s own category after the ready-made ones, in both languages', () => {
     cats = [{ id: 'c1', name: { fr: 'Soins mariée', ar: 'عروس' }, sortOrder: 0 }];
     list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'beaute', 'Ongles'), { ...mk('s3', 'custom', 'Henné'), customCategoryId: 'c1' }];
     function ToArabic() {
@@ -230,22 +203,11 @@ describe('Services (La carte)', () => {
       return <button onClick={toggleLang}>to-ar</button>;
     }
     render(<LanguageProvider><ToArabic /><Services /></LanguageProvider>);
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Coiffure', 'Beauté', 'Soins mariée']);
-    fireEvent.click(screen.getByRole('tab', { name: 'Soins mariée' }));
-    expect(within(screen.getByRole('tabpanel')).getByText('Henné')).toBeInTheDocument();
+    expect(headers().map((h) => h.textContent)).toEqual(['Coiffure1 prestation', 'Beauté1 prestation', 'Soins mariée1 prestation']);
+    fireEvent.click(headers()[2]);
+    expect(screen.getByText('Henné')).toBeInTheDocument();
     fireEvent.click(screen.getByText('to-ar'));
-    expect(screen.getAllByRole('tab').at(-1)!.textContent).toBe('عروس');
-  });
-
-  it('tabs wrap instead of scrolling sideways', () => {
-    cats = [1, 2, 3].map((n) => ({ id: `c${n}`, name: { fr: `Cat ${n}`, ar: `${n}` }, sortOrder: n }));
-    list = [mk('s1', 'coiffure', 'A'), mk('s2', 'beaute', 'B'), mk('s3', 'spa', 'C'), ...cats.map((c) => ({ ...mk(`x${c.id}`, 'custom', c.id), customCategoryId: c.id }))];
-    renderCarte();
-    const tablist = screen.getByRole('tablist');
-    expect(screen.getAllByRole('tab')).toHaveLength(6);
-    expect(tablist.className).toContain('flex-wrap');
-    expect(tablist.className).not.toContain('overflow-x-auto');
-    for (const tab of screen.getAllByRole('tab')) expect(tab.id).not.toContain(':');
+    expect(headers().at(-1)!.textContent).toContain('عروس');
   });
 
   it('waits for the categories too, and retries the one that failed', () => {

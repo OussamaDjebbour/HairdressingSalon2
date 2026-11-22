@@ -6,7 +6,7 @@ import { useServices, useCategories } from '../data/queries';
 import { formatDuration } from '../data/formatters';
 import { DataError } from './DataError';
 import { categoryLabel, groupServices, largestGroup, type CategoryKey } from '../data/categories';
-import { CategoryTabs, categoryPanelId, categoryTabId } from './CategoryTabs';
+import { CategorySection } from './CategorySection';
 import { useBookingIntent } from '../context/BookingIntentContext';
 import { effectivePrice } from '../data/pricing';
 import { PriceTag } from './PriceTag';
@@ -72,9 +72,16 @@ export function Services() {
     if (categoriesQ.isError) categoriesQ.refetch();
   };
   const groups = groupServices(services ?? [], custom);
-  // One category at a time (salons list many services); the largest one until the client picks another.
-  const [tab, setTab] = useState<CategoryKey | null>(null);
-  const shown = groups.find((g) => g.key === tab) ?? largestGroup(groups);
+  // The largest category is open until the client opens or closes others (several may be open).
+  const [openKeys, setOpenKeys] = useState<CategoryKey[] | null>(null);
+  const open = openKeys ?? (groups.length ? [largestGroup(groups)!.key] : []);
+  const list = (items: Service[]) => (
+    <ul>
+      {items.map((service) => (
+        <Row key={service.id} service={service} />
+      ))}
+    </ul>
+  );
 
   return (
     <section id="services" className="bg-pearl-50 text-rose-900 scroll-mt-16">
@@ -99,28 +106,26 @@ export function Services() {
           </div>
         ) : (
           <div className="mt-12">
-            {shown && groups.length > 1 && (
-              <CategoryTabs
-                idBase="carte"
-                items={groups.map((g) => ({ key: g.key, label: categoryLabel(g.key, custom, t, lang) }))}
-                value={shown.key}
-                onChange={setTab}
-              />
-            )}
-            {shown && (
-              <div
-                {...(groups.length > 1 && {
-                  role: 'tabpanel',
-                  id: categoryPanelId('carte'),
-                  'aria-labelledby': categoryTabId('carte', shown.key),
+            {groups.length === 1 ? (
+              <div className="border-t border-rose-900/10">{list(groups[0].items)}</div>
+            ) : (
+              <div className="border-t border-rose-900/10">
+                {groups.map(({ key, items }) => {
+                  const isOpen = open.includes(key);
+                  return (
+                    <CategorySection
+                      key={key}
+                      as="h3"
+                      id={`carte-${key}`}
+                      label={categoryLabel(key, custom, t, lang)}
+                      count={items.length}
+                      open={isOpen}
+                      onToggle={() => setOpenKeys(isOpen ? open.filter((k) => k !== key) : [...open, key])}
+                    >
+                      {list(items)}
+                    </CategorySection>
+                  );
                 })}
-              >
-                {/* With tabs, their rule is the list's top line. */}
-                <ul className={groups.length > 1 ? undefined : 'border-t border-rose-900/10'}>
-                  {shown.items.map((service) => (
-                    <Row key={service.id} service={service} />
-                  ))}
-                </ul>
               </div>
             )}
           </div>
