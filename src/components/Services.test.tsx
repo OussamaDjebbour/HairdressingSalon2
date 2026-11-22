@@ -129,6 +129,26 @@ describe('Services (La carte)', () => {
 
 
 
+  it('closed category headers show the first photographed service as a thumbnail when every category has one', () => {
+    list = [mk('s1', 'spa', 'Hammam', 'https://x.test/h.jpg'), mk('s2', 'coiffure', 'Coupe'), mk('s5', 'coiffure', 'Brushing', 'https://x.test/b.jpg'), mk('s3', 'beaute', 'Ongles', 'https://x.test/o.jpg'), mk('s4', 'beaute', 'Sourcils'), mk('s6', 'beaute', 'Cils')];
+    renderCarte();
+    const hs = headers();
+    const imgs = hs.map((h) => h.querySelector('img'));
+    expect(imgs[0]).toHaveAttribute('src', 'https://x.test/b.jpg');
+    expect(imgs[0]).toHaveAttribute('alt', '');
+    expect(imgs[0]).toHaveAttribute('loading', 'lazy');
+    expect(imgs[1]).toBeNull();
+    expect(imgs[2]).toHaveAttribute('src', 'https://x.test/h.jpg');
+    fireEvent.click(hs[1]);
+    expect(headers()[1].querySelector('img')).toHaveAttribute('src', 'https://x.test/o.jpg');
+  });
+
+  it('no header shows a thumbnail when one category has no photo', () => {
+    list = [mk('s1', 'spa', 'Hammam', 'https://x.test/h.jpg'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles', 'https://x.test/o.jpg'), mk('s4', 'beaute', 'Sourcils')];
+    renderCarte();
+    expect(headers().every((h) => h.querySelector('img') === null)).toBe(true);
+  });
+
   it('shows quiet placeholder rows while loading', () => {
     state = { isLoading: true, isError: false };
     const { container } = renderCarte();

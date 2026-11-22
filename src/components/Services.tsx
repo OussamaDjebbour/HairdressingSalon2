@@ -74,6 +74,9 @@ export function Services() {
   const groups = groupServices(services ?? [], custom);
   // The largest category is open until the client opens or closes others (several may be open).
   const [openKeys, setOpenKeys] = useState<CategoryKey[] | null>(null);
+  // Thumbnails only when every category can show one, so the headers stay uniform.
+  const thumbOf = (items: Service[]) => items.find((s) => s.image)?.image;
+  const showThumbs = groups.length > 1 && groups.every((g) => thumbOf(g.items));
   const open = openKeys ?? (groups.length ? [largestGroup(groups)!.key] : []);
   // In an accordion the section's own rule closes the list, so the last row drops its rule.
   const list = (items: Service[], sectioned = false) => (
@@ -120,6 +123,7 @@ export function Services() {
                       id={`carte-${key}`}
                       label={categoryLabel(key, custom, t, lang)}
                       count={items.length}
+                      thumbnail={showThumbs ? thumbOf(items) : undefined}
                       open={isOpen}
                       onToggle={() => setOpenKeys(isOpen ? open.filter((k) => k !== key) : [...open, key])}
                     >

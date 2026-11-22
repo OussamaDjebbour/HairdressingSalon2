@@ -15,6 +15,7 @@ export function CategorySection({
   open,
   onToggle,
   as: Heading = 'h4',
+  thumbnail,
   children,
 }: {
   id: string;
@@ -24,6 +25,8 @@ export function CategorySection({
   open: boolean;
   onToggle: () => void;
   as?: 'h3' | 'h4';
+  /** Decorative photo shown in the header while the section is closed. */
+  thumbnail?: string;
   children: ReactNode;
 }) {
   const { t, lang } = useLang();
@@ -40,6 +43,9 @@ export function CategorySection({
           onClick={onToggle}
           className="flex w-full min-h-[44px] items-center gap-3 py-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-900"
         >
+          {thumbnail && !open && (
+            <img src={thumbnail} alt="" loading="lazy" className="w-14 aspect-[3/4] object-cover shrink-0" />
+          )}
           <span className="min-w-0 break-words font-display text-lg text-rose-900">{label}</span>
           <span className="whitespace-nowrap text-sm text-rose-900/60">{countLabel}</span>
           {chosen > 0 && (
