@@ -70,12 +70,19 @@ See `example.json`. Texts shown on the site are `{"fr": "…", "ar": "…"}`; a 
 | `founder` | no | `{"name": {fr, ar?}, "role": {fr, ar?}}` — signs the quote. |
 | `claims` | no | `{yearsOpen, clientCount, rating, reviewCount}`; each one left out is hidden. `rating` 1–5, one decimal. |
 | `hours` | yes | `monday` … `sunday`, each `"09:00-18:00"` (15-minute steps) or `"closed"`. |
-| `services[]` | yes | `{id, category: "coiffure" \| "beaute" \| "spa", name, description?, price (DA), duration (minutes, multiple of 15), photo?}`. |
+| `categories[]` | no | The salon's own service categories: `{id, name: {fr, ar?}}` (id like `sara-mariee`, name 2–60 characters). Their order in the file is their order on the site; categories the owner made in Réglages and that are not listed are kept. |
+| `services[]` | yes | `{id, category, name, description?, price (DA), duration (minutes, multiple of 15), photo?}`; `category` is a ready-made key (`coiffure`, `capillaire`, `visage`, `regard`, `ongles`, `epilation`, `maquillage`, `beaute`, `spa`, `massage`; no `pack`) or `"custom:<id>"` of a category listed in `categories`. |
 | `stylists[]` | yes | `{id, name, role?, services: [service ids], workdays?: ["tuesday", …], photo?}`. No `workdays`: the salon's open days. |
 | `owner` | yes | `{"email": "…"}` — the owner's `/admin` login. |
 | `heroPhoto` | no | The big photo at the top of the site, shown full screen height (see "Photos" below). |
 
-Service and stylist ids are shared by all salons: start them with the salon id (`sara-coupe`).
+Example of an own category (a service then says `"category": "custom:sara-mariee"`):
+
+```json
+"categories": [{ "id": "sara-mariee", "name": { "fr": "Soins mariée", "ar": "عناية العروس" } }]
+```
+
+Service, stylist and category ids are shared by all salons: start them with the salon id (`sara-coupe`).
 A photo is either a file name inside `salons/<slug>/photos/` (e.g. `"coupe.jpg"`, uploaded by the
 script; JPG, PNG, WebP, AVIF or GIF, 20 MB max; SVG not accepted) or an `https://` address used as is.
 **Photos that look right.** The site opens on the hero photo at full screen height, so pick a photo of a

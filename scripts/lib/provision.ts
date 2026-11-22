@@ -16,7 +16,8 @@ export type BilingualText = { fr: string; ar: string };
 
 export interface ServicePayload {
   id: string;
-  category: 'coiffure' | 'beaute' | 'spa';
+  /** A ready-made key or "custom:<id>". */
+  category: string;
   name: BilingualText;
   description?: BilingualText;
   price: number;
@@ -54,6 +55,7 @@ export interface ProvisionPayload {
   facebook_url?: string;
   domains?: string[];
   hours?: Array<{ weekday: number; opens: string | null; closes: string | null }>;
+  categories?: Array<{ id: string; name: BilingualText; sort_order: number }>;
   services?: ServicePayload[];
   stylists?: StylistPayload[];
   owner_user_id?: string;
@@ -78,6 +80,7 @@ const PROVISION_ERRORS: Record<string, string> = {
   invalid_hours: 'the opening hours are invalid',
   invalid_phone: 'the WhatsApp number is not an Algerian mobile number',
   invalid_url: 'the Instagram/Facebook link must start with https://',
+  invalid_category: 'a category is invalid (id or name)',
   invalid_service: 'a service is invalid (id, category, name, price or duration)',
   invalid_promo:
     "a service's price in the file is at or under the promotion the owner set on it in Réglages: " +
@@ -86,7 +89,7 @@ const PROVISION_ERRORS: Record<string, string> = {
   invalid_stylist: 'a stylist is invalid (id, name or workdays)',
   unknown_service: "a stylist offers a service that is not this salon's",
   domain_taken: 'a domain already belongs to another salon',
-  id_taken: 'a service or stylist id is already used by another salon (ids are shared by all salons: prefix them with the salon id)',
+  id_taken: 'a service, stylist or category id is already used by another salon (ids are shared by all salons: prefix them with the salon id)',
   staff_taken: "the owner's email is already the login of another salon's staff",
   owner_conflict:
     'salon "{id}" already has its own staff and this owner\'s email is not one of them: the file probably reuses another salon\'s ' +
@@ -158,6 +161,10 @@ export function buildProvisionPayload(
       hours: WEEKDAYS.map((day, i) => {
         const range = parseHoursRange(config.hours[day]);
         return { weekday: i + 1, opens: range?.[0] ?? null, closes: range?.[1] ?? null };
+      }),
+      // sort_order is always sent: without it a re-run would keep the old order instead of the file's.
+      ...(config.categories && {
+        categories: config.categories.map((c, i) => ({ id: c.id, name: bilingual(c.name), sort_order: i })),
       }),
       services: config.services.map((s) => ({
         id: s.id,

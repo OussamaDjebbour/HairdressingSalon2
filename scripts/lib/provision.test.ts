@@ -12,6 +12,26 @@ const { palette } = generatePalette('#2F6F73');
 const OWNER = '00000000-0000-4000-8000-000000000001';
 
 describe('buildProvisionPayload', () => {
+  it('sends categories with their list position as sort_order, and the service category unchanged', () => {
+    const json = exampleJson();
+    json.categories = [
+      { id: 'sara-mariee', name: { fr: 'Soins mariée', ar: 'عروس' } },
+      { id: 'sara-kids', name: { fr: 'Enfants' } },
+    ];
+    json.services[0].category = 'custom:sara-mariee';
+    const p = buildProvisionPayload(parseSalonConfig(json), palette, {});
+    expect(p.categories).toEqual([
+      { id: 'sara-mariee', name: { fr: 'Soins mariée', ar: 'عروس' }, sort_order: 0 },
+      { id: 'sara-kids', name: { fr: 'Enfants', ar: 'Enfants' }, sort_order: 1 },
+    ]);
+    expect(p.services![0].category).toBe('custom:sara-mariee');
+    expect(buildProvisionPayload(example(), palette, {}).categories).toBeUndefined();
+  });
+
+  it('maps invalid_category to a readable message', () => {
+    expect(provisionErrorMessage('invalid_category', 'x')).toContain('a category is invalid (id or name)');
+  });
+
   it('maps hours Monday..Sunday to weekdays 1..7, null for "closed"', () => {
     const p = buildProvisionPayload(example(), palette, {});
     expect(p.hours).toEqual([

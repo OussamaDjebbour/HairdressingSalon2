@@ -11,9 +11,19 @@ export type Bilingual = { fr: string; ar?: string };
 export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
 
+/** The ready-made categories a launch file may use (packs are made by the owner in Réglages). */
+export const READY_CATEGORIES = [
+  'coiffure', 'capillaire', 'visage', 'regard', 'ongles', 'epilation', 'maquillage', 'beaute', 'spa', 'massage',
+] as const;
+
+export interface CategoryConfig {
+  id: string;
+  name: Bilingual;
+}
+
 export interface ServiceConfig {
   id: string;
-  category: 'coiffure' | 'beaute' | 'spa';
+  category: (typeof READY_CATEGORIES)[number] | `custom:${string}`;
   name: Bilingual;
   description?: Bilingual;
   price: number;
@@ -47,6 +57,8 @@ export interface SalonConfig {
   claims?: { yearsOpen?: number; clientCount?: number; rating?: number; reviewCount?: number };
   /** "HH:MM-HH:MM" or "closed". */
   hours: Record<Weekday, string>;
+  /** The salon's own categories; a service uses one as "custom:<id>". */
+  categories?: CategoryConfig[];
   services: ServiceConfig[];
   stylists: StylistConfig[];
   owner: { email: string };
@@ -156,7 +168,7 @@ export function parseSalonConfig(json: unknown): SalonConfig {
 
   const known = new Set([
     'id', 'name', 'color', 'domains', 'address', 'city', 'whatsapp', 'instagram', 'facebook', 'story',
-    'storyIntro', 'founder', 'claims', 'hours', 'services', 'stylists', 'owner', 'heroPhoto',
+    'storyIntro', 'founder', 'claims', 'hours', 'categories', 'services', 'stylists', 'owner', 'heroPhoto',
   ]);
   for (const k of Object.keys(json)) if (!known.has(k)) err(k, 'unknown key');
 
@@ -235,6 +247,27 @@ export function parseSalonConfig(json: unknown): SalonConfig {
   }
   const openDays = new Set(WEEKDAYS.filter((d) => hours[d] !== undefined && hours[d] !== 'closed'));
 
+  // categories
+  const categoryIds = new Set<string>();
+  const categories: CategoryConfig[] = [];
+  if (json.categories !== undefined && json.categories !== null) {
+    array(json, 'categories', 'categories').forEach((c, i) => {
+      const f = `categories[${i}]`;
+      if (!isObj(c)) return void err(f, 'must be {"id": "…", "name": {"fr": "…", "ar": "…"}}');
+      for (const k of Object.keys(c)) if (k !== 'id' && k !== 'name') err(`${f}.${k}`, 'unknown key');
+      const cid = text(c, 'id', `${f}.id`, { required: true });
+      let idOk = false;
+      if (cid !== undefined) {
+        if (!ITEM_ID_RE.test(cid)) err(`${f}.id`, `${show(cid)} must be lowercase letters, digits or "-" (e.g. "sara-mariee")`);
+        else if (categoryIds.has(cid)) err(`${f}.id`, `${show(cid)} is used twice`);
+        else idOk = true;
+        categoryIds.add(cid);
+      }
+      const cname = bilingual(c, 'name', `${f}.name`, { required: true, min: 2, max: 60 });
+      if (idOk && cname) categories.push({ id: cid!, name: cname });
+    });
+  }
+
   // services
   const serviceIds = new Set<string>();
   const services = array(json, 'services', 'services').flatMap((s, i): ServiceConfig[] => {
@@ -253,7 +286,12 @@ export function parseSalonConfig(json: unknown): SalonConfig {
       serviceIds.add(sid);
     }
     const category = s.category;
-    if (category !== 'coiffure' && category !== 'beaute' && category !== 'spa') err(`${f}.category`, `must be "coiffure", "beaute" or "spa", got ${show(category)}`);
+    const customId = typeof category === 'string' && category.startsWith('custom:') ? category.slice(7) : undefined;
+    if (customId !== undefined) {
+      if (!categoryIds.has(customId)) err(`${f}.category`, `${show(category)} is not declared in "categories"`);
+    } else if (!(READY_CATEGORIES as readonly unknown[]).includes(category)) {
+      err(`${f}.category`, `must be one of ${READY_CATEGORIES.join(', ')} or "custom:<id>" of a category in "categories", got ${show(category)}`);
+    }
     const sname = bilingual(s, 'name', `${f}.name`, { required: true, min: 2, max: 80 });
     const description = bilingual(s, 'description', `${f}.description`, { max: 500 });
     const price = integer(s, 'price', `${f}.price`, 0, 1_000_000);
@@ -333,5 +371,6 @@ export function parseSalonConfig(json: unknown): SalonConfig {
     ...(instagram && { instagram }), ...(facebook && { facebook }), ...(story && { story }),
     ...(storyIntro && { storyIntro }), ...(founder && { founder }), ...(claims && { claims }),
     ...(heroPhoto && { heroPhoto }),
+    ...(categories.length > 0 && { categories }),
   };
 }
