@@ -233,3 +233,21 @@ export function useCategories(): UseQueryResult<CustomCategory[]>;    // staleTi
 - [ ] **Step 3: Browser check (Review Focus 5):** local stack seeded with 12 categories (11 ready-made with one service each + one owner category named "Soins et rituels de mariée"); at 320 px and 390 px, FR and AR: La carte tabs wrap with `documentElement.scrollWidth === innerWidth`; the accordion header with the long name wraps and is ≥ 44 px tall; ticking across sections keeps counts right.
 - [ ] **Step 4: Commit** `docs: service categories in CLAUDE.md`, push, open the PR (base `main`) describing the change and that it replaces #30; close #30 with a link.
 - [ ] **Step 5: Demo checklist (after merge and live, with the user — not automated):** in Réglages as the owner of Élégance: Manucure & Vernis → Ongles, Soin du Visage → Visage, Maquillage Professionnel → Maquillage; create "Soins mariée" with one service; run `pnpm setup-demo elegance` (type the salon id) to re-capture the snapshot; check the public page.
+
+### Task 11: La carte becomes an accordion (user decision after Task 10)
+
+The user found the wrapped tabs (11 categories → 5 lines at 320 px) "crowded and messy" and chose the booking
+step's accordion for La carte too (spec amended).
+
+**Files:**
+- Create: `src/components/CategorySection.tsx` (the shared disclosure: header + panel)
+- Modify: `src/components/booking/ServicePicker.tsx` (use `CategorySection`), `src/components/Services.tsx`, `src/components/Services.test.tsx`
+- Delete: `src/components/CategoryTabs.tsx` (+ any test of it); drop now-unused translation keys only if nothing else uses them
+
+**Interfaces:**
+- `CategorySection({ id, label, count, chosen?, open, onToggle, children })` — `<h3|h4>` (prop `as`, default `h4`) wrapping `<button type="button" aria-expanded aria-controls>` with label, `countText(t, lang, 'booking.visit.count', count)`, optional chosen badge + accessible name, chevron; panel rendered when open with id `${id}` (`:` → `-`). Same classes the booking headers have today (≥ 44 px, `min-w-0 break-words` label, `whitespace-nowrap` count).
+- `Services`: state `open: CategoryKey[] | null` (null → `[largestGroup(groups).key]`); headers only when more than one group; rows (`Row`) unchanged.
+
+- [ ] **Step 1: Failing tests** in `Services.test.tsx` (replace the tab tests): several categories → one header button per category in order (owner categories last), only the largest `aria-expanded="true"`, its rows visible, others' rows absent; opening a second keeps the first open; header shows "n prestations"; Arabic label for an owner category; one category → no header buttons, rows visible; loading/error/retry tests kept. Booking tests keep passing unchanged.
+- [ ] **Step 2:** run → FAIL. **Step 3: Implement** (extract `CategorySection` from ServicePicker's header, reuse it in both). **Step 4:** `npx tsc -b && pnpm test && pnpm check:bundle` → PASS.
+- [ ] **Step 5: Commit** `feat(site): La carte is an accordion of categories, like the booking step`.

@@ -15,8 +15,9 @@ Spa) can't describe that: ~47 services would land in "Beauté", and the tabs fro
 - **Approach A:** ready-made categories keep **our names (FR + AR) and our order**; the owner can't rename, reorder
   or hide them. Her own categories come **after** them, in her order.
 - **Layout** (sketch below):
-  - **La carte:** one category at a time under tabs, and the tab row **wraps onto more lines** instead of
-    scrolling sideways, so every category is visible.
+  - **La carte:** ~~tabs that wrap~~ → **the same accordion as the booking step** (user, 2026-11-22, after seeing
+    11 wrapped tabs: "crowded and messy"): one line per category with its number of services, the largest open,
+    rows keep their photo, description and "Réserver".
   - **Booking, service step:** an **accordion** with **compact rows** (no photo), each category header showing
     its number of services and how many are ticked.
 
@@ -105,14 +106,19 @@ Owners' categories follow, in her order. Arabic wording to be checked by the use
   `custom:<id>` for hers. Order: ready-made in list order, then hers by `sort_order`. Empty groups are dropped (as
   today). Label: ready-made → `t('category.<key>')`; hers → `name[lang]`. Unknown key → `coiffure` (as today).
 - Fetch the salon's categories with the services (public read, `.eq('salon_id', …)`), `staleTime` like services.
-- **La carte** (`Services.tsx`): keeps `CategoryTabs` (PR #30) but the tab row **wraps** (no sideways scroll);
-  opens on the category with the most services (ties in display order). One category: no tabs.
+- **La carte** (`Services.tsx`) **(amended 2026-11-22, user):** an accordion like the booking step — one header per
+  category (name · "n prestations", chevron), several may be open, the largest open at first (ties in display
+  order); rows unchanged (photo thumbnail, description, price with promo, duration, "Réserver"). One category: no
+  headers. `CategoryTabs` is removed.
 
   ```
-  Packs   Coiffure   Visage   Ongles
-  Épilation   Regard   Soins mariée
+  Coiffure · 14 prestations        ▴
+    Brushing ............ 1 500 DA
+    Coupe + Brushing .... 2 500 DA
   ─────────────────────────────────
-  Brushing ................ 1 500 DA
+  Visage · 9 prestations           ▾
+  ─────────────────────────────────
+  Ongles · 11 prestations          ▾
   ```
 - **Booking step 0** (`Booking.tsx`): replaces PR #30's tabs with an **accordion**: one header per category
   (name · "n prestations" · a badge with the number ticked), **compact rows** (name, price with promo, duration,
