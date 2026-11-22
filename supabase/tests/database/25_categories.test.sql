@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(44);
 
 insert into auth.users (id, instance_id, aud, role, email)
 values ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'owner@test.local');
@@ -85,6 +85,18 @@ select throws_ok($$ select public.admin_reorder_categories(array[(select v from 
 select is((select array_agg(id order by sort_order) from public.salon_categories where salon_id = 'elegance'),
   array[(select v from ids where k = 'catB'), (select v from ids where k = 'catA'), 'el-mariee'], 'order unchanged after rejected reorders');
 select is((select sort_order from public.salon_categories where id = 'rival-cat'), 0, 'rival sort_order untouched');
+select throws_ok($$ select public.admin_reorder_categories(array[(select v from ids where k = 'catB'), (select v from ids where k = 'catB'), 'el-mariee']) $$, 'P0001', 'invalid_category', 'reorder: same-length duplicate');
+select is((select array_agg(id order by sort_order) from public.salon_categories where salon_id = 'elegance'),
+  array[(select v from ids where k = 'catB'), (select v from ids where k = 'catA'), 'el-mariee'], 'order unchanged after same-length duplicate');
+select throws_ok($$ select public.admin_reorder_categories(array[(select v from ids where k = 'catB'), (select v from ids where k = 'catA'), 'rival-cat']) $$, 'P0001', 'invalid_category', 'reorder: same-length foreign id replacing hers');
+select is((select array_agg(id order by sort_order) from public.salon_categories where salon_id = 'elegance'),
+  array[(select v from ids where k = 'catB'), (select v from ids where k = 'catA'), 'el-mariee'], 'order unchanged after same-length foreign id replacing hers');
+select throws_ok($$ select public.admin_reorder_categories(array[(select v from ids where k = 'catB'), null, (select v from ids where k = 'catA')]) $$, 'P0001', 'invalid_category', 'reorder: null element');
+select is((select array_agg(id order by sort_order) from public.salon_categories where salon_id = 'elegance'),
+  array[(select v from ids where k = 'catB'), (select v from ids where k = 'catA'), 'el-mariee'], 'order unchanged after null element');
+select throws_ok($$ select public.admin_reorder_categories(null::text[]) $$, 'P0001', 'invalid_category', 'reorder: null array');
+select is((select array_agg(id order by sort_order) from public.salon_categories where salon_id = 'elegance'),
+  array[(select v from ids where k = 'catB'), (select v from ids where k = 'catA'), 'el-mariee'], 'order unchanged after null array');
 
 select public.admin_delete_category((select v from ids where k = 'catA'));
 select is((select count(*)::int from public.salon_categories where id = (select v from ids where k = 'catA')), 0, 'empty category deleted');
