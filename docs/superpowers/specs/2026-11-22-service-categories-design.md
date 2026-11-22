@@ -110,6 +110,10 @@ Owners' categories follow, in her order. Arabic wording to be checked by the use
   category (name · "n prestations", chevron), several may be open, the largest open at first (ties in display
   order); rows unchanged (photo thumbnail, description, price with promo, duration, "Réserver"). One category: no
   headers. `CategoryTabs` is removed.
+- **Category thumbnails on La carte (user, 2026-11-22):** each La carte header shows a small thumbnail (~56 px,
+  lazy) — the photo of the category's first service *that has one*. Shown **only when every category has a photo**
+  (otherwise none, to avoid a mixed look), and **hidden while that category is open** (its first row shows it just
+  below). Decorative (`alt=""`). Not in the booking step. No owner-chosen category photo for now.
 
   ```
   Coiffure · 14 prestations        ▴

@@ -251,3 +251,15 @@ step's accordion for La carte too (spec amended).
 - [ ] **Step 1: Failing tests** in `Services.test.tsx` (replace the tab tests): several categories → one header button per category in order (owner categories last), only the largest `aria-expanded="true"`, its rows visible, others' rows absent; opening a second keeps the first open; header shows "n prestations"; Arabic label for an owner category; one category → no header buttons, rows visible; loading/error/retry tests kept. Booking tests keep passing unchanged.
 - [ ] **Step 2:** run → FAIL. **Step 3: Implement** (extract `CategorySection` from ServicePicker's header, reuse it in both). **Step 4:** `npx tsc -b && pnpm test && pnpm check:bundle` → PASS.
 - [ ] **Step 5: Commit** `feat(site): La carte is an accordion of categories, like the booking step`.
+
+### Task 12: Category thumbnails on La carte (user decision)
+
+**Files:** Modify `src/components/CategorySection.tsx` (optional `thumbnail?: string` prop), `src/components/Services.tsx`, `src/components/Services.test.tsx`. Booking (`ServicePicker`) passes no thumbnail and must render exactly as before.
+
+**Interfaces:**
+- `CategorySection` gains `thumbnail?: string`: when set **and the section is closed**, the header shows `<img src alt="" loading="lazy">` (~56 px wide, 3:4 or square, `object-cover`, at the start side before the label, same style as La carte row thumbnails: no rounding/shadow) inside the button; header stays ≥ 44 px.
+- `Services`: `thumbOf(group) = group.items.find(s => s.image)?.image`; pass thumbnails only if **every** group has one (`groups.every(...)`), otherwise none. Single category: no headers, no thumbnails.
+
+- [ ] **Step 1: Failing tests** (`Services.test.tsx`): every category has a photo → each closed header has an `img` with the first *photographed* service's src (a category whose first service has no image uses the next one with an image), `alt=""`, `loading="lazy"`; the open category's header has no `img`, and closing it shows it; one category without any photo → no header has an `img`. Booking tests unchanged.
+- [ ] **Step 2:** run → FAIL. **Step 3: Implement.** **Step 4:** `npx tsc -b && pnpm test && pnpm check:bundle` → PASS.
+- [ ] **Step 5: Commit** `feat(site): La carte category headers show a thumbnail`.
