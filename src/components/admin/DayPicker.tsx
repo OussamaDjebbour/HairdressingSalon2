@@ -4,7 +4,7 @@ import { useLang } from '../../context/LanguageContext';
 import { algiersToday, useAdminBookings } from '../../data/admin';
 import { toYmd } from '../../data/bookings';
 import { countText, formatLongDate, formatMonthYear, weekdayInitials } from '../../data/formatters';
-import { dayHours } from '../../data/hours';
+import { dayHours, stylistWorks } from '../../data/hours';
 import { useAllServices, useAllStylists } from '../../data/queries';
 import { dayRoom, monthGrid, roomLevel, type DayRoom } from '../../data/roomFinder';
 import { useClosedDates, useSalonHours, useStylistDaysOff } from '../../data/salonSettings';
@@ -39,9 +39,10 @@ const ALL = '__all__';
 const firstOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 
 /**
- * A month calendar to jump to any day, showing how full each day is. With a service chosen
- * (and optionally a coiffeuse), each day shows how many start times fit, and a tapped day lists
- * them: a tapped time is picked for a new booking.
+ * A month calendar to jump to any day, showing how full each day is — the salon's, or with only a
+ * coiffeuse chosen hers, with the days she doesn't work marked. With a service chosen (and optionally
+ * a coiffeuse), each day shows how many start times fit, and a tapped day lists them: a tapped time is
+ * picked for a new booking.
  */
 export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onClose }: DayPickerProps) {
   const { lang, t } = useLang();
@@ -165,7 +166,10 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
           }
           const hours = salonHours && closedDates ? dayHours(salonHours, closedDates, date) : undefined;
           const closed = hours === null;
-          const pct = hours ? Math.round(dayOccupancy(bookings, date, activeStylists.length, hours) * 100) : 0;
+          // A coiffeuse without a service: her own day (her bookings over her hours), or "absente".
+          const herBookings = stylist ? bookings.filter((b) => b.stylistId === stylist.id) : bookings;
+          const pct = hours ? Math.round(dayOccupancy(herBookings, date, stylist ? 1 : activeStylists.length, hours) * 100) : 0;
+          const away = !service && !!stylist && !!hours && !!daysOffQuery.data && !stylistWorks(stylist, daysOff, date);
           const waiting = waitingDays.has(ymd);
           const isSelected = service ? !!picked && toYmd(picked) === ymd : ymd === selected;
           const room = closed ? null : roomOn(date);
@@ -173,6 +177,8 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
             ? t('schedule.closed')
             : service
             ? room && room.kind !== 'past' ? roomLabel(room) : ''
+            : away
+            ? t('admin.picker.absent')
             : bookingsReady
             ? `${pct}%`
             : '';
@@ -210,6 +216,8 @@ export function DayPicker({ day, filter, onFilterChange, onJump, onPickTime, onC
                 ) : room?.kind === 'absent' ? (
                   <UserX data-testid="room-absent" aria-hidden="true" className={`w-3.5 h-3.5 ${isSelected ? 'text-cream-100' : 'text-rose-500'}`} strokeWidth={1.8} />
                 ) : null
+              ) : away ? (
+                <UserX data-testid="room-absent" aria-hidden="true" className={`w-3.5 h-3.5 ${isSelected ? 'text-cream-100' : 'text-rose-500'}`} strokeWidth={1.8} />
               ) : hours && bookingsReady && (
                 <span className={`block h-1 w-6 rounded-full overflow-hidden ${isSelected ? 'bg-cream-50/25' : 'bg-cream-200'}`}>
                   <span className="block h-full rounded-full bg-gold-500" style={{ width: `${pct}%` }} />

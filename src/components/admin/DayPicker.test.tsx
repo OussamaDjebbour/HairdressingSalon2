@@ -145,6 +145,35 @@ describe('DayPicker — the month', () => {
 });
 
 
+describe('DayPicker — a coiffeuse without a service', () => {
+  const onlyAmina: RoomFilter = { serviceId: null, stylistId: 'amina' };
+
+  it('shows how full her own day is, not the salon’s', () => {
+    monthBookings = [
+      adminBooking({ startIso: '2030-01-09T09:00:00Z', stylistId: 'amina', status: 'confirmed' }), // 60 of her 540 min
+      adminBooking({ startIso: '2030-01-09T11:00:00Z', stylistId: 'leila', status: 'confirmed' }),
+    ];
+    renderPicker(onlyAmina);
+    expect(screen.getByRole('button', { name: 'Mercredi 9 janvier — 11%' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Jeudi 10 janvier — 0%' })).toBeInTheDocument();
+  });
+
+  it('marks the days she doesn’t work as absente', () => {
+    daysOff = [{ id: 'o1', stylistId: 'amina', from: '2030-01-09', to: '2030-01-09' }];
+    renderPicker(onlyAmina);
+    const day = screen.getByRole('button', { name: 'Mercredi 9 janvier — absente' });
+    expect(within(day).getByTestId('room-absent')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Jeudi 10 janvier — 0%' })).toBeInTheDocument();
+  });
+
+  it('a tapped day still opens that day in the agenda', () => {
+    const { onJump } = renderPicker(onlyAmina);
+    fireEvent.click(screen.getByRole('button', { name: 'Jeudi 10 janvier — 0%' }));
+    expect(onJump).toHaveBeenCalledTimes(1);
+    expect(toYmd(onJump.mock.calls[0][0])).toBe('2030-01-10');
+  });
+});
+
 describe('DayPicker — room for a service and coiffeuse', () => {
   const coupe = { serviceId: 'coupe-femme', stylistId: null };
   const withAmina = { serviceId: 'coupe-femme', stylistId: 'amina' };
