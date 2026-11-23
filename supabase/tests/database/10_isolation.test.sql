@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(94);
+select plan(97);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -131,6 +131,15 @@ set local role authenticated;
 select is(array(select id from public.admin_list_bookings('2030-01-01', '2030-01-31')),
           array['bbbbbbbb-0000-0000-0000-000000000001'::uuid], 'list: rival staff see only their own booking');
 select is((select count(*)::int from public.admin_visit_parts('aaaaaaaa-0000-0000-0000-000000000001')), 0, 'visit parts: another salon''s booking id gives no rows');
+select ok(not exists (select 1 from jsonb_array_elements(public.admin_stats('2030-01-01', '2030-12-31') -> 'stylists') x where x ->> 'id' <> 'nadia'),
+          'stats: rival staff see only their own coiffeuses');
+select ok(not exists (select 1 from jsonb_array_elements(public.admin_stats('2030-01-01', '2030-12-31') -> 'services') x where x ->> 'id' <> 'rival-cut'),
+          'stats: rival staff see only their own services');
+reset role;
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select ok(not exists (select 1 from jsonb_array_elements(public.admin_stats('2030-01-01', '2030-12-31') -> 'services') x where x ->> 'id' = 'rival-cut'),
+          'stats: another salon''s bookings never count');
 reset role;
 
 select pg_temp.act_as('22222222-2222-2222-2222-222222222222');

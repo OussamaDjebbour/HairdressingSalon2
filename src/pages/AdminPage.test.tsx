@@ -29,6 +29,13 @@ describe('AdminPage header', () => {
     renderPage();
     expect(screen.getByRole('link', { name: 'Réglages' })).toHaveAttribute('href', '/admin/settings');
   });
+
+  it('offers a chart link to the statistics, next to the gear', () => {
+    renderPage();
+    const stats = within(screen.getByRole('banner')).getByRole('link', { name: 'Statistiques' });
+    expect(stats).toHaveAttribute('href', '/admin/stats');
+    expect(stats).toHaveClass('tap');
+  });
 });
 
 describe('AdminPage header', () => {
