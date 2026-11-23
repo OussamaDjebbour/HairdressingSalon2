@@ -22,5 +22,5 @@
     "noFallthroughCasesInSwitch": true
   },
   // The app's dependency-free modules the edge reuses.
-  "include": [".", "../src/lib/palette.ts", "../src/lib/brandVars.ts", "../src/lib/host.ts"]
+  "include": [".", "../src/lib/palette.ts", "../src/lib/brandVars.ts", "../src/lib/host.ts", "../src/lib/calendar.ts"]
 }

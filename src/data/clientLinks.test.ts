@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addressLine, mapsLink, visitIcs } from './clientLinks';
+import { addressLine, isAppleMobile, mapsLink } from './clientLinks';
 
 describe('mapsLink', () => {
   it('mapsLink joins address lines and city', () => {
@@ -19,27 +19,15 @@ describe('addressLine', () => {
   });
 });
 
-describe('visitIcs', () => {
-  it('visitIcs has one VEVENT with UTC times, escaped text and CRLF lines', () => {
-    const ics = visitIcs({
-      salon: 'Élégance',
-      services: 'Coupe & Brushing + Manucure',
-      start: new Date('2030-01-08T09:00:00Z'),
-      end: new Date('2030-01-08T10:45:00Z'),
-      location: '12 Rue Didouche, Alger',
-      description: 'En attente; à confirmer',
-      uid: 'abc',
-    });
-    const lines = ics.split('\r\n');
-    expect(lines[0]).toBe('BEGIN:VCALENDAR');
-    expect(lines.filter((l) => l === 'BEGIN:VEVENT')).toHaveLength(1);
-    expect(lines).toContain('DTSTART:20300108T090000Z');
-    expect(lines).toContain('DTEND:20300108T104500Z');
-    expect(lines).toContain('SUMMARY:Élégance — Coupe & Brushing + Manucure');
-    expect(lines).toContain('LOCATION:12 Rue Didouche\\, Alger');
-    expect(lines).toContain('DESCRIPTION:En attente\\; à confirmer');
-    expect(lines).toContain('UID:abc');
-    expect(ics.endsWith('END:VCALENDAR\r\n')).toBe(true);
-    expect(ics).not.toMatch(/[^\r]\n/);
+describe('isAppleMobile', () => {
+  const nav = (userAgent: string, platform = '', maxTouchPoints = 0) => ({ userAgent, platform, maxTouchPoints });
+  it('recognises an iPhone and an iPad (which reports itself as a touch Mac)', () => {
+    expect(isAppleMobile(nav('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'))).toBe(true);
+    expect(isAppleMobile(nav('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel', 5))).toBe(true);
+  });
+  it('leaves Android, desktop Macs and PCs to Google Calendar', () => {
+    expect(isAppleMobile(nav('Mozilla/5.0 (Linux; Android 14; SM-A146B)', 'Linux armv8l', 5))).toBe(false);
+    expect(isAppleMobile(nav('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel', 0))).toBe(false);
+    expect(isAppleMobile(nav('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Win32', 0))).toBe(false);
   });
 });

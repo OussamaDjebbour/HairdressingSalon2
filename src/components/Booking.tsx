@@ -7,7 +7,7 @@ import { clientDetailsSchema, type ClientDetails } from '../data/schemas';
 import { Check, ChevronLeft, ChevronRight, User, MessageCircle, AlertCircle, CalendarPlus, MapPin } from 'lucide-react';
 import { useLang } from '../context/LanguageContext';
 import {
-  useVisitSlots, useCreateVisit, toBookingError, failedItem, serverTotal, normalizePhone, type BookingErrorCode, type VisitItem,
+  useVisitSlots, useCreateVisit, toBookingError, failedItem, serverTotal, normalizePhone, toYmd, type BookingErrorCode, type VisitItem,
 } from '../data/bookings';
 import type { Service } from '../data/types';
 import { useServices, useStylists, useCategories } from '../data/queries';
@@ -24,7 +24,8 @@ import { TimeSlotChip } from './TimeSlotChip';
 import { dayHours } from '../data/hours';
 import { useClosedDates, useSalonHours, useSalonInfo } from '../data/salonSettings';
 import { toWaNumber, waLink } from '../data/whatsapp';
-import { addressLine, mapsLink, visitIcs } from '../data/clientLinks';
+import { addressLine, isAppleMobile, mapsLink } from '../data/clientLinks';
+import { calendarFileUrl, googleCalendarLink } from '../lib/calendar';
 import { forgetClient, loadClient, saveClient } from '../data/rememberedClient';
 import { currentSalon } from '../data/salon';
 import { salonInstant } from '../data/week';
@@ -43,29 +44,25 @@ type Step = 0 | 1 | 2 | 3;
 const successLink =
   'inline-flex items-center gap-2 min-h-[44px] text-[15px] text-rose-900 underline decoration-rose-900/25 underline-offset-4 hover:decoration-rose-900';
 
-/** A data: link to an .ics file for the booked visit (first part's start to the last part's end). */
-function visitCalendarHref(
+/**
+ * Where to add the booked visit (first part's start to the last part's end): Google Calendar, opened
+ * with the event filled in, and the visit's .ics file served by the edge (with a reminder the day before).
+ */
+function visitCalendar(
   booked: { parts: VisitPart[]; date: Date | null },
   salon: string,
   location: string,
-  pending: string,
   lang: 'fr' | 'ar'
-): string | null {
+): { google: string; file: string } | null {
   if (!booked.date || booked.parts.length === 0) return null;
   const first = booked.parts[0];
   const last = booked.parts[booked.parts.length - 1];
   const start = salonInstant(booked.date, first.time);
   const end = new Date(salonInstant(booked.date, last.time).getTime() + last.service.duration * 60_000);
-  const ics = visitIcs({
-    salon,
-    services: booked.parts.map((p) => p.service.name[lang]).join(' + '),
-    start,
-    end,
-    location,
-    description: pending,
-    uid: `${start.getTime()}-${salon}@salon`,
-  });
-  return `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
+  return {
+    google: googleCalendarLink({ salon, services: booked.parts.map((p) => p.service.name[lang]), start, end, location, lang }),
+    file: calendarFileUrl({ date: toYmd(booked.date), time: first.time, serviceIds: booked.parts.map((p) => p.service.id), lang }),
+  };
 }
 
 /** The confirm step's fields: the client remembered on this device, else empty. */
@@ -585,7 +582,9 @@ export function Booking() {
   const city = salonInfo?.city?.[lang] ?? '';
   // Maps finds the Latin (French) address more reliably, whatever the page's language.
   const directions = mapsLink(salonInfo?.address?.fr ?? '', salonInfo?.city?.fr ?? '');
-  const calendarHref = booked ? visitCalendarHref(booked, currentSalon().name[lang], addressLine(address, city), t('booking.calendarPending'), lang) : null;
+  const calendar = booked ? visitCalendar(booked, currentSalon().name[lang], addressLine(address, city), lang) : null;
+  // iPhone/iPad: the served file opens Safari's "Add to Calendar" sheet; elsewhere Google Calendar opens filled in.
+  const apple = isAppleMobile();
 
   if (booked) {
     return (
@@ -603,10 +602,14 @@ export function Booking() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-6">
-            {calendarHref && (
-              <a href={calendarHref} download="rendez-vous.ics" className={successLink}>
+            {calendar && (
+              <a
+                href={apple ? calendar.file : calendar.google}
+                {...(!apple && { target: '_blank', rel: 'noopener noreferrer' })}
+                className={successLink}
+              >
                 <CalendarPlus className="w-4 h-4" strokeWidth={1.6} aria-hidden="true" />
-                {t('booking.addToCalendar')}
+                {t(apple ? 'booking.addToCalendar' : 'booking.addToGoogleCalendar')}
               </a>
             )}
             {directions && (
@@ -616,6 +619,17 @@ export function Booking() {
               </a>
             )}
           </div>
+          {calendar && (
+            <p className="-mt-4 mb-6 text-sm">
+              <a
+                href={apple ? calendar.google : calendar.file}
+                {...(apple && { target: '_blank', rel: 'noopener noreferrer' })}
+                className="inline-flex items-center min-h-[44px] text-rose-900/70 underline decoration-rose-900/20 underline-offset-4 hover:text-rose-900"
+              >
+                {t(apple ? 'booking.googleCalendar' : 'booking.otherCalendar')}
+              </a>
+            </p>
+          )}
 
           {waNumber && (
             <a

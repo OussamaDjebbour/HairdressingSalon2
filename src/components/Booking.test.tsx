@@ -1209,18 +1209,41 @@ describe('Booking comfort', () => {
     expect(screen.queryByRole('link', { name: /WhatsApp/ })).toBeNull();
   });
 
-  it('the success screen offers Ajouter à mon agenda and Itinéraire', async () => {
+  const bookIt = async () => {
     salonInfo = { whatsapp: '0561234567', address: { fr: '12 Rue Didouche Mourad', ar: 'x' }, city: { fr: 'Alger', ar: 'x' } };
     mutate.mockImplementation((_input, opts: { onSuccess: (r: unknown) => void }) => opts.onSuccess(SUCCESS_PARTS));
     goToConfirmStep();
     fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
-    const cal = await screen.findByRole('link', { name: 'Ajouter à mon agenda' });
-    expect(cal).toHaveAttribute('download', 'rendez-vous.ics');
-    expect(decodeURIComponent(cal.getAttribute('href')!)).toMatch(/^data:text\/calendar;charset=utf-8,BEGIN:VCALENDAR/);
+  };
+
+  it('the success screen offers Google Agenda first, the calendar file as another agenda, and Itinéraire', async () => {
+    await bookIt();
+    const google = await screen.findByRole('link', { name: 'Ajouter à Google Agenda' });
+    const url = new URL(google.getAttribute('href')!);
+    expect(url.origin + url.pathname).toBe('https://calendar.google.com/calendar/render');
+    expect(url.searchParams.get('text')).toMatch(/^Élégance — .+ \(à confirmer\)$/);
+    expect(url.searchParams.get('location')).toBe('12 Rue Didouche Mourad, Alger');
+    expect(google).toHaveAttribute('target', '_blank');
+    const other = screen.getByRole('link', { name: 'Autre agenda' });
+    expect(other.getAttribute('href')).toMatch(/^\/calendar\.ics\?d=\d{4}-\d{2}-\d{2}&t=\d{2}%3A\d{2}&s=[^&]+&l=fr$/);
+    expect(other).not.toHaveAttribute('download');
     expect(screen.getByRole('link', { name: 'Itinéraire' })).toHaveAttribute(
       'href',
       'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('12 Rue Didouche Mourad, Alger')
     );
+  });
+
+  it('on an iPhone the calendar file comes first (Safari opens it in Add to Calendar), Google Agenda second', async () => {
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)');
+    try {
+      await bookIt();
+      const file = await screen.findByRole('link', { name: 'Ajouter à mon agenda' });
+      expect(file.getAttribute('href')).toMatch(/^\/calendar\.ics\?/);
+      expect(file).not.toHaveAttribute('target');
+      expect(screen.getByRole('link', { name: 'Google Agenda' }).getAttribute('href')).toMatch(/^https:\/\/calendar\.google\.com\//);
+    } finally {
+      ua.mockRestore();
+    }
   });
 });
 
