@@ -149,3 +149,18 @@ describe('parseSalonConfig', () => {
     expect(errorOf([])).toMatch(/object/);
   });
 });
+
+describe('ids once the salon id is put in front', () => {
+  it('refuses an id too long once prefixed, and names it', () => {
+    const json = example();
+    json.services[0].id = 'x'.repeat(60 - json.id.length);
+    expect(errorOf(json)).toMatch(/services\[0\]\.id.*too long once the salon id is put in front/);
+  });
+  it('accepts an id that already starts with the salon id', () => {
+    const json = example();
+    const old = json.services[0].id;
+    json.services[0].id = `${json.id}-coupe`;
+    for (const st of json.stylists) st.services = st.services.map((x: string) => (x === old ? `${json.id}-coupe` : x));
+    expect(parseSalonConfig(json).services[0].id).toBe(`${json.id}-coupe`);
+  });
+});

@@ -85,6 +85,12 @@ export function parseHoursRange(value: string): [string, string] | null {
 
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,39}$/;
 const ITEM_ID_RE = /^[a-z0-9][a-z0-9-]{1,59}$/;
+/** The launch script puts the salon id in front of item ids (scripts/lib/ids.ts): the stored id must still fit. */
+const ITEM_ID_MAX = 60;
+const tooLongWithPrefix = (salonId: string | undefined, itemId: string) =>
+  salonId !== undefined && !itemId.startsWith(`${salonId}-`) && `${salonId}-${itemId}`.length > ITEM_ID_MAX;
+const prefixHint = (salonId: string | undefined, itemId: string) =>
+  `${show(itemId)} is too long once the salon id is put in front ("${salonId}-${itemId}" has more than ${ITEM_ID_MAX} characters): shorten it`;
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -259,6 +265,7 @@ export function parseSalonConfig(json: unknown): SalonConfig {
       let idOk = false;
       if (cid !== undefined) {
         if (!ITEM_ID_RE.test(cid)) err(`${f}.id`, `${show(cid)} must be lowercase letters, digits or "-" (e.g. "sara-mariee")`);
+        else if (tooLongWithPrefix(id, cid)) err(`${f}.id`, prefixHint(id, cid));
         else if (categoryIds.has(cid)) err(`${f}.id`, `${show(cid)} is used twice`);
         else idOk = true;
         categoryIds.add(cid);
@@ -282,6 +289,7 @@ export function parseSalonConfig(json: unknown): SalonConfig {
     const sid = text(s, 'id', `${f}.id`, { required: true });
     if (sid !== undefined) {
       if (!ITEM_ID_RE.test(sid)) err(`${f}.id`, `${show(sid)} must be lowercase letters, digits or "-" (e.g. "sara-coupe")`);
+      else if (tooLongWithPrefix(id, sid)) err(`${f}.id`, prefixHint(id, sid));
       else if (serviceIds.has(sid)) err(`${f}.id`, `${show(sid)} is used twice`);
       serviceIds.add(sid);
     }
@@ -321,6 +329,7 @@ export function parseSalonConfig(json: unknown): SalonConfig {
     const sid = text(s, 'id', `${f}.id`, { required: true });
     if (sid !== undefined) {
       if (!ITEM_ID_RE.test(sid)) err(`${f}.id`, `${show(sid)} must be lowercase letters, digits or "-" (e.g. "sara-yasmine")`);
+      else if (tooLongWithPrefix(id, sid)) err(`${f}.id`, prefixHint(id, sid));
       else if (stylistIds.has(sid)) err(`${f}.id`, `${show(sid)} is used twice`);
       stylistIds.add(sid);
     }

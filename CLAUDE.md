@@ -13,7 +13,7 @@ pnpm dev           # Vite dev server (talks to the Supabase project in .env)
 pnpm build         # tsc typecheck, then vite build
 pnpm preview       # serve the production build
 pnpm test          # Vitest (supabase client is mocked)
-pnpm new-salon <slug> [--dry-run]   # launch/update a salon from salons/<slug>.json (needs .env.admin; salons/README.md)
+pnpm new-salon <slug> [--dry-run]   # launch/update a salon from salons/<slug>.json (needs .env.admin; salons/README.md); item ids get the salon id prefix (scripts/lib/ids.ts)
 npx wrangler pages dev dist         # after `pnpm build`: try the edge functions locally (needs .dev.vars)
 
 supabase start -x logflare,vector,studio   # local stack (Docker)

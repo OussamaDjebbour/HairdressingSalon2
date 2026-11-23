@@ -82,7 +82,7 @@ Example of an own category (a service then says `"category": "custom:sara-mariee
 "categories": [{ "id": "sara-mariee", "name": { "fr": "Soins mariée", "ar": "عناية العروس" } }]
 ```
 
-Service, stylist and category ids are shared by all salons: start them with the salon id (`sara-coupe`).
+Service, stylist and category ids are shared by all salons, so the script puts the salon id in front of them: write short ids (`coupe`, `amina`) and they are stored as `<salon id>-coupe`, `<salon id>-amina` (references in a stylist's `services` and in `"custom:<id>"` follow). An id that already starts with `<salon id>-` is kept, and so is an id the salon already has (a salon launched before this rule keeps its rows on a re-run). A prefixed id must fit in 60 characters.
 A photo is either a file name inside `salons/<slug>/photos/` (e.g. `"coupe.jpg"`, uploaded by the
 script; JPG, PNG, WebP, AVIF or GIF, 20 MB max; SVG not accepted) or an `https://` address used as is.
 **Photos that look right.** The site opens on the hero photo at full screen height, so pick a photo of a
