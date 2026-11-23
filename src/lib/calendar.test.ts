@@ -103,6 +103,17 @@ describe('calendarFileUrl and parseCalendarRequest', () => {
 
 describe('joinAddress', () => {
   it('puts the address lines and the city on one line', () => {
-    expect(joinAddress('15 rue Larbi Ben M’hidi\n31000 Oran\n', ' Oran ')).toBe('15 rue Larbi Ben M’hidi, 31000 Oran, Oran');
+    expect(joinAddress('12 Rue Didouche Mourad\nAlger Centre 16000\n', ' Alger ')).toBe('12 Rue Didouche Mourad, Alger Centre 16000, Alger');
+  });
+
+  it('does not repeat the city when the address already ends with it', () => {
+    expect(joinAddress('15 rue Larbi Ben M’hidi\n31000 Oran\n', ' Oran ')).toBe('15 rue Larbi Ben M’hidi, 31000 Oran');
+    expect(joinAddress('15 rue Larbi Ben M’hidi, 31000 oran', 'Oran')).toBe('15 rue Larbi Ben M’hidi, 31000 oran');
+    expect(joinAddress('15 شارع العربي بن مهيدي\n31000 وهران', 'وهران')).toBe('15 شارع العربي بن مهيدي, 31000 وهران');
+  });
+
+  it('still adds a city that only appears inside a longer word', () => {
+    expect(joinAddress('Rue des Oranges', 'Oran')).toBe('Rue des Oranges, Oran');
+    expect(joinAddress('Cité Oranais', 'Oran')).toBe('Cité Oranais, Oran');
   });
 });
