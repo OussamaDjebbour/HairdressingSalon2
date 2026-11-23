@@ -5,7 +5,7 @@ import type { Service } from '../data/types';
 import { useServices, useCategories } from '../data/queries';
 import { formatDuration } from '../data/formatters';
 import { DataError } from './DataError';
-import { categoryLabel, groupServices, largestGroup, type CategoryKey } from '../data/categories';
+import { categoryLabel, groupServices, type CategoryKey } from '../data/categories';
 import { CategorySection } from './CategorySection';
 import { useBookingIntent } from '../context/BookingIntentContext';
 import { effectivePrice } from '../data/pricing';
@@ -72,12 +72,11 @@ export function Services() {
     if (categoriesQ.isError) categoriesQ.refetch();
   };
   const groups = groupServices(services ?? [], custom);
-  // The largest category is open until the client opens or closes others (several may be open).
-  const [openKeys, setOpenKeys] = useState<CategoryKey[] | null>(null);
+  // Every category starts closed (the user's choice: La carte opens on the list of categories); several may be open.
+  const [open, setOpen] = useState<CategoryKey[]>([]);
   // Thumbnails only when every category can show one, so the headers stay uniform.
   const thumbOf = (items: Service[]) => items.find((s) => s.image)?.image;
   const showThumbs = groups.length > 1 && groups.every((g) => thumbOf(g.items));
-  const open = openKeys ?? (groups.length ? [largestGroup(groups)!.key] : []);
   // In an accordion the section's own rule closes the list, so the last row drops its rule.
   const list = (items: Service[], sectioned = false) => (
     <ul className={sectioned ? '[&>li:last-child>a]:border-b-0' : undefined}>
@@ -125,7 +124,7 @@ export function Services() {
                       count={items.length}
                       thumbnail={showThumbs ? thumbOf(items) : undefined}
                       open={isOpen}
-                      onToggle={() => setOpenKeys(isOpen ? open.filter((k) => k !== key) : [...open, key])}
+                      onToggle={() => setOpen(isOpen ? open.filter((k) => k !== key) : [...open, key])}
                     >
                       {list(items, true)}
                     </CategorySection>
