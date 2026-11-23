@@ -35,9 +35,17 @@ export function visitTitle(v: CalendarVisit): string {
   return `${v.salon} — ${v.services.join(' + ')} ${TEXT[v.lang].pending}`;
 }
 
-/** The salon's address lines and city on one line: "15 rue Larbi Ben M’hidi, 31000 Oran, Oran". */
+/**
+ * The salon's address lines and city on one line: "12 Rue Didouche Mourad, Alger Centre 16000, Alger".
+ * The city is left out when the address already ends with it as a word ("…, 31000 Oran", not "…, 31000 Oran, Oran").
+ */
 export function joinAddress(address: string, city: string): string {
-  return [...address.split('\n'), city].map((s) => s.trim()).filter(Boolean).join(', ');
+  const lines = address.split('\n').map((s) => s.trim()).filter(Boolean);
+  const c = city.trim();
+  const last = (lines[lines.length - 1] ?? '').toLocaleLowerCase();
+  const lc = c.toLocaleLowerCase();
+  const endsWithCity = lc !== '' && last.endsWith(lc) && !/\p{L}/u.test(last.charAt(last.length - lc.length - 1));
+  return (c && !endsWithCity ? [...lines, c] : lines).join(', ');
 }
 
 /** RFC 5545 / Google date-time in UTC: 20300108T090000Z. */

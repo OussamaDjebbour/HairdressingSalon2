@@ -50,7 +50,7 @@ describe('/calendar.ics at the edge', () => {
     expect(body).toContain('SUMMARY:Salon Yasmine — Manucure + Coupe (à confirmer)');
     expect(body).toContain('DTSTART:20300108T090000Z');
     expect(body).toContain('DTEND:20300108T104500Z');
-    expect(body).toContain('LOCATION:15 rue Larbi Ben M’hidi\\, 31000 Oran\\, Oran');
+    expect(body).toContain('LOCATION:15 rue Larbi Ben M’hidi\\, 31000 Oran\r');
     expect(body).toContain('TRIGGER:-P1D');
   });
 
