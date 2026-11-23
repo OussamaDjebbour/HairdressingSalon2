@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Scissors, Globe, ArrowLeft, Settings } from 'lucide-react';
+import { Scissors, Globe, ArrowLeft, Settings, BarChart3 } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { useSession } from '../../lib/auth';
 import { useAdminManifest } from '../../lib/manifest';
@@ -13,8 +13,9 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
   const { lang, toggleLang, t } = useLang();
   const salon = useSalon();
   const { session, loading } = useSession();
-  // The settings pages have their own back arrow; logging out lives in Réglages → Compte.
-  const inSettings = useLocation().pathname.startsWith('/admin/settings');
+  // The settings and statistics pages have their own back arrow; logging out lives in Réglages → Compte.
+  const path = useLocation().pathname;
+  const inSettings = path.startsWith('/admin/settings') || path.startsWith('/admin/stats');
   useAdminManifest();
 
   return (
@@ -47,6 +48,16 @@ export function AdminShell({ children }: { children: (userId: string) => ReactNo
                 <span className="text-cream-50/30">|</span>
                 <span className={lang === 'ar' ? 'font-semibold text-cream-50' : 'text-cream-300'}>AR</span>
               </button>
+
+              {session && !inSettings && (
+                <Link
+                  to="/admin/stats"
+                  aria-label={t('stats.title')}
+                  className="tap flex items-center justify-center rounded-full text-cream-100 bg-cream-50/10 border border-cream-50/15 transition-colors duration-200 ease-silk hover:bg-cream-50/20"
+                >
+                  <BarChart3 className="w-4 h-4" strokeWidth={1.8} />
+                </Link>
+              )}
 
               {session && !inSettings && (
                 <Link

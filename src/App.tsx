@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage';
 // The admin and settings screens load on demand, so the public site's first download stays small.
 const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const StatsPage = lazy(() => import('./pages/StatsPage').then((m) => ({ default: m.StatsPage })));
 const SettingsSectionPage = lazy(() =>
   import('./pages/SettingsSectionPage').then((m) => ({ default: m.SettingsSectionPage })),
 );
@@ -30,6 +31,7 @@ function AppRoutes() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/stats" element={<StatsPage />} />
             <Route path="/admin/settings" element={<SettingsPage />} />
             <Route path="/admin/settings/:section" element={<SettingsSectionPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
