@@ -175,11 +175,24 @@ export function formatClaim(n: number): string {
   return formatNumber(n, 'fr');
 }
 
-/** The hero's quiet line: "Maison de beauté, Alger — 4,9/5" (city and rating only when set). */
-export function heroLine(t: (key: string) => string, city: string | undefined, rating: number | null): string {
+/**
+ * The hero's quiet line: "Maison de beauté à Oran, notée 4,9 sur 5 par 240 clientes". City, rating and number of
+ * reviews only when the salon set them. Claim numbers keep Latin digits in both languages.
+ */
+export function heroLine(
+  t: (key: string) => string,
+  lang: Lang,
+  city: string | undefined,
+  rating: number | null,
+  reviewCount: number | null,
+): string {
   const name = city?.trim();
   const line = name ? t('hero.line').replace('{city}', name) : t('hero.lineNoCity');
-  return rating === null ? line : `${line} — ${formatClaim(rating)}/5`;
+  if (rating === null) return line;
+  const rated = reviewCount
+    ? t('hero.ratedBy').replace('{reviews}', countText(t, lang, 'hero.reviews', reviewCount).replace(String(reviewCount), formatClaim(reviewCount)))
+    : t('hero.rated');
+  return `${line}${lang === 'ar' ? '، ' : ', '}${rated.replace('{rating}', formatClaim(rating))}`;
 }
 
 /**

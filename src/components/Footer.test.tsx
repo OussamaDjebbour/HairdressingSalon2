@@ -57,11 +57,11 @@ describe('Footer', () => {
     expect(row('Vendredi – Samedi')).toHaveTextContent('09:00 – 18:00');
   });
 
-  it('shows address lines, city, phone and only the social links that are set', () => {
+  it('shows address lines, the city in the subtitle, phone and only the social links that are set', () => {
     renderFooter();
     expect(screen.getByText('12 Rue Didouche Mourad')).toBeInTheDocument();
     expect(screen.getByText('Alger Centre 16000')).toBeInTheDocument();
-    expect(screen.getByText('Alger')).toBeInTheDocument();
+    expect(screen.getByText(/au cœur d’Alger/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '0561 23 45 67' })).toHaveAttribute('href', 'tel:+213561234567');
     expect(screen.queryByRole('link', { name: 'Instagram' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Facebook' })).toHaveAttribute('href', 'https://facebook.com/elegance');

@@ -30,7 +30,7 @@ export function Philosophy() {
           </p>
         )}
 
-        {claims && <p className="mt-12 pt-8 border-t border-pearl-50/15 text-[15px] text-gold-200">{claims}</p>}
+        {claims && <p className="mt-6 text-[15px] text-pearl-50/70">{claims}</p>}
       </div>
     </section>
   );
