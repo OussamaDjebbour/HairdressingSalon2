@@ -69,16 +69,17 @@ describe('Services (La carte)', () => {
 
   const headers = () => screen.getAllByRole('button').filter((b) => b.hasAttribute('aria-expanded'));
 
-  it('lists the categories as accordion headers in order, only the largest open', () => {
+  it('lists the categories as accordion headers in order, all closed at first', () => {
     list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles'), mk('s4', 'beaute', 'Sourcils')];
     renderCarte();
     const hs = headers();
     expect(hs.map((h) => h.textContent)).toEqual(['Coiffure1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
-    expect(hs.map((h) => h.getAttribute('aria-expanded'))).toEqual(['false', 'true', 'false']);
+    expect(hs.map((h) => h.getAttribute('aria-expanded'))).toEqual(['false', 'false', 'false']);
     expect(hs[0].parentElement!.tagName).toBe('H3');
+    for (const name of ['Coupe', 'Ongles', 'Sourcils', 'Hammam']) expect(screen.queryByText(name)).toBeNull();
+    fireEvent.click(hs[1]);
+    expect(hs[1]).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Sourcils')).toBeInTheDocument();
-    expect(screen.queryByText('Coupe')).toBeNull();
-    expect(screen.queryByText('Hammam')).toBeNull();
     expect(hs[1].getAttribute('aria-controls')).not.toContain(':');
     expect(document.getElementById(hs[1].getAttribute('aria-controls')!)).not.toBeNull();
   });
@@ -86,6 +87,7 @@ describe('Services (La carte)', () => {
   it('opening a second category keeps the first open; a header closes its own', () => {
     list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles'), mk('s4', 'beaute', 'Sourcils')];
     renderCarte();
+    fireEvent.click(headers()[1]);
     fireEvent.click(headers()[2]);
     expect(screen.getByText('Hammam')).toBeInTheDocument();
     expect(screen.getByText('Sourcils')).toBeInTheDocument();
@@ -94,17 +96,19 @@ describe('Services (La carte)', () => {
     expect(screen.getByText('Hammam')).toBeInTheDocument();
   });
 
-  it('packs come first and the largest category opens', () => {
+  it('packs come first; no category opens by itself', () => {
     list = [mk('p1', 'pack', 'Pack Mariée'), mk('s1', 'spa', 'Hammam'), mk('b1', 'beaute', 'Ongles'), mk('b2', 'beaute', 'Sourcils')];
     renderCarte();
     expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
-    expect(screen.getByText('Sourcils')).toBeInTheDocument();
+    expect(headers().every((h) => h.getAttribute('aria-expanded') === 'false')).toBe(true);
+    expect(screen.queryByText('Sourcils')).toBeNull();
     expect(screen.queryByText('Pack Mariée')).toBeNull();
   });
 
   it('the last row of an open category drops its rule (the section draws it)', () => {
     list = [mk('s1', 'coiffure', 'Coupe'), mk('s2', 'beaute', 'Ongles'), mk('s3', 'beaute', 'Sourcils')];
     renderCarte();
+    fireEvent.click(headers()[1]);
     const ul = screen.getByText('Sourcils').closest('ul')!;
     expect(ul.className).toContain('[&>li:last-child>a]:border-b-0');
   });
@@ -137,10 +141,11 @@ describe('Services (La carte)', () => {
     expect(imgs[0]).toHaveAttribute('src', 'https://x.test/b.jpg');
     expect(imgs[0]).toHaveAttribute('alt', '');
     expect(imgs[0]).toHaveAttribute('loading', 'lazy');
-    expect(imgs[1]).toBeNull();
+    expect(imgs[1]).toHaveAttribute('src', 'https://x.test/o.jpg');
     expect(imgs[2]).toHaveAttribute('src', 'https://x.test/h.jpg');
+    // An open category hides its thumbnail (its first row shows the photo just below).
     fireEvent.click(hs[1]);
-    expect(headers()[1].querySelector('img')).toHaveAttribute('src', 'https://x.test/o.jpg');
+    expect(headers()[1].querySelector('img')).toBeNull();
   });
 
   it('no header shows a thumbnail when one category has no photo', () => {
@@ -191,7 +196,7 @@ describe('Services (La carte)', () => {
     catalogue = [coupe, hidden];
     renderCarte();
     expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Coiffure1 prestation']);
-    expect(headers()[0]).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(headers()[0]);
     const link = screen.getByRole('link', { name: /Pack Mariée/ });
     expect(link.textContent).toContain('Comprend : Coupe, Masque secret');
   });
@@ -207,6 +212,7 @@ describe('Services (La carte)', () => {
     }
     render(<LanguageProvider><ToArabic /><Services /></LanguageProvider>);
     fireEvent.click(screen.getByText('to-ar'));
+    fireEvent.click(headers()[0]);
     expect(screen.getByRole('link', { name: /Pack Mariée/ }).textContent).toContain('تشمل: قص، قناع');
   });
 

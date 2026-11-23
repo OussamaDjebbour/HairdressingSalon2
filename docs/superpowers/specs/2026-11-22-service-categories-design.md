@@ -16,7 +16,7 @@ Spa) can't describe that: ~47 services would land in "Beauté", and the tabs fro
   or hide them. Her own categories come **after** them, in her order.
 - **Layout** (sketch below):
   - **La carte:** ~~tabs that wrap~~ → **the same accordion as the booking step** (user, 2026-11-22, after seeing
-    11 wrapped tabs: "crowded and messy"): one line per category with its number of services, the largest open,
+    11 wrapped tabs: "crowded and messy"): one line per category with its number of services, **all closed at first** (user, 2026-11-23),
     rows keep their photo, description and "Réserver".
   - **Booking, service step:** an **accordion** with **compact rows** (no photo), each category header showing
     its number of services and how many are ticked.
@@ -107,8 +107,8 @@ Owners' categories follow, in her order. Arabic wording to be checked by the use
   today). Label: ready-made → `t('category.<key>')`; hers → `name[lang]`. Unknown key → `coiffure` (as today).
 - Fetch the salon's categories with the services (public read, `.eq('salon_id', …)`), `staleTime` like services.
 - **La carte** (`Services.tsx`) **(amended 2026-11-22, user):** an accordion like the booking step — one header per
-  category (name · "n prestations", chevron), several may be open, the largest open at first (ties in display
-  order); rows unchanged (photo thumbnail, description, price with promo, duration, "Réserver"). One category: no
+  category (name · "n prestations", chevron), several may be open, **all closed at first** (user, 2026-11-23: "I don't like that the
+  services are expanded by default"); rows unchanged (photo thumbnail, description, price with promo, duration, "Réserver"). One category: no
   headers. `CategoryTabs` is removed.
 - **Category thumbnails on La carte (user, 2026-11-22):** each La carte header shows a small thumbnail (~56 px,
   lazy) — the photo of the category's first service *that has one*. Shown **only when every category has a photo**
