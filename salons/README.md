@@ -4,6 +4,8 @@ Each salon is described by one file, `salons/<slug>.json`, with its photos in
 `salons/<slug>/photos/`. Both stay on the product owner's machine: they are git-ignored
 (the file holds the owner's email and phone); only `example.json` is committed.
 
+The whole launch as a checklist (what to ask the owner, domain, hand-over): [`docs/new-salon-checklist.md`](../docs/new-salon-checklist.md).
+
 ```bash
 cp .env.admin.example .env.admin        # once: Supabase service key + Cloudflare token
 cp salons/example.json salons/sara.json # then edit it, put the photos in salons/sara/photos/
