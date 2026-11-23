@@ -50,7 +50,9 @@ describe('HoursSettings without hours data', () => {
   });
 });
 
-describe('HoursSettings', () => {
+// 14 time pickers with ~60 options each: opening them in jsdom takes ~1 s alone and ~3 s in a full parallel
+// run, so the default 5 s limit failed now and then on a busy machine.
+describe('HoursSettings', { timeout: 15_000 }, () => {
   it('saves all 7 days with the edited Thursday', async () => {
     renderIt();
     pickOption('Jeudi · Fermeture', '13:00');

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(77);
+select plan(78);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password)
 values
@@ -46,10 +46,10 @@ insert into public.stylist_days_off (salon_id, stylist_id, starts_on, ends_on) v
 update public.salons set whatsapp = '0770000000' where id = 'elegance';
 insert into private.bookings (salon_id, service_id, stylist_id, starts_at, ends_at, price, client_name, client_phone, lang, source)
   values ('elegance', 'x-new', 'amina', now() + interval '2 days', now() + interval '2 days 30 minutes', 1000, 'Prospect', '0661234567', 'fr', 'staff');
--- ... and changes the shared account's login
-update auth.users set email = 'hijacked@test.local', encrypted_password = extensions.crypt('mine', extensions.gen_salt('bf')),
+-- ... and tries to take the shared account's login (refused since 20261123100000_demo_login_lock)
+select throws_ok($$ update auth.users set email = 'hijacked@test.local', encrypted_password = extensions.crypt('mine', extensions.gen_salt('bf')),
   email_change = 'other@test.local', email_change_token_new = 'tok', email_change_sent_at = now()
-where id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+where id = 'dddddddd-dddd-dddd-dddd-dddddddddddd' $$, 'P0001', 'demo_login_locked', 'a prospect can''t take the demo login');
 
 -- rival's state (must survive)
 insert into public.salon_hours (salon_id, weekday, opens, closes)

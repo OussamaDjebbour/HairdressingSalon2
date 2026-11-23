@@ -98,9 +98,11 @@ reset role;
 
 -- re-running replaces login and snapshot
 update public.services set price = 9999 where id = 'coupe-femme';
-update auth.users set email = 'demo2@test.local' where id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+-- (the demo login's email can't be edited in place: a new login email is a new account, as pnpm setup-demo --domain does)
+insert into auth.users (id, instance_id, aud, role, email)
+values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'demo2@test.local');
 set local role service_role;
-select public.setup_demo('elegance', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'demo2@test.local', 'pw2');
+select public.setup_demo('elegance', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'demo2@test.local', 'pw2');
 reset role;
 select is((select login_email || ' ' || login_password from private.demo_settings where salon_id = 'elegance'), 'demo2@test.local pw2', 're-run replaces the login');
 select is((select x ->> 'price' from jsonb_array_elements(pg_temp.snap() -> 'services') x where x ->> 'id' = 'coupe-femme'), '9999', 're-run replaces the snapshot');
