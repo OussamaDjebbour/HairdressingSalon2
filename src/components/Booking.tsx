@@ -533,7 +533,7 @@ export function Booking() {
 
   const row = (key: string, value: string) => (
     <div key={key} className="flex justify-between items-center gap-4">
-      <span className="text-sm text-rose-600">{t(key)}</span>
+      <span className="text-sm text-rose-900/70">{t(key)}</span>
       <span className="text-sm font-medium text-rose-800">{value}</span>
     </div>
   );
@@ -546,7 +546,7 @@ export function Booking() {
         <div className="space-y-4">
           {row('booking.summary.date', dateText)}
           <div>
-            <p className="text-sm text-rose-600 mb-2">{t('booking.summary.services')}</p>
+            <p className="text-sm text-rose-900/70 mb-2">{t('booking.summary.services')}</p>
             <VisitParts parts={parts} total={total} />
           </div>
         </div>
@@ -596,7 +596,7 @@ export function Booking() {
             <div className="absolute inset-0 rounded-full bg-sage-200/40 animate-ping" />
           </div>
           <h2 className="font-display text-3xl font-semibold text-rose-800 mb-3">{t('booking.successTitle')}</h2>
-          <p className="text-rose-600 text-lg mb-6">{t('booking.successText')}</p>
+          <p className="text-rose-900/70 text-lg mb-6">{t('booking.successText')}</p>
 
           <div className="rounded-[2px] bg-pearl-50 border border-rose-900/10 p-5 text-start mb-6">
             {summary(booked.parts, booked.total, booked.date)}
@@ -635,10 +635,10 @@ export function Booking() {
   }
 
   return (
-    <section id="booking" className="relative py-20 lg:py-28 bg-pearl-100">
+    <section id="booking" className="relative pt-14 pb-20 lg:pt-24 lg:pb-28 bg-pearl-100">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-10">
-          <h2 className="font-display font-semibold text-rose-900 text-[clamp(2rem,4vw,3rem)]">{t('booking.title')}</h2>
+        <div className="text-center mb-8">
+          <h2 className="font-display font-semibold leading-tight text-rose-900 text-[clamp(2rem,4vw,3rem)]">{t('booking.title')}</h2>
         </div>
 
         {/* Step indicator: a quiet line and words, not icon circles */}
@@ -680,7 +680,7 @@ export function Booking() {
           {step === 0 && (
             <div className="animate-fadeIn">
               <h3 ref={headingRef} tabIndex={-1} className="font-display text-xl font-semibold text-rose-800 mb-1 focus:outline-none">{t('booking.selectService')}</h3>
-              {services.length > 1 && <p className="text-sm text-rose-600 mb-5">{t('booking.selectServiceHint')}</p>}
+              {services.length > 1 && <p className="text-sm text-rose-900/70 mb-5">{t('booking.selectServiceHint')}</p>}
               <ServicePicker
                 groups={serviceGroups}
                 labels={Object.fromEntries(serviceGroups.map((g) => [g.key, categoryLabel(g.key, custom, t, lang)]))}
@@ -713,7 +713,7 @@ export function Booking() {
                     <div className="w-16 h-16 rounded-full bg-pearl-200 flex items-center justify-center">
                       <User className="w-7 h-7 text-rose-900/40" strokeWidth={1.5} />
                     </div>
-                    <span className="text-xs font-medium text-rose-600 text-center">{t('booking.noPreference')}</span>
+                    <span className="text-xs font-medium text-rose-900/70 text-center">{t('booking.noPreference')}</span>
                   </button>
 
                   {stylists.filter((s) => s.serviceIds.includes(stylistSingle.id)).map((stylist) => {
@@ -756,7 +756,7 @@ export function Booking() {
                         </div>
                         <div className="text-center">
                           <p className="text-sm font-medium text-rose-800">{stylist.name}</p>
-                          <p className="text-xs text-rose-600">{stylist.role[lang]}</p>
+                          <p className="text-xs text-rose-900/70">{stylist.role[lang]}</p>
                         </div>
                       </button>
                     );
@@ -786,7 +786,7 @@ export function Booking() {
                         className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-[2px] border transition-all duration-200 ease-silk ${
                           isSelected
                             ? 'border-rose-800 bg-rose-800 text-pearl-50'
-                            : 'border-rose-900/10 bg-transparent text-rose-600 hover:border-rose-900/40'
+                            : 'border-rose-900/10 bg-transparent text-rose-900/70 hover:border-rose-900/40'
                         }`}
                       >
                         <span className="text-[11px] opacity-70">
@@ -860,7 +860,7 @@ export function Booking() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-rose-600 text-sm py-8 text-center">{t('booking.noSlots')}</p>
+                    <p className="text-rose-900/70 text-sm py-8 text-center">{t('booking.noSlots')}</p>
                   )}
                   {partial && (
                     <div ref={(el) => { revealRef.current = el; }} className="mt-4">
@@ -968,7 +968,7 @@ export function Booking() {
                     {[countText(t, lang, 'booking.visit.count', visit.length), formatPrice(totals.price, lang), formatDuration(totals.duration, lang)].join(' · ')}
                   </p>
                 )}
-                {atMax && <p className="text-rose-600 mt-0.5">{t('booking.visit.max')}</p>}
+                {atMax && <p className="text-rose-900/70 mt-0.5">{t('booking.visit.max')}</p>}
               </div>
             )}
           {/* Phones: the main action full width on top, Retour under it. Larger screens: side by side. */}

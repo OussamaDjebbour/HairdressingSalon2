@@ -43,14 +43,15 @@ export function ServicePicker({
               aria-pressed={isSelected}
               aria-disabled={blocked || undefined}
               onClick={() => onToggle(service)}
-              className={`flex w-full min-h-[44px] items-center gap-3 py-3 text-start transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-900 ${
+              className={`flex w-full min-h-[44px] items-center gap-3 px-3 py-3 text-start transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-900 ${
                 isSelected ? 'bg-pearl-100' : blocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-pearl-100/60'
               }`}
             >
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                {/* Name, then price and duration on their own line: every row has the same rhythm. */}
+                <span className="flex flex-col gap-1">
                   <span className="font-display text-lg leading-tight text-rose-900">{service.name[lang]}</span>
-                  <span className="flex items-baseline gap-3">
+                  <span className="flex flex-wrap items-baseline gap-x-3">
                     <span className="font-display text-lg text-rose-900 tabular-nums"><PriceTag {...effectivePrice(service)} align="start" /></span>
                     <span className="text-sm text-rose-900/70 whitespace-nowrap">{formatDuration(service.duration, lang)}</span>
                   </span>

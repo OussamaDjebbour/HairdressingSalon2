@@ -1,11 +1,11 @@
-import { translations, useLang } from '../context/LanguageContext';
+import { useLang } from '../context/LanguageContext';
 import { useSalon } from '../data/salon';
 import { useSalonInfo } from '../data/salonSettings';
 import { claimsSentence, heroLine } from '../data/formatters';
 
 /**
- * The first screen: the salon's own photo full height, its name very large, the tagline in both
- * languages, one action. The brand colour rises from the bottom so the type sits on the photo.
+ * The first screen: the salon's own photo full height, its name very large, the tagline in the
+ * page's language, one action. The brand colour rises from the bottom so the type sits on the photo.
  */
 export function Hero() {
   const { t, lang } = useLang();
@@ -36,15 +36,14 @@ export function Hero() {
           {salon.name[lang]}
         </h1>
 
-        <div className="hero-sub mt-6 sm:mt-8 max-w-xl space-y-1.5">
-          {/* Both lines keep their own direction but line up on the page's start edge. */}
-          <p lang="fr" dir="ltr" className={`font-display italic text-[clamp(1.25rem,4.5vw,1.9rem)] text-pearl-50/90 ${lang === 'ar' ? 'text-end' : 'text-start'}`}>
-            {translations.fr['hero.tagline']}
-          </p>
-          <p lang="ar" dir="rtl" className={`font-[Amiri] text-[clamp(1.35rem,5vw,2rem)] text-gold-200 ${lang === 'ar' ? 'text-start' : 'text-end'}`}>
-            {translations.ar['hero.tagline']}
-          </p>
-        </div>
+        {/* One tagline, in the page's language (Arabic falls through to Amiri; no italic for it). */}
+        <p
+          className={`hero-sub mt-6 sm:mt-8 max-w-xl text-pearl-50/90 ${
+            lang === 'ar' ? 'font-[Amiri] text-[clamp(1.35rem,5vw,2rem)]' : 'font-display italic text-[clamp(1.25rem,4.5vw,1.9rem)]'
+          }`}
+        >
+          {t('hero.tagline')}
+        </p>
 
         <div className="hero-sub mt-10 flex flex-wrap items-center gap-x-8 gap-y-5">
           <a
@@ -61,7 +60,7 @@ export function Hero() {
           </a>
         </div>
 
-        <p className="hero-sub mt-12 text-sm text-pearl-50/65">{heroLine(t, city, salon.rating)}</p>
+        <p className="hero-sub mt-8 text-sm text-pearl-50/70 max-w-md">{heroLine(t, lang, city, salon.rating, salon.reviewCount)}</p>
         {/* Without a story there is no "La maison" section: the claims sit here instead. */}
         {!salon.story && claims && <p className="hero-sub mt-1.5 text-sm text-pearl-50/65">{claims}</p>}
       </div>

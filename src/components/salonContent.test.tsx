@@ -81,7 +81,7 @@ describe('a salon without claims or story', () => {
 
   it('puts the salon city in the hero line', () => {
     renderAll(<Hero />);
-    expect(screen.getByText('Maison de beauté, Oran')).toBeInTheDocument();
+    expect(screen.getByText('Maison de beauté à Oran')).toBeInTheDocument();
   });
 
   it('shows no claims, no rating and no story', () => {
@@ -111,7 +111,7 @@ describe('Élégance', () => {
   it('keeps its claims, story and founder', () => {
     renderAll(page);
     expect(screen.getByText('Depuis 15 ans à Oran. Plus de 2 500 clientes.')).toBeInTheDocument();
-    expect(screen.getByText('Maison de beauté, Oran — 4,9/5')).toBeInTheDocument();
+    expect(screen.getByText('Maison de beauté à Oran, notée 4,9 sur 5 par 240 clientes')).toBeInTheDocument();
     expect(screen.getByText('Amina')).toBeInTheDocument();
     expect(screen.getByText(/Fondatrice & coiffeuse/)).toBeInTheDocument();
     expect(screen.getByText(/Depuis quinze ans/)).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe('Élégance', () => {
     renderAll(page);
     fireEvent.click(screen.getByRole('button', { name: 'Afficher le site en arabe' }));
     expect(screen.getByText('منذ 15 سنة في وهران. أكثر من 2 500 عميلة.')).toBeInTheDocument();
-    expect(screen.getByText('صالون تجميل، وهران — 4,9/5')).toBeInTheDocument();
+    expect(screen.getByText('صالون تجميل في وهران، بتقييم 4,9 من 5 من 240 عميلة')).toBeInTheDocument();
   });
 });
 

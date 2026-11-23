@@ -13,8 +13,8 @@ import type { Weekday } from '../data/types';
 /** A date falling on the given ISO weekday (1 January 2024 was a Monday). */
 const dayName = (wd: Weekday, lang: 'fr' | 'ar') => formatDayName(new Date(2024, 0, wd), lang);
 
-/** Section headings: small display italic, sentence case. */
-const heading = 'font-display italic text-xl text-gold-200 mb-4';
+/** Section headings: small display, upright, sentence case, in the footer's own light colour. */
+const heading = 'font-display text-xl text-pearl-50 mb-4';
 const textLink =
   'inline-flex items-center gap-2 min-h-[44px] text-[15px] text-pearl-50/80 underline decoration-pearl-50/25 underline-offset-[6px] hover:text-pearl-50 hover:decoration-gold-200 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4';
 
@@ -32,7 +32,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           <div>
             <h3 className="font-display text-[2rem] leading-none">{salon.name[lang]}</h3>
-            <p className="mt-2 text-[15px] text-gold-200">{info?.city[lang]}</p>
+            {/* The subtitle already names the city ("au cœur d'Oran"). */}
             <p className="mt-5 text-[15px] text-pearl-50/65 leading-relaxed max-w-xs">{salonSubtitle(t, lang, info?.city[lang])}</p>
           </div>
 

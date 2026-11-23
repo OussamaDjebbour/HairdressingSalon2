@@ -116,16 +116,20 @@ describe('formatCompactRange', () => {
 });
 
 describe('heroLine', () => {
-  const t = (k: string) => ({ 'hero.line': 'Maison de beauté, {city}', 'hero.lineNoCity': 'Maison de beauté' })[k] ?? k;
-  it('names the city and the rating', () => {
-    expect(heroLine(t, 'Alger', 4.9)).toBe('Maison de beauté, Alger — 4,9/5');
+  const tr = (lang: 'fr' | 'ar') => (k: string) => translations[lang][k] ?? k;
+  it('says where the salon is and how its clients rate it', () => {
+    expect(heroLine(tr('fr'), 'fr', 'Oran', 4.9, 240)).toBe('Maison de beauté à Oran, notée 4,9 sur 5 par 240\u00a0clientes');
+    expect(heroLine(tr('fr'), 'fr', 'Oran', 5, 1)).toBe('Maison de beauté à Oran, notée 5 sur 5 par 1\u00a0cliente');
   });
-  it('names the city alone when there is no rating', () => {
-    expect(heroLine(t, 'Oran', null)).toBe('Maison de beauté, Oran');
+  it('leaves out what the salon did not set', () => {
+    expect(heroLine(tr('fr'), 'fr', 'Oran', 4.9, null)).toBe('Maison de beauté à Oran, notée 4,9 sur 5');
+    expect(heroLine(tr('fr'), 'fr', 'Oran', null, 240)).toBe('Maison de beauté à Oran');
+    expect(heroLine(tr('fr'), 'fr', undefined, null, null)).toBe('Maison de beauté');
+    expect(heroLine(tr('fr'), 'fr', '  ', 4, null)).toBe('Maison de beauté, notée 4 sur 5');
   });
-  it('falls back to the plain line without city or rating', () => {
-    expect(heroLine(t, undefined, null)).toBe('Maison de beauté');
-    expect(heroLine(t, '  ', 4)).toBe('Maison de beauté — 4/5');
+  it('reads naturally in Arabic, with the Arabic comma', () => {
+    expect(heroLine(tr('ar'), 'ar', 'وهران', 4.9, 240)).toBe('صالون تجميل في وهران، بتقييم 4,9 من 5 من 240\u00a0عميلة');
+    expect(heroLine(tr('ar'), 'ar', 'وهران', 4.9, 5)).toBe('صالون تجميل في وهران، بتقييم 4,9 من 5 من 5\u00a0عميلات');
   });
 });
 
