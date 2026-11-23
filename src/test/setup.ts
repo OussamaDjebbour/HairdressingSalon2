@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom';
 import { setCurrentSalon } from '../data/salon';
 import { ELEGANCE } from './salon';
+// Admin components are tested without AdminShell: give them the admin's texts too.
+import '../i18n/admin';
 
 // main.tsx resolves the salon from the web address before rendering; tests render components
 // directly, so they serve Élégance unless a test sets another salon.

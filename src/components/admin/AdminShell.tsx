@@ -7,6 +7,8 @@ import { useAdminManifest } from '../../lib/manifest';
 import { useSalon } from '../../data/salon';
 import { LoginForm } from '../LoginForm';
 import { FeedbackProvider } from './feedback';
+// The admin's texts: kept out of the client page's bundle, added here for every admin page.
+import '../../i18n/admin';
 
 /** Back-office chrome shared by /admin and the settings pages: header, loading state, login form when logged out. */
 export function AdminShell({ children }: { children: (userId: string) => ReactNode }) {
