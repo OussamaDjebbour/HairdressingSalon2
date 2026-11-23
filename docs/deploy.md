@@ -118,6 +118,9 @@ that salon's `<title>` and a `<style>` with `--brand-*` values (`--brand-600: ..
 
 ## 6. Launching a salon
 
+A tick-box version of this section, from collecting the owner's details to setting up her phone:
+[`new-salon-checklist.md`](new-salon-checklist.md).
+
 1. **Buy the domain** in your Cloudflare account (Domain Registration → Register Domains). It
    stays yours and can be transferred to the salon later. A domain bought elsewhere also works:
    the script prints the DNS record to add there.
