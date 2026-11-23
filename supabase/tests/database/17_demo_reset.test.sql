@@ -103,11 +103,11 @@ select is((select email from auth.users where id = '11111111-1111-1111-1111-1111
 select is((select string_agg(endpoint, ',' order by endpoint) from private.push_subscriptions where salon_id = 'elegance'), 'https://push/owner',
           'the demo account''s push subscriptions are gone, the owner''s stay');
 
--- bookings: the prospect's are gone; fake ones fill the next 7 days
+-- bookings: the prospect's are gone; fake ones fill the last 90 days and the next 7
 select is((select count(*)::int from private.bookings where client_name = 'Prospect'), 0, 'the prospect''s booking is gone');
 select ok((select count(*) from private.bookings where salon_id = 'elegance') > 0, 'fake bookings exist');
 select is((select count(*)::int from private.bookings where salon_id = 'elegance'
-           and pg_temp.local_day(starts_at) not between pg_temp.today() and pg_temp.today() + 6), 0, 'fake bookings are within the next 7 days');
+           and pg_temp.local_day(starts_at) not between pg_temp.today() - 90 and pg_temp.today() + 6), 0, 'fake bookings are within the last 90 days and the next 7');
 select is((select count(*)::int from private.bookings b where b.salon_id = 'elegance'
            and not exists (select 1 from private.day_hours('elegance', pg_temp.local_day(b.starts_at)))), 0, 'fake bookings are only on open days');
 select is((select count(*)::int from private.bookings b join private.day_hours('elegance', pg_temp.local_day(b.starts_at)) h on true
