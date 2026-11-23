@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(36);
 
 -- Élégance (seed): Amina, Leila, Sara work Tue–Sat; the salon opens Tue–Sat 09:00–18:00 (540 min).
 -- The week 2030-01-07 (Mon) .. 2030-01-13 (Sun) has 5 open days: capacity 3 × 5 × 540 = 8100 min.
@@ -32,6 +32,9 @@ select pg_temp.book('elegance', 'coupe-femme', 'amina', '2030-01-11 09:00', 60, 
 -- the week before, and a returning client's old visit
 select pg_temp.book('elegance', 'coupe-femme', 'amina', '2030-01-02 09:00', 60, 2500, '0555000005', 'staff', 'confirmed');
 select pg_temp.book('elegance', 'coupe-femme', 'amina', '2029-12-11 09:00', 60, 2500, '0555000002', 'staff', 'confirmed');
+-- a website request for two services whose second part the owner removed (detached into its own visit, cancelled)
+select pg_temp.book('elegance', 'coupe-femme', 'amina', '2030-02-05 10:00', 60, 2500, '0555000006', 'online', 'confirmed', 'aaaaaaaa-0000-0000-0000-000000000006');
+select pg_temp.book('elegance', 'manucure', 'sara', '2030-02-05 11:00', 45, 2000, '0555000006', 'online', 'cancelled');
 -- another salon, same week: never counted
 select pg_temp.book('rival', 'rival-cut', 'nadia', '2030-01-08 10:00', 60, 99999, '0555000001', 'online', 'confirmed');
 
@@ -40,7 +43,7 @@ create function pg_temp.act_as(p_uid text) returns void language sql as $$
 
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
-create temp table s as select public.admin_stats('2030-01-07', '2030-01-13') as r;
+create temp table s as select public.admin_stats('2030-01-07', '2030-01-13', '2029-12-31', '2030-01-06') as r;
 reset role;
 
 -- the period
@@ -52,7 +55,7 @@ select is((select (r->'current'->>'capacity_min')::int from s), 8100, 'capacity:
 select is((select (r->'current'->>'clients')::int from s), 2, 'distinct clients with a confirmed visit');
 select is((select (r->'current'->>'new_clients')::int from s), 1, 'new: no earlier booking at the salon');
 
--- the previous period of the same length
+-- the comparison period (here the week before)
 select is((select (r->'previous'->>'revenue')::int from s), 2500, 'previous week income');
 select is((select (r->'previous'->>'visits')::int from s), 1, 'previous week visits');
 select is((select (r->'previous'->>'capacity_min')::int from s), 8100, 'previous week capacity');
@@ -60,7 +63,7 @@ select is((select (r->'previous'->>'capacity_min')::int from s), 8100, 'previous
 -- per coiffeuse (busiest first), all active ones listed
 select is((select jsonb_array_length(r->'stylists') from s), 3, 'every active coiffeuse is listed');
 select is((select r->'stylists'->0->>'id' from s), 'amina', 'the highest income first');
-select is((select (r->'stylists'->0->>'visits')::int from s), 2, 'Amina: two confirmed bookings');
+select is((select (r->'stylists'->0->>'visits')::int from s), 1, 'Amina: one visit (of two parts), like the headline');
 select is((select (r->'stylists'->0->>'revenue')::int from s), 8500, 'Amina: her income');
 select is((select (r->'stylists'->0->>'booked_min')::int from s), 180, 'Amina: her booked minutes');
 select is((select (r->'stylists'->0->>'capacity_min')::int from s), 2700, 'Amina: her capacity');
@@ -74,8 +77,26 @@ select is((select r->'services'->0->'name'->>'fr' from s), 'Coloration & Balayag
 -- online requests
 select is((select (r->'online'->>'requests')::int from s), 3, 'online requests, whatever became of them');
 select is((select (r->'online'->>'confirmed')::int from s), 1, 'online requests confirmed');
-select is((select (r->'online'->>'refused')::int from s), 1, 'online requests refused');
+select is((select (r->'online'->>'cancelled')::int from s), 1, 'online requests cancelled');
 select is((select (r->'online'->>'pending')::int from s), 1, 'online requests still waiting');
+
+-- a removed part doesn't make a second request
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select is((select public.admin_stats('2030-02-04', '2030-02-10', '2030-01-28', '2030-02-03') -> 'online'),
+          '{"requests": 1, "confirmed": 1, "pending": 0, "cancelled": 0}'::jsonb, 'a request with a removed part is one confirmed request');
+reset role;
+
+-- a coiffeuse hidden since still counts for the period she worked
+update public.stylists set active = false where id = 'leila';
+select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
+set local role authenticated;
+select is((select (public.admin_stats('2030-01-07', '2030-01-13', '2029-12-31', '2030-01-06') -> 'current' ->> 'capacity_min')::int), 8100,
+          'her capacity stays with her bookings, so occupancy stays consistent');
+select ok((select exists (select 1 from jsonb_array_elements(public.admin_stats('2030-01-07', '2030-01-13', '2029-12-31', '2030-01-06') -> 'stylists') x where x ->> 'id' = 'leila')),
+          'she is still listed for that period');
+reset role;
+update public.stylists set active = true where id = 'leila';
 
 -- no client data in the answer
 select ok((select r::text !~ '055500000' from s), 'no phone number in the answer');
@@ -83,18 +104,20 @@ select ok((select r::text !~ 'Cliente' from s), 'no client name in the answer');
 
 -- access
 select set_config('request.jwt.claims', '', true);
-select throws_ok($$ select public.admin_stats('2030-01-07', '2030-01-13') $$, 'P0001', 'not_authorized', 'no staff session: not_authorized');
+select throws_ok($$ select public.admin_stats('2030-01-07', '2030-01-13', '2029-12-31', '2030-01-06') $$, 'P0001', 'not_authorized', 'no staff session: not_authorized');
 select pg_temp.act_as('22222222-2222-2222-2222-222222222222');
 set local role authenticated;
-select throws_ok($$ select public.admin_stats('2030-01-07', '2030-01-13') $$, 'P0001', 'not_authorized', 'a signed-in non-staff user is refused');
+select throws_ok($$ select public.admin_stats('2030-01-07', '2030-01-13', '2029-12-31', '2030-01-06') $$, 'P0001', 'not_authorized', 'a signed-in non-staff user is refused');
 reset role;
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
-select throws_ok($$ select public.admin_stats('2030-01-13', '2030-01-07') $$, 'P0001', 'invalid_range', 'from after to');
-select throws_ok($$ select public.admin_stats('2030-01-01', '2031-06-01') $$, 'P0001', 'invalid_range', 'more than a year');
+select throws_ok($$ select public.admin_stats('2030-01-13', '2030-01-07', '2029-12-31', '2030-01-06') $$, 'P0001', 'invalid_range', 'from after to');
+select throws_ok($$ select public.admin_stats('2030-01-07', '2030-01-13', '2030-01-06', '2029-12-31') $$, 'P0001', 'invalid_range', 'comparison from after to');
+select lives_ok($$ select public.admin_stats('2030-01-01', '2030-12-31', '2029-01-01', '2029-12-31') $$, 'a whole year is fine');
+select throws_ok($$ select public.admin_stats('2030-01-01', '2031-01-02', '2029-01-01', '2029-12-31') $$, 'P0001', 'invalid_range', 'more than a year');
 reset role;
 set local role anon;
-select throws_ok($$ select public.admin_stats('2030-01-07', '2030-01-13') $$, '42501', null, 'anon cannot call it');
+select throws_ok($$ select public.admin_stats('2030-01-07', '2030-01-13', '2029-12-31', '2030-01-06') $$, '42501', null, 'anon cannot call it');
 reset role;
 
 select * from finish();

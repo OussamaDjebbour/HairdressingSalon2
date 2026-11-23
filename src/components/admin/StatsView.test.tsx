@@ -22,7 +22,7 @@ const STATS: AdminStats = {
     { id: 'coloration', name: { fr: 'Coloration & Balayage', ar: 'صبغة' }, count: 1, revenue: 6000 },
     { id: 'maquillage', name: { fr: 'Maquillage', ar: 'مكياج' }, count: 1, revenue: 5000 },
   ],
-  online: { requests: 3, confirmed: 1, refused: 1, pending: 1 },
+  online: { requests: 3, confirmed: 1, cancelled: 1, pending: 1 },
 };
 
 function renderIt(ui = <StatsView />) {
@@ -42,10 +42,11 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('StatsView', () => {
-  it('asks for this month by default', async () => {
+  it('asks for this month so far by default, against the same days of last month, and says so', async () => {
     renderIt();
     await screen.findByText('13 500 DA');
-    expect(rpc).toHaveBeenCalledWith('admin_stats', { p_from: '2030-01-01', p_to: '2030-01-31' });
+    expect(rpc).toHaveBeenCalledWith('admin_stats', { p_from: '2030-01-01', p_to: '2030-01-09', p_prev_from: '2029-12-01', p_prev_to: '2029-12-09' });
+    expect(screen.getByText('Mar. 1 → Mer. 9 janv., comparé à Sam. 1 → Dim. 9 déc.')).toBeInTheDocument();
   });
 
   it('shows the key figures with how they moved since the previous period', async () => {
@@ -80,7 +81,7 @@ describe('StatsView', () => {
     await screen.findByText('13 500 DA');
     const services = within(screen.getByRole('list', { name: 'Prestations les plus demandées' })).getAllByRole('listitem');
     expect(services.map((s) => s.textContent)).toEqual(['Coloration & Balayage1 · 6 000 DA', 'Maquillage1 · 5 000 DA']);
-    expect(screen.getByText('3 demandes · 1 confirmée · 1 refusée · 1 en attente')).toBeInTheDocument();
+    expect(screen.getByText('3 demandes · 1 confirmée · 1 annulée · 1 en attente')).toBeInTheDocument();
     expect(screen.getByText('50 % des rendez-vous confirmés viennent du site')).toBeInTheDocument();
   });
 
@@ -88,13 +89,17 @@ describe('StatsView', () => {
     renderIt();
     await screen.findByText('13 500 DA');
     pickOption('Période', 'Cette semaine');
-    await waitFor(() => expect(rpc).toHaveBeenLastCalledWith('admin_stats', { p_from: '2030-01-07', p_to: '2030-01-13' }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenLastCalledWith('admin_stats', { p_from: '2030-01-07', p_to: '2030-01-09', p_prev_from: '2029-12-31', p_prev_to: '2030-01-02' })
+    );
     pickOption('Période', 'Le mois dernier');
-    await waitFor(() => expect(rpc).toHaveBeenLastCalledWith('admin_stats', { p_from: '2029-12-01', p_to: '2029-12-31' }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenLastCalledWith('admin_stats', { p_from: '2029-12-01', p_to: '2029-12-31', p_prev_from: '2029-11-01', p_prev_to: '2029-11-30' })
+    );
   });
 
   it('says so when a period has no confirmed service or online request', async () => {
-    rpc.mockResolvedValue({ data: { ...STATS, services: [], online: { requests: 0, confirmed: 0, refused: 0, pending: 0 } }, error: null });
+    rpc.mockResolvedValue({ data: { ...STATS, services: [], online: { requests: 0, confirmed: 0, cancelled: 0, pending: 0 } }, error: null });
     renderIt();
     expect(await screen.findByText('Aucune prestation confirmée sur cette période.')).toBeInTheDocument();
     expect(screen.getByText('Aucune demande en ligne sur cette période.')).toBeInTheDocument();

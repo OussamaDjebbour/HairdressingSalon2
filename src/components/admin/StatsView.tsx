@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { useLang } from '../../context/LanguageContext';
 import { algiersToday } from '../../data/algiersTime';
-import { countText, formatNumber, formatPrice } from '../../data/formatters';
+import { countText, formatCompactRange, formatNumber, formatPrice } from '../../data/formatters';
 import { compare, occupancy, statsPeriod, STATS_PERIODS, useAdminStats, type StatsPeriodKind } from '../../data/stats';
 import { DataError } from '../DataError';
 import { SelectField } from '../form/SelectField';
@@ -50,8 +50,8 @@ function Block({ title, children }: { title: string; children: (headingId: strin
 export function StatsView() {
   const { t, lang } = useLang();
   const [kind, setKind] = useState<StatsPeriodKind>('month');
-  const { from, to } = statsPeriod(kind, algiersToday());
-  const query = useAdminStats(from, to);
+  const period = statsPeriod(kind, algiersToday());
+  const query = useAdminStats(period);
   const s = query.data;
 
   const price = (n: number) => formatPrice(n, lang);
@@ -79,7 +79,11 @@ export function StatsView() {
         </div>
       ) : (
         <>
-          <p className="text-sm text-rose-700/80">{t('stats.compareNote')}</p>
+          <p className="text-sm text-rose-700/80">
+            {t('stats.compareNote')
+              .replace('{range}', formatCompactRange(period.from, period.to, lang))
+              .replace('{prev}', formatCompactRange(period.prevFrom, period.prevTo, lang))}
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <Figure label={t('stats.revenue')} value={price(s.current.revenue)}>
               <Trend move={compare(s.current.revenue, s.previous.revenue)} format={price} />
@@ -153,7 +157,7 @@ export function StatsView() {
                     {[
                       countText(t, lang, 'stats.requests', s.online.requests),
                       countText(t, lang, 'stats.confirmed', s.online.confirmed),
-                      countText(t, lang, 'stats.refused', s.online.refused),
+                      countText(t, lang, 'stats.cancelled', s.online.cancelled),
                       countText(t, lang, 'stats.waiting', s.online.pending),
                     ].join(' · ')}
                   </p>
