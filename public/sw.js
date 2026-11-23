@@ -16,7 +16,7 @@ self.addEventListener('push', (event) => {
   } catch {
     message = {};
   }
-  const title = message.title || 'Élégance';
+  const title = message.title || 'Nouvelle réservation'; // notify-booking always sends one; never a salon's name here
   event.waitUntil(
     self.registration.showNotification(title, {
       body: message.body || '',
