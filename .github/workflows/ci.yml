@@ -33,6 +33,17 @@ jobs:
           VITE_SUPABASE_URL: http://127.0.0.1:54321
           VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
 
+      # The client page's size budget (scripts/public-bundle-baseline.json, +30 KB gzip) and no admin code in it.
+      # check:bundle reads dist/, so it needs a fresh build of this commit.
+      - name: Build
+        run: pnpm build
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+
+      - name: Public bundle size
+        run: pnpm check:bundle
+
       - uses: supabase/setup-cli@v1
         with:
           version: 2.118.0
