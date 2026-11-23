@@ -59,7 +59,7 @@ Two cross-cutting systems drive almost everything:
 `src/context/LanguageContext.tsx` is the single source of truth for language. It holds a flat `translations` dictionary keyed `Record<Lang, Record<string, string>>` with dotted string keys (`'booking.step.service'`). Consume it via the `useLang()` hook, which exposes `t(key)`, `lang` (`'fr' | 'ar'`), `dir`, and `toggleLang()`. The provider writes `document.documentElement.lang`/`dir` on change, so switching language flips the whole page to RTL.
 
 Conventions that must be respected when touching UI or copy:
-- **Every user-facing string goes through `t()`** — add the key to *both* `fr` and `ar` maps. `t()` falls back to French, then the raw key.
+- **Every user-facing string goes through `t()`** — add the key to *both* `fr` and `ar` maps. **Admin-only texts** (`admin.*`, `settings.*`, `stats.*`, `schedule.*`) go in `src/i18n/adminTranslations.ts`, not in `LanguageContext.tsx`: `src/i18n/admin.ts` adds them to the dictionary when the admin loads (imported by `AdminShell` and the test setup), so the client page's bundle never carries them. A text the client page shows stays in `LanguageContext.tsx` even with an admin prefix (`schedule.today`, `admin.label`). `t()` falls back to French, then the raw key.
 - **Domain data carries its own translations** inline as `Record<Lang, string>` (see `Service.name`, `Stylist.role` in `src/data/types.ts`), read as `service.name[lang]` — these are *not* in the `translations` dict.
 - **Use logical CSS properties** for RTL correctness: `text-start`/`text-end`, `ms-`/`me-`, `ps-`/`pe-`, and `gap-` — not `text-left` / `ml-` / `pl-`. Default direction is LTR (French).
 - Default language is `'fr'`; there is no persistence (resets on reload).
