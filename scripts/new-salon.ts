@@ -27,6 +27,7 @@ import { env, fail, findUserByEmail, info, loadEnv, ok, ROOT, StepFailed, supaba
 import { addDomain, ensureCname, findZone, isRegisteredDomain, pagesHostnames, pagesTarget, type Cloudflare } from './lib/cloudflare';
 import { ConfigError, parseSalonConfig, type SalonConfig } from './lib/config';
 import { confirmContinue, existingSalonLines, type CurrentSalon } from './lib/existing';
+import { prefixConfigIds } from './lib/ids';
 import { buildProvisionPayload, localPhotos, provisionErrorMessage, storagePath } from './lib/provision';
 
 const BUCKET = 'salon-photos';
@@ -169,6 +170,17 @@ async function currentSalon(supabase: SupabaseClient, id: string): Promise<Curre
   return { name: data.name as string, domains: domains.data.map((d) => d.domain as string) };
 }
 
+/** The service, stylist and category ids this salon already has (kept as they are, prefixed or not). */
+async function salonItemIds(supabase: SupabaseClient, id: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (const table of ['services', 'stylists', 'salon_categories']) {
+    const { data, error } = await supabase.from(table).select('id').eq('salon_id', id);
+    if (error) fail(`Reading ${table} failed: ${error.message}`);
+    for (const row of data ?? []) ids.add(row.id as string);
+  }
+  return ids;
+}
+
 async function main() {
   const { slug, dryRun, yes, reapply, addOwner } = parseArgs(process.argv.slice(2));
 
@@ -194,13 +206,16 @@ async function main() {
   const existing = current !== null;
   const settings = !existing || reapply;
   if (current) await confirmExisting(slug, config.id, current, reapply, yes, dryRun);
+  // Ids are shared by all salons: the file's short ids get the salon id in front ("amina" → "<salon>-amina"),
+  // except ids this salon already has (launched before the prefix), so a re-run updates its rows.
+  const items = prefixConfigIds(config, supabase && current ? await salonItemIds(supabase, config.id) : new Set());
 
   if (dryRun) {
     if (!supabase) warn('No database access (.env.admin): showing the payload for a new salon');
     const base = supabaseUrl?.replace(/\/+$/, '');
     const urls = Object.fromEntries(localPhotos(config, { settings }).map((ref) => [ref,
       base ? `${base}/storage/v1/object/public/${BUCKET}/${storagePath(config.id, ref)}` : `<upload of ${ref}>`]));
-    console.log(JSON.stringify(buildProvisionPayload(config, palette, urls, undefined, { settings, addOwner }), null, 2));
+    console.log(JSON.stringify(buildProvisionPayload(items, palette, urls, undefined, { settings, addOwner }), null, 2));
     ok('Dry run: the payload above is valid (owner_user_id is added once the login exists); nothing was written');
     return;
   }
@@ -213,7 +228,7 @@ async function main() {
   const owner = await ensureOwner(supabase, config.owner.email);
 
   // 5. salon
-  const payload = buildProvisionPayload(config, palette, photoUrls, owner.id, { settings, addOwner });
+  const payload = buildProvisionPayload(items, palette, photoUrls, owner.id, { settings, addOwner });
   const domains = payload.domains ?? [];
   const { error } = await supabase.rpc('provision_salon', { p: payload });
   if (error) fail(`provision_salon: ${provisionErrorMessage(error.message, config.id)}`);
