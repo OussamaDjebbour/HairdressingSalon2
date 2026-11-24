@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(97);
+select plan(100);
 
 create function pg_temp.open_day(n int default 1) returns date language sql as $$
   select d::date
@@ -126,6 +126,8 @@ select is((select string_agg(status || ' ' || stylist_id || ' ' || starts_at || 
 select is((select string_agg(status || ' ' || stylist_id || ' ' || starts_at, ', ' order by id) from private.bookings where visit_id = 'aaaaaaaa-0000-0000-0000-0000000000a0'),
           'pending leila 2031-03-05 09:00:00+00, pending leila 2031-03-05 10:30:00+00', 'move_visit: own visit not moved onto another salon''s stylist');
 
+-- rival is paused for its subscription (only for the next few checks)
+insert into private.salon_billing (salon_id, paid_until) values ('rival', (now() at time zone 'Africa/Algiers')::date - 10);
 select pg_temp.act_as('44444444-4444-4444-4444-444444444444');
 set local role authenticated;
 select is(array(select id from public.admin_list_bookings('2030-01-01', '2030-01-31')),
@@ -135,12 +137,16 @@ select ok(not exists (select 1 from jsonb_array_elements(public.admin_stats('203
           'stats: rival staff see only their own coiffeuses');
 select ok(not exists (select 1 from jsonb_array_elements(public.admin_stats('2030-01-01', '2030-12-31', '2029-01-01', '2029-12-31') -> 'services') x where x ->> 'id' <> 'rival-cut'),
           'stats: rival staff see only their own services');
+select is(public.admin_billing() ->> 'state', 'paused', 'billing: rival staff see their own salon''s state');
 reset role;
 select pg_temp.act_as('11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select ok(not exists (select 1 from jsonb_array_elements(public.admin_stats('2030-01-01', '2030-12-31', '2029-01-01', '2029-12-31') -> 'services') x where x ->> 'id' = 'rival-cut'),
           'stats: another salon''s bookings never count');
+select is(public.admin_billing() ->> 'state', 'none', 'billing: another salon''s pause never shows');
 reset role;
+select ok(public.salon_booking_open('elegance') and not public.salon_booking_open('rival'), 'billing: one salon''s pause never closes another');
+delete from private.salon_billing where salon_id = 'rival';
 
 select pg_temp.act_as('22222222-2222-2222-2222-222222222222');
 set local role authenticated;

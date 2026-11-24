@@ -145,6 +145,8 @@ A tick-box version of this section, from collecting the owner's details to setti
    database has no `localhost` address row, so plain `http://localhost:5173/` shows "Salon
    introuvable" — use `?salon=elegance` or `VITE_SALON_ID=elegance pnpm dev`).
 5. **Hand over** the site address, `/admin` address, the owner's email and the password.
+6. **Record her paid period** with `pnpm salon-paid <slug> --until YYYY-MM-DD` (and `--months 1` at each
+   payment after that); online booking pauses 3 days after that date. See `salons/README.md` § Billing.
 
 ## 7. The demo (pitching to salon owners)
 

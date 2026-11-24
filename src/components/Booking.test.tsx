@@ -30,7 +30,10 @@ vi.mock('../data/queries', () => ({
   useServices: () => ({ data: serviceList, isLoading: false, isError: false, refetch: refetchServices }),
   useCatalogue: () => ({ data: serviceList }),
   useStylists: () => ({ data: [amina, sara], isLoading: false, isError: false, refetch: vi.fn() }),
+  useBookingOpen: () => bookingOpen,
 }));
+/** The salon_booking_open answer (paused when data is false). */
+let bookingOpen: { data?: boolean; isError?: boolean } = { data: true };
 
 let hours: SalonHours;
 let salonInfo: { whatsapp: string | null; address?: { fr: string; ar: string }; city?: { fr: string; ar: string } } = { whatsapp: '0561234567' };
@@ -54,13 +57,15 @@ let slotCalls: VisitItem[][] = [];
 let slotsFetching = false;
 /** Per-day answers (key: Date.toDateString()), for the first-open-day tests. */
 let slotsByDay: Record<string, VisitSlot[]> = {};
+/** The slots query's error once a day is picked (e.g. the salon was paused while the page was open). */
+let slotsError: { message: string } | null = null;
 vi.mock('../data/bookings', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../data/bookings')>()),
   useVisitSlots: (date: Date | null, items: VisitItem[]) => {
     slotCalls.push(items);
     return {
       data: (date && slotsByDay[date.toDateString()]) ?? visitSlots[items.length] ?? DEFAULT_SLOTS,
-      isLoading: false, isError: false, isFetching: slotsFetching, refetch: vi.fn(),
+      isLoading: false, isError: !!(date && slotsError), error: date ? slotsError : null, isFetching: slotsFetching, refetch: vi.fn(),
     };
   },
   useCreateVisit: () => ({ mutate, reset: vi.fn(), isPending: pending }),
@@ -123,6 +128,8 @@ beforeEach(() => {
   slotsFetching = false;
   slotsByDay = {};
   salonInfo = { whatsapp: '0561234567' };
+  bookingOpen = { data: true };
+  slotsError = null;
   localStorage.clear();
 });
 
@@ -1436,5 +1443,66 @@ describe('Booking packs and promotions', () => {
     fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
     await waitFor(() => expect(mutate).toHaveBeenCalled());
     expect(mutate.mock.calls[0][0].expectedTotal).toBe(2500);
+  });
+});
+
+describe('Booking while the salon is paused', () => {
+  const PAUSED = 'La réservation en ligne est momentanément indisponible.';
+  const renderBooking = () =>
+    render(
+      <LanguageProvider>
+        <ToArabic />
+        <Booking />
+      </LanguageProvider>
+    );
+
+  it('shows the WhatsApp message instead of the wizard', () => {
+    bookingOpen = { data: false };
+    renderBooking();
+    expect(screen.getByText(PAUSED)).toBeInTheDocument();
+    expect(screen.getByText('Écrivez-nous sur WhatsApp pour prendre rendez-vous.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /WhatsApp/ })).toHaveAttribute('href', 'https://wa.me/213561234567');
+    expect(screen.queryByText('Coupe & Brushing')).toBeNull();
+  });
+
+  it('without a WhatsApp number, asks to contact the salon directly', () => {
+    bookingOpen = { data: false };
+    salonInfo = { whatsapp: null };
+    renderBooking();
+    expect(screen.getByText('Contactez directement le salon pour prendre rendez-vous.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /WhatsApp/ })).toBeNull();
+  });
+
+  it('shows the wizard when the open/paused question fails', () => {
+    bookingOpen = { isError: true };
+    renderBooking();
+    expect(screen.queryByText(PAUSED)).toBeNull();
+    expect(screen.getByText('Coupe & Brushing')).toBeInTheDocument();
+  });
+
+  it('swaps to the message when the times answer booking_paused', () => {
+    slotsError = { message: 'booking_paused' };
+    renderBooking();
+    fireEvent.click(screen.getByText('Coupe & Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(screen.queryByText(PAUSED)).toBeNull();
+    // the time step opens on the first open day and asks for its times
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(screen.getByText(PAUSED)).toBeInTheDocument();
+  });
+
+  it('swaps to the message when confirming answers booking_paused', async () => {
+    failWith('booking_paused');
+    goToConfirmStep();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmer la réservation/ }));
+    expect(await screen.findByText(PAUSED)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Confirmer la réservation/ })).toBeNull();
+  });
+
+  it('reads in Arabic', () => {
+    bookingOpen = { data: false };
+    renderBooking();
+    fireEvent.click(screen.getByText('to-ar'));
+    expect(screen.getByText('الحجز عبر الموقع غير متاح مؤقتًا.')).toBeInTheDocument();
   });
 });

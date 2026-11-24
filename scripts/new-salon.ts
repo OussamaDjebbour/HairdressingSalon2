@@ -261,6 +261,7 @@ async function main() {
     ...(domains.length && !cloudflare ? ['Buy the domain if not done, set the Cloudflare variables in .env.admin and re-run to attach it'] : []),
     ...todo,
     ...(cfFailed ? ['Fix the Cloudflare errors above and re-run'] : []),
+    `Billing: once the first payment (or the free months) is settled, run pnpm salon-paid ${config.id} --until YYYY-MM-DD (until then online booking is never paused)`,
   ];
   if (left.length) {
     console.log('\nLeft to do by hand');

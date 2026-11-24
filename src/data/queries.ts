@@ -107,6 +107,17 @@ export function useCategories() {
   return useQuery({ queryKey: ['categories', currentSalonId()], queryFn: fetchCategories, staleTime: STALE_MS });
 }
 
+/** Public: whether online booking is open (false while the salon's subscription is paused). */
+export async function fetchBookingOpen(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('salon_booking_open', { p_salon_id: currentSalonId() });
+  if (error) throw error;
+  return data !== false;
+}
+
+export function useBookingOpen() {
+  return useQuery({ queryKey: ['salon', 'bookingOpen'], queryFn: fetchBookingOpen, staleTime: 60_000 });
+}
+
 /** Public: active services only. */
 export function useServices() {
   return useQuery({ queryKey: ['services'], queryFn: () => fetchServices(), staleTime: STALE_MS });

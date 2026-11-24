@@ -8,6 +8,9 @@ import type { Lang } from '../context/LanguageContext';
 export const adminTranslations: Record<Lang, Record<string, string>> = {
   fr: {
     'admin.backToSite': 'Voir le site',
+    'admin.billing.soon': 'Votre abonnement est réglé jusqu’au {date}.',
+    'admin.billing.grace': 'Votre abonnement a expiré le {date}. Sans règlement, la réservation en ligne sera suspendue le {pause}.',
+    'admin.billing.paused': 'La réservation en ligne est suspendue depuis le {pause}. Votre agenda fonctionne normalement. Réglez votre abonnement pour la rétablir.',
     'admin.login.title': 'Connexion',
     'admin.login.email': 'E-mail',
     'admin.login.password': 'Mot de passe',
@@ -338,6 +341,9 @@ export const adminTranslations: Record<Lang, Record<string, string>> = {
   },
   ar: {
     'admin.backToSite': 'زيارة الموقع',
+    'admin.billing.soon': 'اشتراكك مدفوع حتى {date}.',
+    'admin.billing.grace': 'انتهى اشتراكك في {date}. بدون تسديد، سيتوقف الحجز عبر الموقع في {pause}.',
+    'admin.billing.paused': 'الحجز عبر الموقع متوقف منذ {pause}. أجندتك تعمل بشكل عادي. سدّدي اشتراكك لإعادة تفعيله.',
     'admin.login.title': 'تسجيل الدخول',
     'admin.login.email': 'البريد الإلكتروني',
     'admin.login.password': 'كلمة المرور',

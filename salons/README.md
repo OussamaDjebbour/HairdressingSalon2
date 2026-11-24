@@ -95,6 +95,31 @@ slim portrait thumbnails and the first three as a tall strip: portrait (3:4), on
 Owners can also set service photos themselves in Réglages (stored under `<salon id>/uploads/`);
 `--reapply-settings` overwrites those with the file's `photo` when the service has one; a service without `photo` keeps the owner's.
 
+## Billing: `pnpm salon-paid`
+
+Salons pay outside the app (BaridiMob, CCP, cash). The app only records **until when** each salon has paid
+and pauses its **online booking** a few days after that date. Uses `.env.admin`.
+
+```bash
+pnpm salon-paid                         # every salon: paid until, state
+pnpm salon-paid sara --months 1         # she paid a month (12 for a year)
+pnpm salon-paid sara --until 2027-01-31 # set the last day paid for
+pnpm salon-paid sara --stop             # not billed any more
+```
+
+`--months` counts from the later of today and her current date: paying early loses no day, paying late
+still gets a whole period. With D = days after the paid-until date:
+
+| D | The owner's `/admin` | The client page |
+| --- | --- | --- |
+| 5 days before … due day | quiet line: "Votre abonnement est réglé jusqu'au …" | normal |
+| 1 – 3 (grace) | warning: online booking will be paused on … | normal |
+| 4 and after | alert: online booking paused, the agenda works | the booking form becomes "La réservation en ligne est momentanément indisponible" + her WhatsApp |
+
+Nothing else changes while paused: existing bookings stay, the owner can still add, move, confirm and
+cancel bookings, Réglages and Statistiques work. Extending the date reopens online booking at once.
+A salon with no date (every salon until you run `salon-paid`) and the demo are never paused.
+
 ## The demo: `pnpm setup-demo <salon-id>`
 
 Turns a salon (e.g. `elegance`) into the showroom. It creates a dedicated demo login

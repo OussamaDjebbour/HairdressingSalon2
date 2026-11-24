@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "new-salon": "tsx scripts/new-salon.ts",
     "setup-demo": "tsx scripts/setup-demo.ts",
+    "salon-paid": "tsx scripts/salon-paid.ts",
     "check:bundle": "node scripts/check-public-bundle.mjs"
   },
   "dependencies": {
