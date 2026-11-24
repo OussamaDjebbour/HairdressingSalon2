@@ -5,12 +5,13 @@ import { useLogout } from '../../lib/useLogout';
 import { isNotAuthorized, useMySalon } from '../../data/admin';
 import { currentSalonId } from '../../data/salon';
 import { DataError } from '../DataError';
+import { BillingNotice } from './BillingNotice';
 
 /**
  * The one salon-isolation gate for the back office. Fails closed: children render only
  * when the account is confirmed staff of this deployment's salon. Once confirmed, a failed
  * background refetch (e.g. a network blip after a save) keeps the verified screen; an explicit
- * not_authorized always wins.
+ * not_authorized always wins. Once verified, the subscription notice (BillingNotice) sits above every screen.
  */
 export function SalonGate({ userId, children }: { userId: string; children: ReactNode }) {
   const { t } = useLang();
@@ -32,7 +33,12 @@ export function SalonGate({ userId, children }: { userId: string; children: Reac
   if (mySalon.data !== currentSalonId()) {
     return <Blocked message={t('admin.otherSalon')} />;
   }
-  return <>{children}</>;
+  return (
+    <>
+      <BillingNotice />
+      {children}
+    </>
+  );
 }
 
 /** The account can't use this salon's back office: say why, and let it sign out to use the right account. */
