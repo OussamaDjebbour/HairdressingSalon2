@@ -58,9 +58,12 @@ Keep the money outside the app; the app only knows a due date and pauses online 
 
 ### Enforcement (database)
 
-- `create_visit`, `get_visit_slots`, and the older `create_booking`, `get_slots` raise `booking_paused`
-  before anything else when `private.booking_paused(p_salon_id)`. Every public booking path is covered,
-  not only the ones the site calls today.
+- A `before insert` trigger on `private.bookings` for `source = 'online'` raises `booking_paused` when
+  `private.booking_paused(new.salon_id)`. It covers `create_visit`, the older `create_booking` and any
+  future online path without re-creating their long bodies (all-or-nothing: `create_visit` rolls back).
+- `get_visit_slots` and `get_slots` raise `booking_paused` as their first statement (re-created from their
+  latest bodies with that one check added), so a page left open learns about the pause when it asks for
+  times.
 - Owner functions (`admin_*`) are untouched: she can still add, move, confirm and cancel bookings.
 
 ### What the pages read
