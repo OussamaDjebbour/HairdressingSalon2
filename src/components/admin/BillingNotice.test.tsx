@@ -77,6 +77,31 @@ describe('BillingNotice', () => {
     expect(container.textContent).toBe('to-ar');
   });
 
+  it('asks again when a screen opens 30 seconds later, so a payment just recorded shows quickly', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      answer({ state: 'paused', paid_until: '2030-01-31', paused_from: '2030-02-04' });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const tree = () => (
+        <QueryClientProvider client={client}>
+          <LanguageProvider>
+            <BillingNotice />
+          </LanguageProvider>
+        </QueryClientProvider>
+      );
+      const first = render(tree());
+      await screen.findByRole('alert');
+      first.unmount();
+      vi.setSystemTime(Date.now() + 31_000);
+      answer({ state: 'ok', paid_until: '2030-03-31', paused_from: '2030-04-04' });
+      render(tree());
+      await vi.waitFor(() => expect(rpc).toHaveBeenCalledTimes(2));
+      await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('reads in Arabic', async () => {
     answer({ state: 'paused', paid_until: '2030-01-31', paused_from: '2030-02-04' });
     renderIt();
