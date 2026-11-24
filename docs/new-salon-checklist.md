@@ -50,6 +50,10 @@ pnpm new-salon <slug>                       # creates everything
 - [ ] On her phone, with her: open `/admin`, add it to the home screen, then Réglages → Compte →
       turn on notifications, so new bookings reach her.
 - [ ] Show her Réglages: services, hours, closed days, packs and promotions are hers to manage.
+- [ ] **Record her paid period** once the first payment (or the free months) is settled:
+      `pnpm salon-paid <slug> --until YYYY-MM-DD`. Tell her online booking pauses 3 days after that date if
+      it isn't renewed (her agenda keeps working). Each payment after that: `pnpm salon-paid <slug> --months 1`
+      (or `--months 12` for a year).
 
 ## Cautions
 
