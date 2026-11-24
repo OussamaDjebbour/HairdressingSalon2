@@ -10,7 +10,8 @@ import {
   useVisitSlots, useCreateVisit, toBookingError, failedItem, serverTotal, normalizePhone, toYmd, type BookingErrorCode, type VisitItem,
 } from '../data/bookings';
 import type { Service } from '../data/types';
-import { useServices, useStylists, useCategories } from '../data/queries';
+import { useServices, useStylists, useCategories, useBookingOpen } from '../data/queries';
+import { BookingPaused } from './booking/BookingPaused';
 import { DataError } from './DataError';
 import { formatAlgiersTime } from '../data/algiersTime';
 import { countText, formatPrice, formatDuration, formatLongDate, formatNumber } from '../data/formatters';
@@ -97,6 +98,8 @@ export function Booking() {
   const retryData = () => {
     for (const q of queries) if (q.isError) q.refetch();
   };
+  const bookingOpen = useBookingOpen();
+  const [pausedByServer, setPausedByServer] = useState(false);
   const [step, setStep] = useState<Step>(0);
   // The ticked services (any order) and the staff chosen for each (null or absent = no preference).
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -277,6 +280,11 @@ export function Booking() {
         },
         onError: (err) => {
           const code = toBookingError(err);
+          // The salon was paused while the page was open: the whole section says so.
+          if (code === 'booking_paused') {
+            setPausedByServer(true);
+            return;
+          }
           // One part of several was just taken: say which, and let the client choose (book the others or another time).
           const failed = code === 'slot_taken' && items.length > 1 ? failedItem(err) : null;
           if (failed !== null && failed < items.length) {
@@ -320,6 +328,7 @@ export function Booking() {
     unknown_service: t('booking.error.generic'),
     too_many_services: t('booking.error.generic'),
     price_changed: t('booking.error.priceChanged'),
+    booking_paused: t('booking.paused.title'),
     unknown: t('booking.error.generic'),
   };
 
@@ -646,6 +655,12 @@ export function Booking() {
         </div>
       </section>
     );
+  }
+
+  // Online booking paused (the salon's subscription): the site stays, clients are sent to WhatsApp.
+  // A failed open/paused question shows the wizard: the server refuses anyway.
+  if (bookingOpen.data === false || pausedByServer || toBookingError(slotsQuery.error) === 'booking_paused') {
+    return <BookingPaused waNumber={waNumber} />;
   }
 
   return (

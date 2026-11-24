@@ -18,6 +18,7 @@ export type BookingErrorCode =
   | 'unknown_service'
   | 'too_many_services'
   | 'price_changed'
+  | 'booking_paused'
   | 'unknown';
 
 const KNOWN_ERRORS: BookingErrorCode[] = [
@@ -30,6 +31,7 @@ const KNOWN_ERRORS: BookingErrorCode[] = [
   'unknown_service',
   'too_many_services',
   'price_changed',
+  'booking_paused',
 ];
 
 export function toBookingError(err: unknown): BookingErrorCode {
