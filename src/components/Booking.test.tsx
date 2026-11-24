@@ -1491,6 +1491,19 @@ describe('Booking while the salon is paused', () => {
     expect(screen.getByText(PAUSED)).toBeInTheDocument();
   });
 
+  it('keeps the message once the times said booking_paused, even if the client restarts from La carte', () => {
+    slotsError = { message: 'booking_paused' };
+    render(<LanguageProvider><BookingIntentProvider><Chooser id="coupe-femme" /><Booking /></BookingIntentProvider></LanguageProvider>);
+    fireEvent.click(screen.getByText('Coupe & Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(screen.getByText(PAUSED)).toBeInTheDocument();
+    // a "Réserver" on La carte restarts the wizard on the stylist step, with no day picked
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    expect(screen.getByText(PAUSED)).toBeInTheDocument();
+    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
+  });
+
   it('swaps to the message when confirming answers booking_paused', async () => {
     failWith('booking_paused');
     goToConfirmStep();
