@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(40);
 
 -- Élégance (seed) opens Tue–Sat 09:00–18:00; coupe-femme (60 min) is done by amina.
 create function pg_temp.today() returns date language sql as $$ select (now() at time zone 'Africa/Algiers')::date $$;
@@ -42,6 +42,8 @@ select is(pg_temp.state('elegance'), 'grace', '1 day late: grace');
 select pg_temp.pay('elegance', -3);
 select is(pg_temp.state('elegance'), 'grace', '3 days late: still grace');
 select ok(public.salon_booking_open('elegance'), 'last grace day: booking open');
+select ok(exists (select 1 from public.get_visit_slots('elegance', pg_temp.open_day(), '[{"service_id":"coupe-femme","stylist_id":null}]')),
+          'last grace day: times are still offered');
 select lives_ok($$ select * from public.create_visit('elegance', '[{"service_id":"coupe-femme","stylist_id":null}]',
                    pg_temp.open_day(), '10:00', 'Grace Client', '0555100001', 'fr') $$, 'last grace day: a client can book');
 select pg_temp.pay('elegance', -4);

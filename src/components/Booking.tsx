@@ -175,6 +175,12 @@ export function Booking() {
   const atMax = selectedIds.length >= MAX_VISIT_SERVICES;
 
   const slotsQuery = useVisitSlots(selectedDate, items);
+  // The times said the salon is paused: keep the message even if the wizard restarts (that clears the day and
+  // with it the query's error).
+  const slotsPaused = toBookingError(slotsQuery.error) === 'booking_paused';
+  useEffect(() => {
+    if (slotsPaused) setPausedByServer(true);
+  }, [slotsPaused]);
   const slotData = slotsQuery.data;
   const slots = slotData ?? [];
   // Fetched slots for the current parts: not while loading, nor a cached answer being re-fetched.
@@ -659,8 +665,8 @@ export function Booking() {
 
   // Online booking paused (the salon's subscription): the site stays, clients are sent to WhatsApp.
   // A failed open/paused question shows the wizard: the server refuses anyway.
-  if (bookingOpen.data === false || pausedByServer || toBookingError(slotsQuery.error) === 'booking_paused') {
-    return <BookingPaused waNumber={waNumber} />;
+  if (bookingOpen.data === false || pausedByServer || slotsPaused) {
+    return <BookingPaused waNumber={waNumber} address={addressLine(address, city)} directions={directions} />;
   }
 
   return (

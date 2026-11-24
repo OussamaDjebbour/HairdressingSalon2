@@ -19,7 +19,8 @@ export async function fetchAdminBilling(): Promise<AdminBilling> {
 }
 
 export function useAdminBilling() {
-  return useQuery({ queryKey: ['admin', 'billing'], queryFn: fetchAdminBilling, staleTime: 5 * 60_000, retry: false });
+  // Short: right after the product owner records a payment, the next screen she opens shows it.
+  return useQuery({ queryKey: ['admin', 'billing'], queryFn: fetchAdminBilling, staleTime: 30_000, retry: false });
 }
 
 /** A YYYY-MM-DD day as a local date (no timezone shift). */

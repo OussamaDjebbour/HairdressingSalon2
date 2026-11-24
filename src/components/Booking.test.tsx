@@ -1473,6 +1473,16 @@ describe('Booking while the salon is paused', () => {
     expect(screen.queryByRole('link', { name: /WhatsApp/ })).toBeNull();
   });
 
+  it('without a WhatsApp number, gives the salon\'s address and directions', () => {
+    bookingOpen = { data: false };
+    salonInfo = { whatsapp: null, address: { fr: '12 rue Didouche Mourad', ar: '12 شارع ديدوش مراد' }, city: { fr: 'Oran', ar: 'وهران' } };
+    renderBooking();
+    expect(screen.getByText('12 rue Didouche Mourad, Oran')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Itinéraire/ })).toHaveAttribute(
+      'href', 'https://www.google.com/maps/search/?api=1&query=12%20rue%20Didouche%20Mourad%2C%20Oran'
+    );
+  });
+
   it('shows the wizard when the open/paused question fails', () => {
     bookingOpen = { isError: true };
     renderBooking();
@@ -1489,6 +1499,19 @@ describe('Booking while the salon is paused', () => {
     // the time step opens on the first open day and asks for its times
     fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
     expect(screen.getByText(PAUSED)).toBeInTheDocument();
+  });
+
+  it('keeps the message once the times said booking_paused, even if the client restarts from La carte', () => {
+    slotsError = { message: 'booking_paused' };
+    render(<LanguageProvider><BookingIntentProvider><Chooser id="coupe-femme" /><Booking /></BookingIntentProvider></LanguageProvider>);
+    fireEvent.click(screen.getByText('Coupe & Brushing'));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuer/ }));
+    expect(screen.getByText(PAUSED)).toBeInTheDocument();
+    // a "Réserver" on La carte restarts the wizard on the stylist step, with no day picked
+    fireEvent.click(screen.getByText('choose-coupe-femme'));
+    expect(screen.getByText(PAUSED)).toBeInTheDocument();
+    expect(screen.queryByText('Choisissez votre coiffeuse')).toBeNull();
   });
 
   it('swaps to the message when confirming answers booking_paused', async () => {
