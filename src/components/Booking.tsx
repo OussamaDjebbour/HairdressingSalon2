@@ -666,7 +666,7 @@ export function Booking() {
   // Online booking paused (the salon's subscription): the site stays, clients are sent to WhatsApp.
   // A failed open/paused question shows the wizard: the server refuses anyway.
   if (bookingOpen.data === false || pausedByServer || slotsPaused) {
-    return <BookingPaused waNumber={waNumber} />;
+    return <BookingPaused waNumber={waNumber} address={addressLine(address, city)} directions={directions} />;
   }
 
   return (

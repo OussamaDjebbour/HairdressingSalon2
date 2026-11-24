@@ -1473,6 +1473,16 @@ describe('Booking while the salon is paused', () => {
     expect(screen.queryByRole('link', { name: /WhatsApp/ })).toBeNull();
   });
 
+  it('without a WhatsApp number, gives the salon\'s address and directions', () => {
+    bookingOpen = { data: false };
+    salonInfo = { whatsapp: null, address: { fr: '12 rue Didouche Mourad', ar: '12 شارع ديدوش مراد' }, city: { fr: 'Oran', ar: 'وهران' } };
+    renderBooking();
+    expect(screen.getByText('12 rue Didouche Mourad, Oran')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Itinéraire/ })).toHaveAttribute(
+      'href', 'https://www.google.com/maps/search/?api=1&query=12%20rue%20Didouche%20Mourad%2C%20Oran'
+    );
+  });
+
   it('shows the wizard when the open/paused question fails', () => {
     bookingOpen = { isError: true };
     renderBooking();
