@@ -73,7 +73,7 @@ describe('Services (La carte)', () => {
     list = [mk('s1', 'spa', 'Hammam'), mk('s2', 'coiffure', 'Coupe'), mk('s3', 'beaute', 'Ongles'), mk('s4', 'beaute', 'Sourcils')];
     renderCarte();
     const hs = headers();
-    expect(hs.map((h) => h.textContent)).toEqual(['Coiffure1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
+    expect(hs.map((h) => h.textContent)).toEqual(['Coiffure 1 prestation', 'Beauté 2 prestations', 'Spa & hammam 1 prestation']);
     expect(hs.map((h) => h.getAttribute('aria-expanded'))).toEqual(['false', 'false', 'false']);
     expect(hs[0].parentElement!.tagName).toBe('H3');
     for (const name of ['Coupe', 'Ongles', 'Sourcils', 'Hammam']) expect(screen.queryByText(name)).toBeNull();
@@ -99,7 +99,7 @@ describe('Services (La carte)', () => {
   it('packs come first; no category opens by itself', () => {
     list = [mk('p1', 'pack', 'Pack Mariée'), mk('s1', 'spa', 'Hammam'), mk('b1', 'beaute', 'Ongles'), mk('b2', 'beaute', 'Sourcils')];
     renderCarte();
-    expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Beauté2 prestations', 'Spa & hammam1 prestation']);
+    expect(headers().map((h) => h.textContent)).toEqual(['Packs 1 prestation', 'Beauté 2 prestations', 'Spa & hammam 1 prestation']);
     expect(headers().every((h) => h.getAttribute('aria-expanded') === 'false')).toBe(true);
     expect(screen.queryByText('Sourcils')).toBeNull();
     expect(screen.queryByText('Pack Mariée')).toBeNull();
@@ -195,7 +195,7 @@ describe('Services (La carte)', () => {
     list = [coupe, pack];
     catalogue = [coupe, hidden];
     renderCarte();
-    expect(headers().map((h) => h.textContent)).toEqual(['Packs1 prestation', 'Coiffure1 prestation']);
+    expect(headers().map((h) => h.textContent)).toEqual(['Packs 1 prestation', 'Coiffure 1 prestation']);
     fireEvent.click(headers()[0]);
     const link = screen.getByRole('link', { name: /Pack Mariée/ });
     expect(link.textContent).toContain('Comprend : Coupe, Masque secret');
@@ -222,7 +222,7 @@ describe('Services (La carte)', () => {
     const link = screen.getByRole('link', { name: /Coupe/ });
     const crossed = link.querySelector('.line-through')!;
     expect(crossed.textContent).toMatch(/3\s?000/);
-    expect(crossed.className).toContain('opacity-60');
+    expect(crossed.className).toContain('opacity-70');
     expect(link.textContent).toMatch(/2\s?000/);
     expect(within(link).getByText(/au lieu de/)).toHaveClass('sr-only');
     expect(screen.getByRole('link', { name: /Brushing/ }).querySelector('.line-through')).toBeNull();
@@ -236,7 +236,7 @@ describe('Services (La carte)', () => {
       return <button onClick={toggleLang}>to-ar</button>;
     }
     render(<LanguageProvider><ToArabic /><Services /></LanguageProvider>);
-    expect(headers().map((h) => h.textContent)).toEqual(['Coiffure1 prestation', 'Beauté1 prestation', 'Soins mariée1 prestation']);
+    expect(headers().map((h) => h.textContent)).toEqual(['Coiffure 1 prestation', 'Beauté 1 prestation', 'Soins mariée 1 prestation']);
     fireEvent.click(headers()[2]);
     expect(screen.getByText('Henné')).toBeInTheDocument();
     fireEvent.click(screen.getByText('to-ar'));

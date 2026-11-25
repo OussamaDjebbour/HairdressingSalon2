@@ -309,16 +309,16 @@ describe('Booking step 0 grouping', () => {
     fireEvent.click(serviceButton('Brushing'));
     fireEvent.click(header(/^Spa/));
     fireEvent.click(serviceButton('Hammam'));
-    expect(header('Coiffure, 2 prestations (2 choisies)')).toBeInTheDocument();
-    expect(header('Spa & hammam, 1 prestation (1 choisie)')).toBeInTheDocument();
-    expect(header('Beauté, 1 prestation')).toBeInTheDocument();
+    expect(header('Coiffure 2 prestations 2 choisies')).toBeInTheDocument();
+    expect(header('Spa & hammam 1 prestation 1 choisie')).toBeInTheDocument();
+    expect(header('Beauté 1 prestation')).toBeInTheDocument();
     expect(screen.getByText(/^3 prestations · /)).toBeInTheDocument();
     fireEvent.click(header(/^Coiffure/));
     expect(screen.queryByText('Coupe')).toBeNull();
     fireEvent.click(header(/^Coiffure/));
     expect(serviceButton('Coupe')).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(serviceButton('Coupe'));
-    expect(header('Coiffure, 2 prestations (1 choisie)')).toBeInTheDocument();
+    expect(header('Coiffure 2 prestations 1 choisie')).toBeInTheDocument();
   });
 
   it('a row is compact: no photo, no description; a pack names what it includes', () => {
