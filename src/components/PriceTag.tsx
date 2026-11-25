@@ -13,7 +13,7 @@ export function PriceTag({ price, regular, align = 'end' }: { price: number; reg
       <span className="whitespace-nowrap">{formatPrice(price, lang)}</span>{' '}
       <span className="order-first whitespace-nowrap">
         <span className="sr-only">{t('price.insteadOf')} </span>
-        <span className="line-through opacity-60">{formatPrice(regular, lang)}</span>
+        <span className="line-through opacity-70">{formatPrice(regular, lang)}</span>
       </span>
     </span>
   );

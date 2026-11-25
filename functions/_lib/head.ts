@@ -5,14 +5,17 @@
  */
 import { CREAM_50, isHexColor, type Palette } from '../../src/lib/palette';
 import { paletteToCssVars } from '../../src/lib/brandVars';
+import { SALON_DATA_ID } from '../../src/data/salonColumns';
 
 export { normalizeHost } from '../../src/lib/host';
 
-/** The salon columns the edge needs (salons.id, salons.name, salons.palette). */
+/** What the edge needs from a salon row, plus the row itself (SALON_COLUMNS) for the app. */
 export interface EdgeSalon {
   id: string;
   name: string;
   palette: Palette;
+  /** The whole row as the database gave it; the app validates it again (parseSalonRow). */
+  row: Record<string, unknown>;
 }
 
 const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900'] as const;
@@ -30,7 +33,30 @@ export function toEdgeSalon(row: unknown): EdgeSalon | null {
     if (typeof hex !== 'string' || !isHexColor(hex)) return null;
     palette[shade] = hex;
   }
-  return { id: r.id, name: r.name, palette };
+  return { id: r.id, name: r.name, palette, row: row as Record<string, unknown> };
+}
+
+/** JSON that is safe inside a <script> element (no `</script>`, no HTML comment, no entity). */
+function scriptJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Extra <head> tags so the page paints sooner: the salon row for this domain (the app starts from
+ * it instead of asking the database, src/data/currentSalon.ts) and, on the home page, a preload of
+ * the hero photo so it downloads while the app's code does.
+ */
+export function salonDataTags(salon: EdgeSalon, domain: string, path: string): string {
+  let tags = `<script id="${SALON_DATA_ID}" type="application/json">${scriptJson({ domain, salon: salon.row })}</script>`;
+  const hero = salon.row.hero_image;
+  if (path === '/' && typeof hero === 'string' && hero.startsWith('https://')) {
+    tags += `<link rel="preload" as="image" href="${escapeAttr(hero)}" fetchpriority="high">`;
+  }
+  return tags;
 }
 
 /** Same tab title the app sets at runtime (src/bootstrap.tsx). */

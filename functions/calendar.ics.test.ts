@@ -7,7 +7,7 @@ vi.mock('./_lib/lookup', () => ({ lookupSalon: vi.fn() }));
 const lookup = vi.mocked(lookupSalon);
 
 const ENV = { SUPABASE_URL: 'https://db.example.co', SUPABASE_PUBLISHABLE_KEY: 'k' };
-const YASMINE = { id: 'yasmine', name: 'Salon Yasmine', palette: {} as never };
+const YASMINE = { id: 'yasmine', name: 'Salon Yasmine', palette: {} as never, row: {} };
 
 const SERVICES = [
   { id: 'y-coupe', name: { fr: 'Coupe', ar: 'قص' }, duration: 60 },

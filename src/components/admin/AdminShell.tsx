@@ -7,8 +7,12 @@ import { useAdminManifest } from '../../lib/manifest';
 import { useSalon } from '../../data/salon';
 import { LoginForm } from '../LoginForm';
 import { FeedbackProvider } from './feedback';
+import { loadAdminFonts } from '../../lib/adminFonts';
 // The admin's texts: kept out of the client page's bundle, added here for every admin page.
 import '../../i18n/admin';
+
+// Inter and Fraunces: not linked by index.html, so the client page never downloads them.
+loadAdminFonts();
 
 /** Back-office chrome shared by /admin and the settings pages: header, loading state, login form when logged out. */
 export function AdminShell({ children }: { children: (userId: string) => ReactNode }) {

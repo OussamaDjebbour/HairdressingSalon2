@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { headTags, manifestFor, normalizeHost, toEdgeSalon, type EdgeSalon } from './head';
+import { headTags, manifestFor, normalizeHost, salonDataTags, toEdgeSalon, type EdgeSalon } from './head';
 
 const ELEGANCE: EdgeSalon = {
   id: 'elegance',
@@ -9,6 +9,7 @@ const ELEGANCE: EdgeSalon = {
     '50': '#FBF1F3', '100': '#F7E0E5', '200': '#EFC1CC', '300': '#E29FB1', '400': '#D17D93',
     '500': '#B85F76', '600': '#9D4B5F', '700': '#7E3B4C', '800': '#5F2D3A', '900': '#421F28',
   },
+  row: {},
 };
 
 const YASMINE: EdgeSalon = {
@@ -18,6 +19,7 @@ const YASMINE: EdgeSalon = {
     '50': '#F0F5FB', '100': '#DCE8F6', '200': '#B9D1ED', '300': '#8FB4E1', '400': '#6493D2',
     '500': '#3F72BD', '600': '#2A5AA0', '700': '#21477F', '800': '#19365F', '900': '#102440',
   },
+  row: {},
 };
 
 // The static manifest is the local-dev fallback; the edge one must match it for Élégance.
@@ -67,8 +69,9 @@ describe('manifestFor', () => {
 });
 
 describe('toEdgeSalon', () => {
-  it('keeps a well-formed salon row', () => {
-    expect(toEdgeSalon({ ...ELEGANCE, extra: 1 })).toEqual(ELEGANCE);
+  it('keeps a well-formed salon row, and the row itself for the app', () => {
+    const row = { id: ELEGANCE.id, name: ELEGANCE.name, palette: ELEGANCE.palette, story: { fr: 'x' } };
+    expect(toEdgeSalon(row)).toEqual({ id: 'elegance', name: 'Élégance', palette: ELEGANCE.palette, row });
   });
 
   it.each([
@@ -79,6 +82,38 @@ describe('toEdgeSalon', () => {
     ['bad shade', { ...ELEGANCE, palette: { ...ELEGANCE.palette, '600': 'red;}body{x' } }],
   ])('rejects %s', (_label, row) => {
     expect(toEdgeSalon(row)).toBeNull();
+  });
+});
+
+describe('salonDataTags', () => {
+  const row = { id: 'elegance', name: 'Élégance', palette: ELEGANCE.palette, hero_image: 'https://img.example/hero.jpg?w=1600&q=80' };
+  const salon = { ...ELEGANCE, row };
+
+  function dataOf(tags: string) {
+    const m = tags.match(/^<script id="salon-data" type="application\/json">(.*?)<\/script>/);
+    return JSON.parse(m![1]);
+  }
+
+  it('writes the salon row with the domain it was looked up for', () => {
+    expect(dataOf(salonDataTags(salon, 'elegance.dz', '/admin'))).toEqual({ domain: 'elegance.dz', salon: row });
+  });
+
+  it('preloads the hero photo on the home page only', () => {
+    const home = salonDataTags(salon, 'elegance.dz', '/');
+    expect(home).toContain('<link rel="preload" as="image" href="https://img.example/hero.jpg?w=1600&amp;q=80" fetchpriority="high">');
+    expect(salonDataTags(salon, 'elegance.dz', '/admin')).not.toContain('preload');
+    expect(salonDataTags({ ...ELEGANCE, row: { ...row, hero_image: '' } }, 'elegance.dz', '/')).not.toContain('preload');
+    expect(salonDataTags({ ...ELEGANCE, row: { ...row, hero_image: 'javascript:alert(1)' } }, 'elegance.dz', '/')).not.toContain('preload');
+  });
+
+  it('cannot break out of the script element or the attribute', () => {
+    const evil = { ...row, story: { fr: '</script><script>alert(1)</script><!-- &amp;' }, hero_image: 'https://x/"><script>' };
+    const tags = salonDataTags({ ...ELEGANCE, row: evil }, 'elegance.dz', '/');
+    expect(tags.match(/<script/g)).toHaveLength(1);
+    expect(tags.match(/<\/script>/g)).toHaveLength(1);
+    expect(tags).not.toContain('<!--');
+    expect(tags).toContain('href="https://x/&quot;&gt;&lt;script&gt;"');
+    expect(dataOf(tags).salon).toEqual(evil);
   });
 });
 

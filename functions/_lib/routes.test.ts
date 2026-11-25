@@ -11,7 +11,7 @@ const routes = JSON.parse(readFileSync(new URL('../../public/_routes.json', impo
 
 describe('_routes.json', () => {
   it('skips the functions for static files that carry no salon branding', () => {
-    expect(routes).toEqual({ version: 1, include: ['/*'], exclude: ['/assets/*', '/icons/*', '/sw.js'] });
+    expect(routes).toEqual({ version: 1, include: ['/*'], exclude: ['/assets/*', '/icons/*', '/sw.js', '/robots.txt'] });
   });
 
   it('still routes pages and the per-salon app manifest to the functions', () => {

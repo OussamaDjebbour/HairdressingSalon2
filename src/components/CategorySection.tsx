@@ -39,15 +39,15 @@ export function CategorySection({
           type="button"
           aria-expanded={open}
           aria-controls={panelId}
-          aria-label={`${label}, ${countLabel}${chosen > 0 ? ` (${countText(t, lang, 'booking.tab.chosen', chosen)})` : ''}`}
           onClick={onToggle}
           className="flex w-full min-h-[44px] items-center gap-3 py-3 text-start focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rose-900"
         >
           {thumbnail && !open && (
             <img src={thumbnail} alt="" loading="lazy" className="w-14 aspect-[3/4] object-cover shrink-0" />
           )}
-          <span className="min-w-0 break-words font-display text-lg text-rose-900">{label}</span>
-          <span className="whitespace-nowrap text-sm text-rose-900/60">{countLabel}</span>
+          {/* The visible words are the button's name (voice control users say what they see). */}
+          <span className="min-w-0 break-words font-display text-lg text-rose-900">{label}</span>{' '}
+          <span className="whitespace-nowrap text-sm text-rose-900/70">{countLabel}</span>
           {chosen > 0 && (
             <span
               aria-hidden="true"
@@ -56,6 +56,7 @@ export function CategorySection({
               {chosen}
             </span>
           )}
+          {chosen > 0 && <>{' '}<span className="sr-only">{countText(t, lang, 'booking.tab.chosen', chosen)}</span></>}
           <ChevronDown
             aria-hidden="true"
             className={`ms-auto w-4 h-4 shrink-0 text-rose-900/60 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}

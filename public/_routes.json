@@ -1,1 +1,1 @@
-{"version":1,"include":["/*"],"exclude":["/assets/*","/icons/*","/sw.js"]}
+{"version":1,"include":["/*"],"exclude":["/assets/*","/icons/*","/sw.js","/robots.txt"]}
