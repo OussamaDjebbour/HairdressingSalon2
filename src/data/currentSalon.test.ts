@@ -220,3 +220,52 @@ describe('the current salon store', () => {
     expect(currentSalonId()).toBe('elegance');
   });
 });
+
+describe('the salon the edge wrote into the page', () => {
+  function embed(data: unknown) {
+    const s = document.createElement('script');
+    s.id = 'salon-data';
+    s.type = 'application/json';
+    s.textContent = typeof data === 'string' ? data : JSON.stringify(data);
+    document.head.appendChild(s);
+  }
+
+  afterEach(() => {
+    document.getElementById('salon-data')?.remove();
+  });
+
+  it('is used without asking the database when it was written for this domain', async () => {
+    embed({ domain: 'sara-salon.com', salon: SARA_ROW });
+
+    expect(await resolveSalon('www.sara-salon.com', '')).toEqual(SARA);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('accepts a rating sent as text, like the database query', async () => {
+    embed({ domain: 'sara-salon.com', salon: { ...SARA_ROW, rating: '4.7' } });
+    expect((await resolveSalon('sara-salon.com', ''))?.rating).toBe(4.7);
+  });
+
+  it.each([
+    ['another domain', { domain: 'other-salon.com', salon: SARA_ROW }],
+    ['no salon', { domain: 'sara-salon.com', salon: null }],
+    ['a broken colour', { domain: 'sara-salon.com', salon: { ...SARA_ROW, palette: { ...SARA_ROW.palette, '600': 'red;}' } } }],
+    ['no name', { domain: 'sara-salon.com', salon: { ...SARA_ROW, name: '' } }],
+    ['unreadable JSON', '{nope'],
+  ])('is ignored for %s: the database decides', async (_label, data) => {
+    embed(data);
+    respond(null);
+
+    expect(await resolveSalon('sara-salon.com', '')).toBeNull();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].eq).toEqual([['domain', 'sara-salon.com']]);
+  });
+
+  it('never overrides ?salon= on localhost', async () => {
+    embed({ domain: 'localhost', salon: SARA_ROW });
+    respond({ ...SARA_ROW, id: 'elegance' });
+
+    expect((await resolveSalon('localhost:5173', '?salon=elegance'))?.id).toBe('elegance');
+    expect(calls[0].table).toBe('salons');
+  });
+});

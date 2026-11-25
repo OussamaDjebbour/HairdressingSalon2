@@ -7,13 +7,15 @@ vi.mock('./_lib/lookup', () => ({ lookupSalon: vi.fn() }));
 const lookup = vi.mocked(lookupSalon);
 
 const ENV = { SUPABASE_URL: 'https://db.example.co', SUPABASE_PUBLISHABLE_KEY: 'k' };
+const PALETTE = {
+  '50': '#FBF1F3', '100': '#F7E0E5', '200': '#EFC1CC', '300': '#E29FB1', '400': '#D17D93',
+  '500': '#B85F76', '600': '#9D4B5F', '700': '#7E3B4C', '800': '#5F2D3A', '900': '#102440',
+};
 const SARA = {
   id: 'sara',
   name: 'Sara Beauté',
-  palette: {
-    '50': '#FBF1F3', '100': '#F7E0E5', '200': '#EFC1CC', '300': '#E29FB1', '400': '#D17D93',
-    '500': '#B85F76', '600': '#9D4B5F', '700': '#7E3B4C', '800': '#5F2D3A', '900': '#102440',
-  },
+  palette: PALETTE,
+  row: { id: 'sara', name: 'Sara Beauté', palette: PALETTE, hero_image: 'https://img.example/sara.jpg' },
 };
 
 /**
@@ -86,8 +88,24 @@ describe('edge middleware', () => {
       ['meta[name="theme-color"]', 'setAttribute', 'content', '#102440'],
       ['meta[name="apple-mobile-web-app-title"]', 'setAttribute', 'content', 'Sara Beauté'],
       ['meta[name="description"]', 'setAttribute', 'content', 'Sara Beauté — salon de coiffure et de beauté. Réservez votre rendez-vous en ligne.'],
-      ['head', 'append', expect.stringMatching(/^<style>:root\{--brand-50:251 241 243;.*--brand-900:16 36 64\}<\/style>$/), { html: true }],
+      [
+        'head',
+        'append',
+        expect.stringMatching(
+          /^<style>:root\{--brand-50:251 241 243;.*--brand-900:16 36 64\}<\/style><script id="salon-data" type="application\/json">\{"domain":"sara-salon.com","salon":\{"id":"sara",.*<\/script>$/,
+        ),
+        { html: true },
+      ],
     ]);
+  });
+
+  it('preloads the hero photo on the home page, not on the admin', async () => {
+    lookup.mockResolvedValue(SARA);
+    await run('https://sara-salon.com/', html()).result;
+    await run('https://sara-salon.com/admin', html()).result;
+    const [home, admin] = rewriters.map((r) => r.edits().find((e) => (e as unknown[])[0] === 'head') as unknown[]);
+    expect(home[2]).toContain('<link rel="preload" as="image" href="https://img.example/sara.jpg" fetchpriority="high">');
+    expect(admin[2]).not.toContain('preload');
   });
 
   it('drops the static file validators so a cached page never keeps old branding', async () => {

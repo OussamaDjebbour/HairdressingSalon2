@@ -1,11 +1,13 @@
 /**
  * Runs in front of every request on Cloudflare Pages. For HTML pages it writes the salon's tab
  * title, theme colour, home-screen name, description and brand colours into <head> before any
- * JavaScript runs, so a salon's site never flashes another salon's name or colours. An unknown
+ * JavaScript runs, so a salon's site never flashes another salon's name or colours. It also writes
+ * the salon row into the page so the app skips its own lookup (and, on /, preloads the hero photo).
+ * An unknown
  * host or a failed lookup leaves the page exactly as built (neutral head; the app then shows
  * "salon introuvable" or its retry screen): this must never break a page.
  */
-import { headTags, normalizeHost } from './_lib/head';
+import { headTags, normalizeHost, salonDataTags } from './_lib/head';
 import { lookupSalon, type Env } from './_lib/lookup';
 
 /** A page navigation (not an asset, fetch or service-worker request). */
@@ -31,11 +33,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   let tags: ReturnType<typeof headTags>;
   let name: string;
+  let extra: string;
   try {
-    const salon = await lookupSalon(normalizeHost(new URL(req.url).host), context.env, (p) => context.waitUntil(p));
+    const url = new URL(req.url);
+    const domain = normalizeHost(url.host);
+    const salon = await lookupSalon(domain, context.env, (p) => context.waitUntil(p));
     if (!salon) return response;
     tags = headTags(salon);
     name = salon.name;
+    extra = salonDataTags(salon, domain, url.pathname);
   } catch {
     return response;
   }
@@ -56,6 +62,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     .on('meta[name="apple-mobile-web-app-title"]', { element: (el) => void el.setAttribute('content', name) })
     .on('meta[name="description"]', { element: (el) => void el.setAttribute('content', tags.description) })
     // tags.style is built from validated #RRGGBB colours only (digits and fixed text).
-    .on('head', { element: (el) => void el.append(`<style>${tags.style}</style>`, { html: true }) })
+    // salonDataTags escapes the row for a <script> and the hero URL for an attribute.
+    .on('head', { element: (el) => void el.append(`<style>${tags.style}</style>${extra}`, { html: true }) })
     .transform(page);
 };

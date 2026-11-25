@@ -5,6 +5,7 @@
  * best effort: if it fails to read or write, the lookup still answers.
  */
 import { toEdgeSalon, type EdgeSalon } from './head';
+import { SALON_COLUMNS } from '../../src/data/salonColumns';
 
 export interface Env {
   SUPABASE_URL: string;
@@ -28,7 +29,8 @@ export async function lookupSalon(host: string, env: Env, waitUntil?: WaitUntil)
   }
   const cache = edgeCache();
   // Keyed under the salon's own address, so the entry lives in that domain's cache.
-  const key = new Request(`https://${host}/__salon-lookup`);
+  // v2: entries hold the whole salon row (v1 held id, name and palette only).
+  const key = new Request(`https://${host}/__salon-lookup-v2`);
   try {
     const hit = await cache?.match(key);
     if (hit) return ((await hit.json()) as { salon: EdgeSalon | null }).salon;
@@ -38,7 +40,7 @@ export async function lookupSalon(host: string, env: Env, waitUntil?: WaitUntil)
 
   const url =
     `${env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/salon_domains` +
-    `?domain=eq.${encodeURIComponent(host)}&select=salon:salons(id,name,palette)`;
+    `?domain=eq.${encodeURIComponent(host)}&select=salon:salons(${SALON_COLUMNS.replace(/\s+/g, '')})`;
   const res = await fetch(url, { headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY } });
   if (!res.ok) throw new Error(`salon lookup failed: HTTP ${res.status}`);
   const rows = (await res.json()) as { salon: unknown }[];
